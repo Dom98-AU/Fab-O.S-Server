@@ -1,0 +1,84 @@
+/* Simple Test Modal CSS - No animations, no transitions, no complex styling */
+
+.test-container {
+    padding: 40px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.test-button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-size: 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.test-button:hover {
+    background: #0056b3;
+}
+
+/* Simple Modal - Immediate visibility, no fancy effects */
+.simple-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: block; /* Always block when rendered */
+}
+
+.simple-modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 500px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transform: translate(-50%, -50%); /* Simple centering */
+}
+
+.simple-modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.simple-modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.simple-close-button {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #6c757d;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.simple-close-button:hover {
+    color: #dc3545;
+}
+
+.simple-modal-body {
+    padding: 20px;
+}
+
+.simple-modal-body p {
+    margin: 0 0 15px 0;
+    line-height: 1.5;
+}

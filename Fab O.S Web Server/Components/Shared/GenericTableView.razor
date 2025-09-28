@@ -1,0 +1,466 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Models
+@using FabOS.WebServer.Models.Columns
+@using FabOS.WebServer.Models.Filtering
+@using FabOS.WebServer.Models.ViewState
+@typeparam TItem
+
+<div class="fabos-table-view" data-table-container="true">
+    @if (EnableAdvancedFeatures)
+    {
+        <div class="table-controls-bar">
+            <div class="table-controls-left">
+                @if (EnableColumnManagement)
+                {
+                    <TableColumnManager Columns="@managedColumns"
+                                      ColumnsChanged="@HandleColumnsChanged"
+                                      HasCustomConfiguration="@hasCustomColumnConfig" />
+                }
+                @if (EnableViewPreferences)
+                {
+                    <TableViewPreferences ViewType="Table"
+                                        EntityType="@EntityType"
+                                        CurrentState="@currentViewState"
+                                        OnViewLoaded="@HandleViewLoaded"
+                                        HasUnsavedChanges="@hasUnsavedChanges" />
+                }
+            </div>
+        </div>
+
+        @if (EnableFiltering)
+        {
+            <TableFilterSystem TItem="TItem"
+                             Items="@AllItems"
+                             OnFiltersChanged="@HandleFiltersChanged"
+                             FilteredItemCount="@Items.Count()"
+                             TotalItemCount="@AllItems.Count()" />
+        }
+    }
+
+    @if (Items?.Any() == true)
+    {
+        <div class="fabos-table-container">
+            <div class="fabos-table-wrapper">
+                <table class="fabos-table @TableClass">
+                    <thead class="fabos-table-header">
+                        <tr>
+                            @if (ShowSelection)
+                            {
+                                <th class="fabos-table-header-cell selection-column">
+                                    <div class="fabos-checkbox-wrapper">
+                                        <input type="checkbox" class="fabos-checkbox" @onchange="@ToggleAllSelection" />
+                                        <span class="fabos-checkmark"></span>
+                                    </div>
+                                </th>
+                            }
+                            @foreach (var column in GetVisibleColumns())
+                            {
+                                <th class="fabos-table-header-cell @column.CssClass @(column.IsSortable ? "sortable" : "") @(IsColumnFrozen(column) ? "frozen-column" : "")"
+                                    data-column="@column.PropertyName"
+                                    @onclick="@(() => column.IsSortable ? HandleSort(column) : Task.CompletedTask)">
+                                    <div class="header-content">
+                                        <span class="header-text">@column.Header</span>
+                                        @if (column.IsSortable)
+                                        {
+                                            <span class="sort-indicator">
+                                                <i class="@GetSortIconClass(column) sort-icon"></i>
+                                            </span>
+                                        }
+                                    </div>
+                                </th>
+                            }
+                            @if (ShowActions)
+                            {
+                                <th class="fabos-table-header-cell actions-column">
+                                    <span class="header-text">Actions</span>
+                                </th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody class="fabos-table-body">
+                        @foreach (var item in Items)
+                        {
+                            <tr class="fabos-table-row @(IsSelected?.Invoke(item) == true ? "selected" : "")"
+                                @onclick="@(() => OnRowClick.InvokeAsync(item))"
+                                @ondblclick="@(() => OnRowDoubleClick.InvokeAsync(item))">
+                                @if (ShowSelection)
+                                {
+                                    <td class="fabos-table-cell selection-column" @onclick:stopPropagation="true">
+                                        <div class="fabos-checkbox-wrapper">
+                                            <input type="checkbox"
+                                                   class="fabos-checkbox"
+                                                   checked="@(IsSelected?.Invoke(item) == true)"
+                                                   @onchange="@(args => HandleItemSelectionChanged(item, (bool)args.Value!))" />
+                                            <span class="fabos-checkmark"></span>
+                                        </div>
+                                    </td>
+                                }
+                                @foreach (var column in GetVisibleColumns())
+                                {
+                                    <td class="fabos-table-cell @column.CssClass @(IsColumnFrozen(column) ? "frozen-column" : "")">
+                                        <div class="cell-content">
+                                            @if (column.Header == "Status" && !string.IsNullOrEmpty(column.ValueSelector(item)?.ToString()))
+                                            {
+                                                <span class="status-badge status-@(column.ValueSelector(item)?.ToString()?.ToLower())">
+                                                    @column.ValueSelector(item)
+                                                </span>
+                                            }
+                                            else if (column.Header == "Type" && !string.IsNullOrEmpty(column.ValueSelector(item)?.ToString()))
+                                            {
+                                                <span class="type-badge">
+                                                    <i class="fas fa-file-alt"></i>
+                                                    @column.ValueSelector(item)
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                @column.ValueSelector(item)
+                                            }
+                                        </div>
+                                    </td>
+                                }
+                                @if (ShowActions)
+                                {
+                                    <td class="fabos-table-cell actions-column" @onclick:stopPropagation="true">
+                                        <div class="action-buttons">
+                                            @if (ActionsTemplate != null)
+                                            {
+                                                @ActionsTemplate(item)
+                                            }
+                                            else
+                                            {
+                                                <button class="fabos-btn fabos-btn-sm fabos-btn-primary" @onclick="@(() => OnEdit.InvokeAsync(item))">
+                                                    <i class="fas fa-edit"></i>
+                                                    Edit
+                                                </button>
+                                                <button class="fabos-btn fabos-btn-sm fabos-btn-danger" @onclick="@(() => OnDelete.InvokeAsync(item))">
+                                                    <i class="fas fa-trash"></i>
+                                                    Delete
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="fabos-table-empty">
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-table"></i>
+                </div>
+                <h3 class="empty-title">@EmptyMessage</h3>
+                <p class="empty-description">No data available to display in the table.</p>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .fabos-table-view {
+        background: var(--bs-body-bg);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--bs-border-color);
+    }
+
+    .fabos-table-container {
+        position: relative;
+    }
+
+    .fabos-table-wrapper {
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .fabos-table {
+        width: 100%;
+        margin-bottom: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 0.875rem;
+    }
+
+    .fabos-table-header {
+        background: linear-gradient(135deg, #0066cc 0%, #004499 100%);
+        border-bottom: 2px solid #0066cc;
+    }
+
+    .fabos-table-header-cell {
+        padding: 16px 12px;
+        font-weight: 600;
+        color: white;
+        border: none;
+        position: relative;
+        vertical-align: middle;
+        white-space: nowrap;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+    }
+
+    .fabos-table-header-cell.sortable {
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.2s ease;
+    }
+
+    .fabos-table-header-cell.sortable:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .header-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .sort-indicator {
+        opacity: 0.5;
+        transition: opacity 0.2s ease;
+    }
+
+    .fabos-table-header-cell.sortable:hover .sort-indicator {
+        opacity: 1;
+    }
+
+    .sort-icon {
+        font-size: 0.75rem;
+    }
+
+    .fabos-table-body {
+        background: var(--bs-body-bg);
+    }
+
+    .fabos-table-row {
+        transition: all 0.2s ease;
+        cursor: pointer;
+        border-bottom: 1px solid var(--bs-border-color-translucent);
+    }
+
+    .fabos-table-row:hover {
+        background-color: rgba(var(--bs-primary-rgb), 0.05);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .fabos-table-row.selected {
+        background-color: rgba(var(--bs-primary-rgb), 0.1);
+        border-left: 4px solid var(--bs-primary);
+    }
+
+    .fabos-table-row:last-child {
+        border-bottom: none;
+    }
+
+    .fabos-table-cell {
+        padding: 16px 12px;
+        vertical-align: middle;
+        border: none;
+        color: var(--bs-body-color);
+    }
+
+    .cell-content {
+        display: flex;
+        align-items: center;
+        min-height: 20px;
+    }
+
+    .selection-column {
+        width: 50px;
+        text-align: center;
+    }
+
+    .actions-column {
+        width: 120px;
+        text-align: center;
+    }
+
+    .fabos-checkbox-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .fabos-checkbox {
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border: 2px solid var(--bs-border-color);
+        border-radius: 4px;
+        background: var(--bs-body-bg);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+
+    .fabos-checkbox:checked {
+        background: var(--bs-primary);
+        border-color: var(--bs-primary);
+    }
+
+    .fabos-checkbox:checked::after {
+        content: '✓';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-badge.status-completed,
+    .status-badge.status-success {
+        background-color: rgba(25, 135, 84, 0.1);
+        color: #198754;
+        border: 1px solid rgba(25, 135, 84, 0.2);
+    }
+
+    .status-badge.status-pending,
+    .status-badge.status-processing {
+        background-color: rgba(255, 193, 7, 0.1);
+        color: #ffc107;
+        border: 1px solid rgba(255, 193, 7, 0.2);
+    }
+
+    .status-badge.status-failed,
+    .status-badge.status-error {
+        background-color: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+        border: 1px solid rgba(220, 53, 69, 0.2);
+    }
+
+    .status-badge.status-active {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        border: 1px solid rgba(13, 110, 253, 0.2);
+    }
+
+    .type-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        background-color: rgba(108, 117, 125, 0.1);
+        color: var(--bs-secondary);
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .fabos-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+    }
+
+    .fabos-btn-sm {
+        padding: 4px 8px;
+        font-size: 0.7rem;
+    }
+
+    .fabos-btn-primary {
+        background-color: var(--bs-primary);
+        color: white;
+    }
+
+    .fabos-btn-primary:hover {
+        background-color: var(--bs-primary);
+        filter: brightness(1.1);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .fabos-btn-danger {
+        background-color: var(--bs-danger);
+        color: white;
+    }
+
+    .fabos-btn-danger:hover {
+        background-color: var(--bs-danger);
+        filter: brightness(1.1);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .fabos-table-empty {
+        padding: 60px 20px;
+        text-align: center;
+    }
+
+    .empty-state {
+        max-width: 400px;
+        margin: 0 auto;
+    }
+
+    .empty-icon {
+        font-size: 48px;
+        color: var(--bs-secondary);
+        margin-bottom: 20px;
+        opacity: 0.5;
+    }
+
+    .empty-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--bs-dark);
+        margin-bottom: 8px;
+    }
+
+    .empty-description {
+        color: var(--bs-secondary);
+        margin-bottom: 0;
+    }
+
+    @@media (max-width: 768px) {
+        .fabos-table-cell,
+        .fabos-table-header-cell {
+            padding: 12px 8px;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .fabos-btn {
+            font-size: 0.7rem;
+            padding: 4px 8px;
+        }
+    }
+</style>

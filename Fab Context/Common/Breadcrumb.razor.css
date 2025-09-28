@@ -1,0 +1,154 @@
+/* Breadcrumb Component - CSS Isolation */
+/* Aligned with Fab.OS Visual Identity Guidelines */
+
+/* Container */
+.breadcrumb-container {
+    width: 100%;
+}
+
+/* Main breadcrumb list */
+.breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 1rem;
+    list-style: none;
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    font-size: 0.875rem;
+}
+
+/* Breadcrumb items */
+.breadcrumb-item {
+    display: flex;
+    align-items: center;
+}
+
+/* Separator between items */
+.breadcrumb-item + .breadcrumb-item::before {
+    content: "›";
+    font-size: 1.2rem;
+    color: #6c757d;
+    padding: 0 0.75rem;
+    display: inline-block;
+}
+
+/* Links within breadcrumbs */
+.breadcrumb-item a {
+    color: #6c757d;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    position: relative;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Hover state for links */
+.breadcrumb-item a:hover {
+    color: #0D1A80; /* Fab.OS Deep Blue */
+    background-color: rgba(13, 26, 128, 0.05);
+    transform: translateY(-1px);
+}
+
+/* Animated underline effect */
+.breadcrumb-item a::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background-color: #0D1A80; /* Fab.OS Deep Blue */
+    transition: all 0.3s ease;
+    transform: translateX(-50%);
+}
+
+.breadcrumb-item a:hover::after {
+    width: 80%;
+}
+
+/* Active/current page item */
+.breadcrumb-item.active {
+    color: #0D1A80; /* Fab.OS Deep Blue */
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Icon styling */
+.breadcrumb-item i {
+    color: #0D1A80; /* Fab.OS Deep Blue */
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+    font-size: 0.875rem;
+}
+
+.breadcrumb-item a:hover i {
+    opacity: 1;
+}
+
+.breadcrumb-item.active i {
+    opacity: 1;
+}
+
+/* Text spans for better alignment */
+.breadcrumb-item span {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+    .breadcrumb {
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        padding: 0 0.5rem;
+    }
+    
+    .breadcrumb-item a {
+        padding: 0.2rem 0.4rem;
+    }
+    
+    /* Hide icons on mobile to save space */
+    .breadcrumb-item i {
+        display: none;
+    }
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+    .breadcrumb {
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .breadcrumb-item a {
+        color: #B1B1B1; /* Fab.OS Light Gray */
+    }
+    
+    .breadcrumb-item a:hover {
+        color: #5261D5; /* Fab.OS Light Blue */
+        background-color: rgba(82, 97, 213, 0.1);
+    }
+    
+    .breadcrumb-item.active {
+        color: #5261D5; /* Fab.OS Light Blue */
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        color: #777777; /* Fab.OS Medium Gray */
+    }
+    
+    .breadcrumb-item i {
+        color: #5261D5; /* Fab.OS Light Blue */
+    }
+}

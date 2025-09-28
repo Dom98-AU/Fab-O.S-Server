@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Fab.OS Platform</title>
+    
+    <!-- Fab.OS Favicons -->
+    <link rel="icon" type="image/x-icon" href="~/fabos-favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="~/fabos-favicon-16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="~/fabos-favicon-32.png">
+    <link rel="apple-touch-icon" href="~/fabos-favicon.png">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, #3144CD 0%, #0D1A80 100%);">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="/">
+                    <img src="~/images/f_symbol_final.png" alt="Fab.OS" width="32" height="32" class="me-2" style="filter: brightness(0) invert(1);" />
+                    <span class="fw-bold">Fab.OS Platform</span>
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">Dashboard</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/estimates">Estimates</a>
+                        </li>
+                    </ul>
+                    <ul class="navbar-nav">
+                        @if (User.Identity?.IsAuthenticated == true)
+                        {
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-user-circle me-1"></i>
+                                    @User.Identity.Name
+                                </a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="/Account/Profile">Profile</a></li>
+                                    <li><a class="dropdown-item" href="/Account/Settings">Settings</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="/Account/Logout">Sign Out</a></li>
+                                </ul>
+                            </li>
+                        }
+                        else
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link" href="/Account/Login">Sign In</a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+    
+    <main class="container my-4">
+        @RenderBody()
+    </main>
+
+    <footer style="background: linear-gradient(135deg, #161616 0%, #0D1A80 100%); color: white;" class="py-4 mt-5">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center">
+                        <img src="~/images/f_symbol_final.png" alt="Fab.OS" width="24" height="24" class="me-2" style="filter: brightness(0) invert(1);" />
+                        <span>&copy; 2025 - Fab.OS Platform</span>
+                    </div>
+                    <small class="text-light opacity-75">Steel Estimation & Manufacturing Intelligence</small>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <small class="text-light opacity-75">
+                        Version 1.0 | Multi-Tenant Architecture
+                    </small>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

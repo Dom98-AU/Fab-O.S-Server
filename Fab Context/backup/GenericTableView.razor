@@ -1,0 +1,149 @@
+@namespace SteelEstimation.Web.Components.Shared.Common
+@rendermode InteractiveServer
+@using SteelEstimation.Core.Models
+@using SteelEstimation.Web.Extensions
+
+<div class="generic-table-view" data-table-container="true">
+    <div class="table-responsive" style="overflow-x: auto !important; position: relative !important;">
+        <DataTable 
+                   Items="@Items"
+                   Columns="@GetTableColumns()"
+                   ColumnDefinitions="@ColumnDefinitions"
+                   ShowSelection="@ShowSelection"
+                   ShowActions="@ShowActions"
+                   ShowPagination="@ShowPagination"
+                   PageSize="@PageSize"
+                   SearchTerm="@SearchTerm"
+                   FilterPredicate="@FilterPredicate"
+                   SelectedItems="@SelectedItems"
+                   EmptyMessage="@EmptyMessage"
+                   TableClass="@($"{TableClass} {GetTableClassesForColumnFeatures()}")"
+                   ActionsTemplate="@ActionsTemplate"
+                   OnRowClick="@OnRowClick"
+                   OnEdit="@OnEdit"
+                   OnView="@OnView"
+                   OnDelete="@OnDelete"
+                   OnSelectionChanged="@HandleSelectionChanged" />
+    </div>
+    
+    @* Frozen column shadow elements *@
+    @if (HasFrozenColumns)
+    {
+        <div class="frozen-shadow shadow-left"></div>
+        <div class="frozen-shadow shadow-right"></div>
+    }
+</div>
+
+@code {
+    // Data parameters
+    [Parameter] public List<object> Items { get; set; } = new();
+    
+    // Column parameters - support both legacy TableColumn and new ColumnDefinition
+    [Parameter] public List<TableColumn<object>> Columns { get; set; } = new();
+    [Parameter] public List<ColumnDefinition<object>>? ColumnDefinitions { get; set; }
+    
+    // Selection parameters
+    [Parameter] public bool ShowSelection { get; set; } = true;
+    [Parameter] public HashSet<object> SelectedItems { get; set; } = new();
+    [Parameter] public EventCallback<HashSet<object>> SelectedItemsChanged { get; set; }
+    [Parameter] public EventCallback<HashSet<object>> OnSelectionChanged { get; set; }
+    
+    // Display parameters
+    [Parameter] public bool ShowActions { get; set; } = true;
+    [Parameter] public bool ShowPagination { get; set; } = true;
+    [Parameter] public int PageSize { get; set; } = 20;
+    [Parameter] public string EmptyMessage { get; set; } = "No items found.";
+    [Parameter] public string TableClass { get; set; } = "";
+    
+    // Search and filtering
+    [Parameter] public string SearchTerm { get; set; } = "";
+    [Parameter] public Func<object, bool>? FilterPredicate { get; set; }
+    
+    // Custom templates
+    [Parameter] public RenderFragment<object>? ActionsTemplate { get; set; }
+    
+    // Event callbacks
+    [Parameter] public EventCallback<object> OnRowClick { get; set; }
+    [Parameter] public EventCallback<object> OnEdit { get; set; }
+    [Parameter] public EventCallback<object> OnView { get; set; }
+    [Parameter] public EventCallback<object> OnDelete { get; set; }
+    
+    // Computed properties
+    private bool HasFrozenColumns => ColumnDefinitions?.Any(c => c.IsFrozen) == true;
+    
+    // Methods
+    private List<TableColumn<object>> GetTableColumns()
+    {
+        // If we have ColumnDefinitions, convert them to TableColumns in the correct order
+        if (ColumnDefinitions?.Any() == true)
+        {
+            return ColumnDefinitions
+                .GetVisibleColumnsInOrder()
+                .Select(def => {
+                    var tableColumn = def.ToTableColumn();
+                    // Add data attributes for JavaScript targeting
+                    var classes = new List<string>();
+                    
+                    if (!string.IsNullOrEmpty(tableColumn.CssClass))
+                        classes.Add(tableColumn.CssClass);
+                    
+                    // Add column key data attribute via CSS class for targeting
+                    classes.Add($"column-{def.Key}");
+                    
+                    // Add freeze classes
+                    if (def.IsFrozen)
+                    {
+                        classes.Add($"frozen-{def.FreezePosition.ToString().ToLower()}");
+                        
+                        // Add position-specific classes for multiple frozen columns
+                        var samePositionColumns = ColumnDefinitions
+                            .Where(c => c.FreezePosition == def.FreezePosition && c.IsVisible)
+                            .OrderBy(c => c.Order)
+                            .ToList();
+                        var positionIndex = samePositionColumns.IndexOf(def);
+                        if (positionIndex >= 0)
+                        {
+                            classes.Add($"frozen-{def.FreezePosition.ToString().ToLower()}-{positionIndex}");
+                        }
+                    }
+                    
+                    tableColumn.CssClass = string.Join(" ", classes);
+                    return tableColumn;
+                })
+                .ToList();
+        }
+        
+        // Fall back to legacy Columns
+        return Columns ?? new List<TableColumn<object>>();
+    }
+    
+    private string GetTableClassesForColumnFeatures()
+    {
+        var classes = new List<string>();
+        
+        if (HasFrozenColumns)
+        {
+            classes.Add("has-frozen-columns");
+        }
+        
+        return string.Join(" ", classes);
+    }
+    
+    private async Task HandleSelectionChanged(HashSet<object> selectedItems)
+    {
+        SelectedItems = selectedItems;
+        await SelectedItemsChanged.InvokeAsync(SelectedItems);
+        
+        if (OnSelectionChanged.HasDelegate)
+        {
+            await OnSelectionChanged.InvokeAsync(SelectedItems);
+        }
+    }
+    
+    protected override void OnParametersSet()
+    {
+        // Force re-evaluation of table columns when parameters change
+        // This ensures frozen classes are re-applied when ColumnDefinitions change
+        StateHasChanged();
+    }
+}

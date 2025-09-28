@@ -1,0 +1,180 @@
+/* Fab.OS Generic Card Styles */
+.fabos-generic-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.95) 100%);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.fabos-generic-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    border-color: rgba(40,167,69,0.3);
+}
+
+.fabos-generic-card.selected {
+    border-color: #28a745;
+    box-shadow: 0 4px 16px rgba(40,167,69,0.2);
+}
+
+.fabos-card-selection {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 10;
+}
+
+.fabos-status-ribbon {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 0 12px 0 8px;
+}
+
+.fabos-status-ribbon.status-success {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+}
+
+.fabos-status-ribbon.status-warning {
+    background: linear-gradient(135deg, #ffc107, #fd7e14);
+    color: #212529;
+}
+
+.fabos-status-ribbon.status-danger {
+    background: linear-gradient(135deg, #dc3545, #e83e8c);
+    color: white;
+}
+
+.fabos-status-ribbon.status-info {
+    background: linear-gradient(135deg, #17a2b8, #6f42c1);
+    color: white;
+}
+
+.fabos-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.fabos-card-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    border-radius: 50%;
+    color: white;
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.fabos-card-info {
+    flex: 1;
+}
+
+.fabos-card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #212529;
+    margin: 0 0 0.5rem 0;
+    line-height: 1.4;
+}
+
+.fabos-card-subtitle {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin: 0 0 0.25rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.fabos-card-description {
+    font-size: 0.8rem;
+    color: #868e96;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.fabos-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.fabos-stat-box {
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 8px;
+    padding: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.fabos-stat-box:hover {
+    background: rgba(255,255,255,0.8);
+}
+
+.fabos-stat-box i {
+    font-size: 1rem;
+    color: #28a745;
+}
+
+.fabos-stat-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.fabos-stat-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #212529;
+    line-height: 1;
+}
+
+.fabos-stat-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.fabos-custom-content {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(222,226,230,0.5);
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+    .fabos-generic-card {
+        padding: 1rem;
+    }
+    
+    .fabos-stats-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .fabos-card-avatar {
+        width: 2.5rem;
+        height: 2.5rem;
+        font-size: 1rem;
+    }
+}

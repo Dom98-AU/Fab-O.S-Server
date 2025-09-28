@@ -1,0 +1,238 @@
+@page "/packages/{Id:int}"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>@(Id == 0 ? "New Package" : package?.PackageName ?? "Package Details") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" PageType="PageType.Card" />
+
+<!-- Main Content Container -->
+<div class="package-layout">
+    @if (isLoading)
+    {
+        <div class="package-loading">
+            <div class="spinner"></div>
+            <p>Loading package details...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="package-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>@errorMessage</div>
+        </div>
+    }
+    else if (package != null)
+    {
+        <div class="package-container">
+            <div class="package-card package-info-card">
+                <div class="package-card-header">
+                    <div class="package-card-icon">
+                        <i class="fas fa-box"></i>
+                    </div>
+                    <h2 class="package-card-title">Package Information</h2>
+                </div>
+                <div class="package-card-body">
+                    <div class="package-form-grid two-column">
+                        <!-- Package Number -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">Package Number</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" class="package-form-control" @bind="package.PackageNumber" />
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">@package.PackageNumber</p>
+                            }
+                        </div>
+
+                        <!-- Package Name -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">Package Name</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" class="package-form-control" @bind="package.PackageName" />
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">@package.PackageName</p>
+                            }
+                        </div>
+
+                        <!-- Description -->
+                        <div class="package-form-group full-width">
+                            <label class="package-form-label">Description</label>
+                            @if (isEditMode)
+                            {
+                                <textarea class="package-form-control" rows="3" @bind="package.Description"></textarea>
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">@(package.Description ?? "No description")</p>
+                            }
+                        </div>
+
+                        <!-- Status -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">Status</label>
+                            @if (isEditMode)
+                            {
+                                <select class="package-form-control" @bind="package.Status">
+                                    <option value="Planning">Planning</option>
+                                    <option value="Active">Active</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="On Hold">On Hold</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                </select>
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">
+                                    <span class="badge bg-info">@(package.Status ?? "Active")</span>
+                                </p>
+                            }
+                        </div>
+
+                        <!-- Package Source -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">Package Source</label>
+                            @if (isEditMode)
+                            {
+                                <select class="package-form-control" @bind="package.PackageSource">
+                                    <option value="Project">Project</option>
+                                    <option value="Takeoff">Takeoff</option>
+                                    <option value="Estimation">Estimation</option>
+                                    <option value="Order">Order</option>
+                                </select>
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">@(package.PackageSource ?? "Project")</p>
+                            }
+                        </div>
+                    </div>
+
+                    <h3 class="package-section-header">Schedule & Costing</h3>
+                    <div class="package-form-grid two-column">
+                        <!-- Start Date -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">Start Date</label>
+                            @if (isEditMode)
+                            {
+                                <input type="date" class="package-form-control" @bind="package.StartDate" />
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">@(package.StartDate?.ToString("MMM dd, yyyy") ?? "Not set")</p>
+                            }
+                        </div>
+
+                        <!-- End Date -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">End Date</label>
+                            @if (isEditMode)
+                            {
+                                <input type="date" class="package-form-control" @bind="package.EndDate" />
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">@(package.EndDate?.ToString("MMM dd, yyyy") ?? "Not set")</p>
+                            }
+                        </div>
+
+                        <!-- Estimated Hours -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">Estimated Hours</label>
+                            @if (isEditMode)
+                            {
+                                <input type="number" class="package-form-control" @bind="package.EstimatedHours" step="0.01" />
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">@package.EstimatedHours.ToString("N2")</p>
+                            }
+                        </div>
+
+                        <!-- Estimated Cost -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">Estimated Cost</label>
+                            @if (isEditMode)
+                            {
+                                <input type="number" class="package-form-control" @bind="package.EstimatedCost" step="0.01" />
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">$@package.EstimatedCost.ToString("N2")</p>
+                            }
+                        </div>
+
+                        <!-- Actual Hours -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">Actual Hours</label>
+                            @if (isEditMode)
+                            {
+                                <input type="number" class="package-form-control" @bind="package.ActualHours" step="0.01" />
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">@package.ActualHours.ToString("N2")</p>
+                            }
+                        </div>
+
+                        <!-- Actual Cost -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">Actual Cost</label>
+                            @if (isEditMode)
+                            {
+                                <input type="number" class="package-form-control" @bind="package.ActualCost" step="0.01" />
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">$@package.ActualCost.ToString("N2")</p>
+                            }
+                        </div>
+
+                        <!-- Labor Rate per Hour -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">Labor Rate per Hour</label>
+                            @if (isEditMode)
+                            {
+                                <input type="number" class="package-form-control" @bind="package.LaborRatePerHour" step="0.01" />
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">$@package.LaborRatePerHour.ToString("N2")</p>
+                            }
+                        </div>
+
+                        <!-- Processing Efficiency -->
+                        <div class="package-form-group">
+                            <label class="package-form-label">Processing Efficiency (%)</label>
+                            @if (isEditMode)
+                            {
+                                <input type="number" class="package-form-control" @bind="package.ProcessingEfficiency" step="0.1" min="0" max="200" />
+                            }
+                            else
+                            {
+                                <p class="package-form-control-plaintext">@((package.ProcessingEfficiency ?? 100m).ToString("N1"))%</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="package-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>No package found</div>
+        </div>
+    }
+</div>

@@ -1,0 +1,92 @@
+@namespace FabOS.WebServer.Components.Shared
+@typeparam TItem
+
+<div class="fabos-list-view">
+    @if (Items?.Any() == true)
+    {
+        <div class="list-container">
+            @foreach (var item in Items)
+            {
+                <div class="list-item @(IsSelected?.Invoke(item) == true ? "selected" : "")"
+                     @onclick="() => HandleItemClick(item)"
+                     @ondblclick="() => HandleItemDoubleClick(item)">
+                    
+                    @if (ShowSelection)
+                    {
+                        <div class="list-item-selection">
+                            <input type="checkbox" 
+                                   checked="@(IsSelected?.Invoke(item) == true)"
+                                   @onchange="(e) => HandleSelectionChanged(item, (bool)e.Value!)" 
+                                   @onclick:stopPropagation="true" />
+                        </div>
+                    }
+                    
+                    <div class="list-item-content">
+                        @if (ItemIcon != null)
+                        {
+                            <div class="list-item-icon">
+                                @ItemIcon(item)
+                            </div>
+                        }
+                        
+                        <div class="list-item-main">
+                            <div class="list-item-header">
+                                @if (ItemTitle != null)
+                                {
+                                    <div class="list-item-title">
+                                        @ItemTitle(item)
+                                    </div>
+                                }
+                                
+                                @if (ItemStatus != null)
+                                {
+                                    <div class="list-item-status">
+                                        @ItemStatus(item)
+                                    </div>
+                                }
+                            </div>
+                            
+                            @if (ItemSubtitle != null)
+                            {
+                                <div class="list-item-subtitle">
+                                    @ItemSubtitle(item)
+                                </div>
+                            }
+                            
+                            @if (ItemDetails != null)
+                            {
+                                <div class="list-item-details">
+                                    @ItemDetails(item)
+                                </div>
+                            }
+                        </div>
+                        
+                        @if (ItemActions != null)
+                        {
+                            <div class="list-item-actions" @onclick:stopPropagation="true">
+                                @ItemActions(item)
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="list-empty">
+            @if (EmptyContent != null)
+            {
+                @EmptyContent
+            }
+            else
+            {
+                <div class="empty-icon">
+                    <i class="fas fa-list"></i>
+                </div>
+                <h3>No items found</h3>
+                <p>No items match your current filters.</p>
+            }
+        </div>
+    }
+</div>

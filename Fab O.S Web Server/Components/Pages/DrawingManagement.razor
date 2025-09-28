@@ -1,0 +1,624 @@
+@page "/trace/drawings"
+@page "/drawing-management"
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Services.Interfaces
+@using FabOS.WebServer.Services.Implementations
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Authorization
+
+
+<div class="trace-drawings">
+    <div class="page-header">
+        <h2>
+            <span class="page-icon">📄</span>
+            Drawing Management
+        </h2>
+        <p>Upload and manage CAD drawings for analysis and takeoffs with intelligent OCR</p>
+    </div>
+
+    <!-- Create New Trace Section -->
+    <div class="create-trace-section">
+        <div class="create-trace-card">
+            <h3>🎯 Create New Trace</h3>
+            <p>Start a new takeoff project by uploading drawings with automatic titleblock analysis</p>
+            
+            <div class="trace-name-input">
+                <label class="form-label">Trace Project Name</label>
+                <div class="input-group">
+                    <input type="text" @bind="newTraceName" class="form-control" placeholder="e.g., Office Building - Steel Frame" />
+                    <button class="btn btn-primary" @onclick="CreateNewTrace" disabled="@(string.IsNullOrWhiteSpace(newTraceName))">
+                        📤 Create & Upload Drawings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    @if (showUploadModal)
+    {
+        <div class="modal-overlay" @onclick="CloseUploadModal">
+            <div class="modal-container" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h4>📤 Upload Drawings - @currentTraceName</h4>
+                    <button class="btn-close" @onclick="CloseUploadModal">&times;</button>
+                </div>
+                
+                <div class="modal-body">
+                    @if (currentStep == UploadStep.FileSelection)
+                    {
+                        <div class="upload-step">
+                            <h5>Step 1: Select PDF Drawing</h5>
+                            <div class="file-drop-zone">
+                                <InputFile OnChange="HandleFileSelection" class="file-input" accept=".pdf" />
+                                <div class="drop-zone-content">
+                                    <div class="drop-icon">📁</div>
+                                    <p>Drag & drop your PDF here or click to browse</p>
+                                    <small>Supported format: PDF (Max 50MB)</small>
+                                </div>
+                            </div>
+                            
+                            @if (!string.IsNullOrEmpty(selectedFileName))
+                            {
+                                <div class="selected-file">
+                                    <span class="file-icon">📄</span>
+                                    <span class="file-name">@selectedFileName</span>
+                                    <span class="file-size">(@(FormatFileSize(selectedFile?.Size ?? 0)))</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else if (currentStep == UploadStep.OcrProcessing)
+                    {
+                        <div class="processing-step">
+                            <h5>Step 2: Analyzing Titleblock</h5>
+                            <div class="processing-animation">
+                                <div class="spinner"></div>
+                                <p>Azure OCR is analyzing the drawing titleblock...</p>
+                                <small>This may take a few moments</small>
+                            </div>
+                        </div>
+                    }
+                    else if (currentStep == UploadStep.OcrReview)
+                    {
+                        <div class="review-step">
+                            <h5>Step 3: Review & Confirm OCR Results</h5>
+                            
+                            <div class="ocr-results">
+                                <div class="confidence-indicator">
+                                    <span class="confidence-label">Analysis Confidence:</span>
+                                    <div class="confidence-bar">
+                                        <div class="confidence-fill" style="width: @(ocrResult?.Confidence * 100 ?? 0)%"></div>
+                                    </div>
+                                    <span class="confidence-percentage">@((ocrResult?.Confidence * 100 ?? 0).ToString("F1"))%</span>
+                                </div>
+
+                                <div class="extracted-fields">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Drawing Number</label>
+                                                <input type="text" @bind="ocrResult.DrawingNumber" class="form-control ocr-field" />
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Drawing Title</label>
+                                                <input type="text" @bind="ocrResult.DrawingTitle" class="form-control ocr-field" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Project Name</label>
+                                                <input type="text" @bind="ocrResult.ProjectName" class="form-control ocr-field" />
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Client Name</label>
+                                                <input type="text" @bind="ocrResult.ClientName" class="form-control ocr-field" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">Discipline</label>
+                                                <select @bind="ocrResult.Discipline" class="form-select ocr-field">
+                                                    <option value="Structural">Structural</option>
+                                                    <option value="Architectural">Architectural</option>
+                                                    <option value="Mechanical">Mechanical</option>
+                                                    <option value="Electrical">Electrical</option>
+                                                    <option value="Civil">Civil</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">Scale</label>
+                                                <input type="text" @bind="ocrResult.Scale" class="form-control ocr-field" />
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">Revision</label>
+                                                <input type="text" @bind="ocrResult.Revision" class="form-control ocr-field" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="pdf-preview">
+                                    <h6>PDF Preview</h6>
+                                    <div class="preview-container">
+                                        <canvas id="preview-canvas" style="max-width: 100%; border: 1px solid #ddd;"></canvas>
+                                        @if (ocrResult?.TitleblockBounds != null)
+                                        {
+                                            <div class="titleblock-highlight" style="
+                                                position: absolute;
+                                                left: @(ocrResult.TitleblockBounds.X)px;
+                                                top: @(ocrResult.TitleblockBounds.Y)px;
+                                                width: @(ocrResult.TitleblockBounds.Width)px;
+                                                height: @(ocrResult.TitleblockBounds.Height)px;
+                                                border: 2px solid #007bff;
+                                                background: rgba(0, 123, 255, 0.1);
+                                            "></div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else if (currentStep == UploadStep.Importing)
+                    {
+                        <div class="importing-step">
+                            <h5>Step 4: Importing Drawing</h5>
+                            <div class="import-progress">
+                                <div class="progress">
+                                    <div class="progress-bar" style="width: @(uploadProgress)%"></div>
+                                </div>
+                                <p>Importing drawing and organizing files...</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+                
+                <div class="modal-footer">
+                    @if (currentStep == UploadStep.FileSelection)
+                    {
+                        <button class="btn btn-secondary" @onclick="CloseUploadModal">Cancel</button>
+                        <button class="btn btn-primary" @onclick="ProcessWithOcr" disabled="@(selectedFile == null)">
+                            🔍 Analyze with OCR
+                        </button>
+                    }
+                    else if (currentStep == UploadStep.OcrReview)
+                    {
+                        <button class="btn btn-secondary" @onclick="BackToFileSelection">Back</button>
+                        <button class="btn btn-success" @onclick="ImportDrawing">
+                            ✅ Import & Start Takeoff
+                        </button>
+                    }
+                    else if (currentStep == UploadStep.Importing)
+                    {
+                        <button class="btn btn-primary" disabled>Importing...</button>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Existing Drawings List -->
+    <div class="drawings-section">
+        <div class="drawings-list">
+            <h3>📋 Existing Traces</h3>
+            
+            @if (drawings?.Any() == true)
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Trace Name</th>
+                                <th>Drawing Info</th>
+                                <th>Project Details</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var drawing in drawings)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="trace-info">
+                                            <strong>@drawing.TraceName</strong>
+                                            <br><small class="text-muted">@drawing.DrawingNumber</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="drawing-info">
+                                            <div>@drawing.DrawingTitle</div>
+                                            <small class="text-muted">@drawing.Discipline | Scale: @drawing.ScaleUnit</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="project-info">
+                                            <div>@drawing.ProjectName</div>
+                                            <small class="text-muted">Client: @drawing.ClientName</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-@(GetStatusBadgeColor(drawing.ProcessingStatus))">
+                                            @drawing.ProcessingStatus
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group-vertical btn-group-sm">
+                                            <button class="btn btn-primary btn-sm" @onclick="() => StartTakeoff(drawing)">
+                                                📏 Start Takeoff
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => ViewDrawing(drawing)">
+                                                👁️ View Drawing
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">📁</div>
+                    <h4>No traces created yet</h4>
+                    <p>Create your first trace to start uploading and analyzing drawings</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+<style>
+.trace-drawings {
+.trace-drawings {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.page-header h2 {
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+}
+
+.page-icon {
+    margin-right: 0.5rem;
+}
+
+.create-trace-section {
+    margin-bottom: 2rem;
+}
+
+.create-trace-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.create-trace-card h3 {
+    margin-bottom: 0.5rem;
+    font-size: 1.5rem;
+}
+
+.trace-name-input {
+    margin-top: 1.5rem;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.input-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.input-group .form-control {
+    flex: 1;
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-container {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 25px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #6c757d;
+}
+
+.modal-body {
+    padding: 2rem;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1.5rem;
+    border-top: 1px solid #e9ecef;
+}
+
+.file-drop-zone {
+    border: 2px dashed #007bff;
+    border-radius: 8px;
+    padding: 3rem 2rem;
+    text-align: center;
+    background: #f8f9ff;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.file-drop-zone:hover {
+    border-color: #0056b3;
+    background: #e8f0ff;
+}
+
+.file-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.drop-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #007bff;
+}
+
+.selected-file {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #e8f5e8;
+    border-radius: 6px;
+}
+
+.file-icon {
+    font-size: 1.5rem;
+}
+
+.processing-animation {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.confidence-indicator {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.confidence-bar {
+    flex: 1;
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.confidence-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
+    transition: width 0.3s ease;
+}
+
+.ocr-field {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+.ocr-field:focus {
+    background: white;
+    border-color: #007bff;
+}
+
+.pdf-preview {
+    margin-top: 1.5rem;
+}
+
+.preview-container {
+    position: relative;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f8f9fa;
+}
+
+.titleblock-highlight {
+    pointer-events: none;
+    border-radius: 4px;
+}
+
+.import-progress {
+    text-align: center;
+    padding: 2rem;
+}
+
+.progress {
+    height: 12px;
+    margin-bottom: 1rem;
+    background: #e9ecef;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, #007bff, #28a745);
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.drawings-section {
+    margin-top: 2rem;
+}
+
+.drawings-list {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #6c757d;
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.trace-info strong {
+    color: #495057;
+    font-size: 1.1rem;
+}
+
+.btn-group-vertical .btn {
+    margin-bottom: 0.25rem;
+}
+
+.table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.form-label {
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    border: none;
+    font-weight: 500;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #28a745, #1e7e34);
+    border: none;
+    font-weight: 500;
+}
+</style>
+
+<script>
+window.loadPdfPreview = function(dataUrl) {
+    // Load PDF.js for preview
+    if (typeof pdfjsLib === 'undefined') {
+        var script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        script.onload = function() {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            renderPdfPreview(dataUrl);
+        };
+        document.head.appendChild(script);
+    } else {
+        renderPdfPreview(dataUrl);
+    }
+    
+    function renderPdfPreview(url) {
+        var canvas = document.getElementById('preview-canvas');
+        if (!canvas) return;
+        
+        var ctx = canvas.getContext('2d');
+        
+        pdfjsLib.getDocument(url).promise.then(function(pdf) {
+            pdf.getPage(1).then(function(page) {
+                var viewport = page.getViewport({scale: 0.5});
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                var renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                
+                page.render(renderContext);
+            });
+        });
+    }
+};
+</script>

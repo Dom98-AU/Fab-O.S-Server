@@ -1,0 +1,199 @@
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Components.Shared
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="fabos-toolbar">
+    @if (!string.IsNullOrEmpty(Breadcrumb))
+    {
+        <div class="fabos-breadcrumb">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+            <i class="fas fa-chevron-right"></i>
+            <span>@Breadcrumb</span>
+        </div>
+    }
+    <div class="fabos-toolbar-content">
+        <!-- Left Section: Search (only for List pages) -->
+        @if (PageType == PageType.List)
+        {
+            <div class="fabos-toolbar-section fabos-toolbar-search">
+                <div class="fabos-search-wrapper">
+                    <i class="fas fa-search fabos-search-icon"></i>
+                    <input type="text"
+                           class="fabos-search-input"
+                           placeholder="@SearchPlaceholder"
+                           @bind="SearchTerm"
+                           @onkeyup="@(async (e) => await OnSearchChanged.InvokeAsync(SearchTerm))" />
+                    @if (!string.IsNullOrEmpty(SearchTerm))
+                    {
+                        <button type="button" class="fabos-search-clear" @onclick="ClearSearch">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Center Section: Standard Buttons (New, Edit, Delete) + Dropdowns (Actions, Related) -->
+        <div class="fabos-toolbar-section fabos-toolbar-actions">
+            <!-- New Button -->
+            @{
+                var newAction = ActionProvider?.GetActions()?.PrimaryActions?.FirstOrDefault(a => a.Text == "New");
+                if (newAction != null)
+                {
+                    <button type="button"
+                            class="fabos-btn fabos-btn-primary @(newAction.IsDisabled ? "disabled" : "")"
+                            @onclick="() => ExecuteAction(newAction)"
+                            disabled="@newAction.IsDisabled"
+                            title="@newAction.Tooltip">
+                        <i class="fas fa-plus"></i>
+                        <span class="fabos-btn-text">New</span>
+                    </button>
+                }
+                else
+                {
+                    <button type="button"
+                            class="fabos-btn fabos-btn-primary disabled"
+                            disabled="true">
+                        <i class="fas fa-plus"></i>
+                        <span class="fabos-btn-text">New</span>
+                    </button>
+                }
+            }
+
+            <!-- Edit Button -->
+            @{
+                var editAction = ActionProvider?.GetActions()?.PrimaryActions?.FirstOrDefault(a => a.Text == "Edit" || a.Text == "Save");
+                if (editAction != null)
+                {
+                    var buttonStyle = editAction.Text == "Save" ? "fabos-btn-primary" : "fabos-btn-secondary";
+                    var buttonIcon = editAction.Text == "Save" ? "fas fa-save" : "fas fa-edit";
+                    <button type="button"
+                            class="fabos-btn @buttonStyle @(editAction.IsDisabled ? "disabled" : "")"
+                            @onclick="() => ExecuteAction(editAction)"
+                            disabled="@editAction.IsDisabled"
+                            title="@editAction.Tooltip">
+                        <i class="@buttonIcon"></i>
+                        <span class="fabos-btn-text">@editAction.Text</span>
+                    </button>
+                }
+                else
+                {
+                    <button type="button"
+                            class="fabos-btn fabos-btn-secondary disabled"
+                            disabled="true">
+                        <i class="fas fa-edit"></i>
+                        <span class="fabos-btn-text">Edit</span>
+                    </button>
+                }
+            }
+
+            <!-- Delete Button -->
+            @{
+                var deleteAction = ActionProvider?.GetActions()?.PrimaryActions?.FirstOrDefault(a => a.Text == "Delete");
+                if (deleteAction != null)
+                {
+                    <button type="button"
+                            class="fabos-btn fabos-btn-danger @(deleteAction.IsDisabled ? "disabled" : "")"
+                            @onclick="() => ExecuteAction(deleteAction)"
+                            disabled="@deleteAction.IsDisabled"
+                            title="@deleteAction.Tooltip">
+                        <i class="fas fa-trash"></i>
+                        <span class="fabos-btn-text">Delete</span>
+                    </button>
+                }
+                else
+                {
+                    <button type="button"
+                            class="fabos-btn fabos-btn-danger disabled"
+                            disabled="true">
+                        <i class="fas fa-trash"></i>
+                        <span class="fabos-btn-text">Delete</span>
+                    </button>
+                }
+            }
+
+            <!-- Cancel button (when in edit mode) -->
+            @{
+                var cancelAction = ActionProvider?.GetActions()?.PrimaryActions?.FirstOrDefault(a => a.Text == "Cancel");
+                if (cancelAction != null)
+                {
+                    <button type="button"
+                            class="fabos-btn fabos-btn-secondary @(cancelAction.IsDisabled ? "disabled" : "")"
+                            @onclick="() => ExecuteAction(cancelAction)"
+                            disabled="@cancelAction.IsDisabled"
+                            title="@cancelAction.Tooltip">
+                        <i class="fas fa-times"></i>
+                        <span class="fabos-btn-text">Cancel</span>
+                    </button>
+                }
+            }
+
+            <!-- Actions Dropdown -->
+            <div class="fabos-dropdown @(showActionsMenu ? "active" : "")">
+                <button type="button"
+                        class="fabos-btn fabos-btn-secondary @(ActionProvider?.GetActions()?.MenuActions?.Any() != true ? "disabled" : "")"
+                        @onclick="ToggleActionsMenu"
+                        disabled="@(ActionProvider?.GetActions()?.MenuActions?.Any() != true)">
+                    <i class="fas fa-ellipsis-v"></i>
+                    <span class="fabos-btn-text">Actions</span>
+                    <i class="fas fa-chevron-down" style="margin-left: 4px; font-size: 10px;"></i>
+                </button>
+                @if (showActionsMenu && ActionProvider?.GetActions()?.MenuActions?.Any() == true)
+                {
+                    <div class="fabos-dropdown-menu">
+                        @foreach (var action in ActionProvider.GetActions().MenuActions)
+                        {
+                            <button type="button"
+                                    class="fabos-dropdown-item @(action.IsDisabled ? "disabled" : "")"
+                                    @onclick="() => { ExecuteAction(action); showActionsMenu = false; }"
+                                    disabled="@action.IsDisabled">
+                                @if (!string.IsNullOrEmpty(action.Icon))
+                                {
+                                    <i class="@action.Icon"></i>
+                                }
+                                <span>@action.Text</span>
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- Related Dropdown -->
+            <div class="fabos-dropdown @(showRelatedMenu ? "active" : "")">
+                <button type="button"
+                        class="fabos-btn fabos-btn-secondary @(ActionProvider?.GetActions()?.RelatedActions?.Any() != true ? "disabled" : "")"
+                        @onclick="ToggleRelatedMenu"
+                        disabled="@(ActionProvider?.GetActions()?.RelatedActions?.Any() != true)">
+                    <i class="fas fa-link"></i>
+                    <span class="fabos-btn-text">Related</span>
+                    <i class="fas fa-chevron-down" style="margin-left: 4px; font-size: 10px;"></i>
+                </button>
+                @if (showRelatedMenu && ActionProvider?.GetActions()?.RelatedActions?.Any() == true)
+                {
+                    <div class="fabos-dropdown-menu">
+                        @foreach (var action in ActionProvider.GetActions().RelatedActions)
+                        {
+                            <button type="button"
+                                    class="fabos-dropdown-item @(action.IsDisabled ? "disabled" : "")"
+                                    @onclick="() => { ExecuteAction(action); showRelatedMenu = false; }"
+                                    disabled="@action.IsDisabled">
+                                @if (!string.IsNullOrEmpty(action.Icon))
+                                {
+                                    <i class="@action.Icon"></i>
+                                }
+                                <span>@action.Text</span>
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Right Section: Empty space for future expansion -->
+        <div class="fabos-toolbar-section fabos-toolbar-menu">
+            <!-- Reserved for additional features -->
+        </div>
+    </div>
+</div>

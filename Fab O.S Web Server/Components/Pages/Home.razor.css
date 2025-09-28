@@ -1,0 +1,155 @@
+/* Fab.OS Dashboard Styles */
+
+.fabos-dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.fabos-welcome-section {
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.fabos-welcome-title {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: 2.5rem;
+    color: var(--fabos-primary);
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.02em;
+}
+
+.fabos-welcome-subtitle {
+    font-size: 1.125rem;
+    color: var(--fabos-gray-600);
+    margin: 0;
+}
+
+.fabos-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 1.5rem;
+}
+
+.fabos-dashboard-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: var(--fabos-shadow);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 1px solid var(--fabos-gray-200);
+}
+
+.fabos-dashboard-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--fabos-shadow-lg);
+}
+
+.fabos-admin-card {
+    border-left: 4px solid var(--fabos-accent);
+}
+
+.fabos-card-header {
+    display: flex;
+    align-items: flex-start;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--fabos-gray-100);
+}
+
+.fabos-card-icon {
+    font-size: 2rem;
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+
+.fabos-card-title-section {
+    flex: 1;
+}
+
+.fabos-card-title {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    font-size: 1.25rem;
+    color: var(--fabos-gray-900);
+    margin: 0 0 0.25rem 0;
+}
+
+.fabos-card-subtitle {
+    font-size: 0.875rem;
+    color: var(--fabos-gray-500);
+    margin: 0;
+}
+
+.fabos-card-content {
+    padding: 1.5rem;
+}
+
+.fabos-card-content p {
+    color: var(--fabos-gray-600);
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+
+.fabos-card-stats {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.fabos-stat {
+    text-align: center;
+}
+
+.fabos-stat-number {
+    display: block;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: 1.75rem;
+    color: var(--fabos-primary);
+}
+
+.fabos-stat-label {
+    font-size: 0.75rem;
+    color: var(--fabos-gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.fabos-card-footer {
+    padding: 1rem 1.5rem;
+    background: var(--fabos-gray-50);
+    border-top: 1px solid var(--fabos-gray-100);
+}
+
+.fabos-card-action {
+    display: inline-flex;
+    align-items: center;
+    background: linear-gradient(135deg, var(--fabos-primary), var(--fabos-secondary));
+    color: white;
+    text-decoration: none;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.fabos-card-action:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--fabos-shadow-md);
+    color: white;
+    text-decoration: none;
+}
+
+@media (max-width: 768px) {
+    .fabos-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .fabos-welcome-title {
+        font-size: 2rem;
+    }
+    
+    .fabos-card-stats {
+        justify-content: center;
+    }
+}

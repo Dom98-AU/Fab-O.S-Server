@@ -1,0 +1,57 @@
+/* Fab.OS Toolbar New Button Styles */
+.fabos-btn-new {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    border: none;
+    color: white;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.fabos-btn-new::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.1) 100%);
+    transition: left 0.3s ease;
+}
+
+.fabos-btn-new:hover::before {
+    left: 0;
+}
+
+.fabos-btn-new:hover {
+    background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(40,167,69,0.3);
+}
+
+.fabos-btn-new:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(40,167,69,0.4);
+}
+
+.fabos-btn-new:disabled {
+    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.fabos-btn-new:disabled::before {
+    display: none;
+}
+
+.fabos-btn-new i {
+    margin-right: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.fabos-btn-new span {
+    font-size: 0.875rem;
+    letter-spacing: 0.3px;
+}

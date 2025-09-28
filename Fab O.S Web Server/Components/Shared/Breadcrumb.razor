@@ -1,0 +1,35 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Models
+
+@if (Items != null && Items.Any())
+{
+    <nav aria-label="breadcrumb" class="fabos-breadcrumb-container">
+        <ol class="fabos-breadcrumb">
+            @foreach (var item in Items)
+            {
+                @if (item.IsActive)
+                {
+                    <li class="fabos-breadcrumb-item active" aria-current="page">
+                        @if (!string.IsNullOrEmpty(item.Icon))
+                        {
+                            <i class="@item.Icon"></i>
+                        }
+                        <span>@item.Label</span>
+                    </li>
+                }
+                else
+                {
+                    <li class="fabos-breadcrumb-item">
+                        <a href="@item.Url">
+                            @if (!string.IsNullOrEmpty(item.Icon))
+                            {
+                                <i class="@item.Icon"></i>
+                            }
+                            <span>@item.Label</span>
+                        </a>
+                    </li>
+                }
+            }
+        </ol>
+    </nav>
+}

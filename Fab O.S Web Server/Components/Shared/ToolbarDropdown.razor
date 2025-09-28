@@ -1,0 +1,59 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+
+<div class="fabos-dropdown" @onclick:stopPropagation="true">
+    <button class="fabos-btn fabos-btn-toolbar @ButtonClass" 
+            @onclick="ToggleDropdown"
+            type="button"
+            disabled="@(!Actions?.Any(a => a.IsVisible && a.IsEnabled) == true)">
+        <i class="@ButtonIcon"></i>
+        <span>@ButtonText</span>
+        <i class="fas fa-chevron-down fabos-dropdown-arrow @(IsOpen ? "open" : "")"></i>
+    </button>
+
+    @if (IsOpen && Actions?.Any(a => a.IsVisible) == true)
+    {
+        <div class="fabos-dropdown-menu @(IsOpen ? "show" : "")" @onclick:stopPropagation="true">
+            @foreach (var action in Actions.Where(a => a.IsVisible))
+            {
+                @if (action.IsSeparator)
+                {
+                    <div class="fabos-dropdown-divider"></div>
+                }
+                else if (!string.IsNullOrEmpty(action.NavigateUrl))
+                {
+                    <a href="@action.NavigateUrl" 
+                       class="fabos-dropdown-item @(!action.IsEnabled ? "disabled" : "")"
+                       @onclick="() => CloseDropdown()">
+                        @if (!string.IsNullOrEmpty(action.Icon))
+                        {
+                            <i class="@action.Icon"></i>
+                        }
+                        <span>@action.Label</span>
+                        @if (!string.IsNullOrEmpty(action.Badge))
+                        {
+                            <span class="fabos-action-badge">@action.Badge</span>
+                        }
+                    </a>
+                }
+                else
+                {
+                    <button class="fabos-dropdown-item @(!action.IsEnabled ? "disabled" : "")" 
+                            @onclick="async () => await ExecuteAction(action)"
+                            disabled="@(!action.IsEnabled)"
+                            type="button">
+                        @if (!string.IsNullOrEmpty(action.Icon))
+                        {
+                            <i class="@action.Icon"></i>
+                        }
+                        <span>@action.Label</span>
+                        @if (!string.IsNullOrEmpty(action.Badge))
+                        {
+                            <span class="fabos-action-badge">@action.Badge</span>
+                        }
+                    </button>
+                }
+            }
+        </div>
+    }
+</div>

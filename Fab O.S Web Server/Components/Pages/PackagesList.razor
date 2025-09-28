@@ -1,0 +1,126 @@
+@page "/packages"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Packages - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search packages..." PageType="PageType.List" />
+
+<!-- Content -->
+<div class="packages-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading packages...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Results Summary and View Switcher -->
+        <div class="content-header">
+            <div class="results-summary">
+                <span class="results-count">@filteredPackages.Count package@(filteredPackages.Count != 1 ? "s" : "") found</span>
+                @if (!string.IsNullOrEmpty(searchTerm))
+                {
+                    <span class="search-filter">• Filtered by "@searchTerm"</span>
+                }
+            </div>
+
+            <GenericViewSwitcher TItem="Package" CurrentView="@currentView"
+                                CurrentViewChanged="@OnViewChanged"
+                                ShowViewPreferences="true" />
+        </div>
+
+        <!-- Views -->
+        @if (filteredPackages.Any())
+        {
+            @if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.Package>.ViewType.Table)
+            {
+                <GenericTableView TItem="Package"
+                                 Items="@filteredPackages"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 ShowCheckboxes="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleRowClick"
+                                 OnRowDoubleClick="@HandleRowDoubleClick" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.Package>.ViewType.List)
+            {
+                <GenericListView TItem="Package"
+                                Items="@filteredPackages"
+                                OnItemClick="@HandleRowClick"
+                                OnItemDoubleClick="@HandleRowDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedListItems"
+                                SelectedItemsChanged="@HandleListSelectionChanged">
+                    <CustomListItemContent Context="package">
+                        <div class="package-list-item">
+                            <div class="package-header">
+                                <h3 class="package-title">@package.PackageName</h3>
+                                <span class="package-number">@package.PackageNumber</span>
+                            </div>
+                            <p class="package-description">@(package.Description ?? "No description available")</p>
+                            <div class="package-meta">
+                                <span class="package-status">@(package.Status ?? "Active")</span>
+                                <span class="package-hours">@package.EstimatedHours.ToString("N2") hours</span>
+                                <span class="package-cost">$@package.EstimatedCost.ToString("N2")</span>
+                            </div>
+                        </div>
+                    </CustomListItemContent>
+                </GenericListView>
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.Package>.ViewType.Card)
+            {
+                <GenericCardView TItem="Package"
+                                Items="@filteredPackages"
+                                OnItemClick="@HandleRowClick"
+                                OnItemDoubleClick="@HandleRowDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@HandleCardSelectionChanged">
+                    <CustomCardContent Context="package">
+                        <div class="package-card">
+                            <div class="package-card-header">
+                                <h4>@package.PackageName</h4>
+                                <span class="badge">@package.PackageNumber</span>
+                            </div>
+                            <p class="package-card-description">@(package.Description ?? "No description")</p>
+                            <div class="package-card-footer">
+                                <span class="package-status">@(package.Status ?? "Active")</span>
+                                <span class="package-cost">$@package.EstimatedCost.ToString("N2")</span>
+                            </div>
+                        </div>
+                    </CustomCardContent>
+                </GenericCardView>
+            }
+        }
+        else
+        {
+            <div class="no-results">
+                <i class="fas fa-box"></i>
+                <h3>No packages found</h3>
+                @if (!string.IsNullOrEmpty(searchTerm))
+                {
+                    <p>Try adjusting your search criteria</p>
+                }
+                else
+                {
+                    <p>Create your first package to get started</p>
+                    <button class="fabos-btn fabos-btn-primary" @onclick="CreateNew">
+                        <i class="fas fa-plus"></i>
+                        Create Package
+                    </button>
+                }
+            </div>
+        }
+    }
+</div>

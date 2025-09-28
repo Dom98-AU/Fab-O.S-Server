@@ -1,0 +1,96 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Models.Columns
+@using Microsoft.AspNetCore.Components
+
+<div class="column-reorder-manager @(IsOpen ? "open" : "")">
+    <button class="column-settings-btn" @onclick="ToggleColumnSettings">
+        <i class="fas fa-columns"></i>
+        <span>Columns</span>
+    </button>
+
+    @if (IsOpen)
+    {
+        <div class="column-panel">
+            <div class="column-panel-header">
+                <h3>Manage Columns</h3>
+                <button class="close-panel" @onclick="ToggleColumnSettings">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="column-controls">
+                <div class="column-search">
+                    <input type="text" placeholder="Search columns..." @bind="searchTerm" @bind:event="oninput" />
+                </div>
+
+                <div class="column-actions">
+                    <button class="btn-link" @onclick="ShowAll">Show All</button>
+                    <button class="btn-link" @onclick="HideAll">Hide All</button>
+                    <button class="btn-link" @onclick="ResetToDefaults">Reset</button>
+                </div>
+            </div>
+
+            <div class="column-list">
+                @foreach (var column in GetFilteredColumns())
+                {
+                    <div class="column-item @(draggedColumn?.Id == column.Id ? "dragging" : "")"
+                         draggable="true"
+                         @ondragstart="() => OnDragStart(column)"
+                         @ondragover="(e) => OnDragOver(e, column)"
+                         @ondragover:preventDefault="true"
+                         @ondrop="() => OnDrop(column)"
+                         @ondragend="OnDragEnd">
+
+                        <div class="column-grip">
+                            <i class="fas fa-grip-vertical"></i>
+                        </div>
+
+                        <label class="column-checkbox">
+                            <input type="checkbox"
+                                   checked="@column.IsVisible"
+                                   @onchange="(e) => OnVisibilityChange(column, (bool)e.Value!)" />
+                            <span>@column.DisplayName</span>
+                        </label>
+
+                        <div class="column-options">
+                            @if (column.FreezePosition != FreezePosition.None)
+                            {
+                                <span class="freeze-indicator">
+                                    <i class="fas fa-thumbtack"></i>
+                                    @column.FreezePosition
+                                </span>
+                            }
+
+                            <div class="freeze-dropdown">
+                                <button class="freeze-btn" @onclick="() => ToggleFreezeMenu(column.Id)">
+                                    <i class="fas fa-thumbtack"></i>
+                                </button>
+                                @if (openFreezeMenuId == column.Id)
+                                {
+                                    <div class="freeze-menu">
+                                        <button @onclick="() => SetFreezePosition(column, FreezePosition.None)">
+                                            No Freeze
+                                        </button>
+                                        <button @onclick="() => SetFreezePosition(column, FreezePosition.Left)">
+                                            Freeze Left
+                                        </button>
+                                        <button @onclick="() => SetFreezePosition(column, FreezePosition.Right)">
+                                            Freeze Right
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="column-panel-footer">
+                <button class="btn-secondary" @onclick="Cancel">Cancel</button>
+                <button class="btn-primary" @onclick="ApplyChanges">Apply</button>
+            </div>
+        </div>
+
+        <div class="column-overlay" @onclick="ToggleColumnSettings"></div>
+    }
+</div>

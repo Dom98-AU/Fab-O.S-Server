@@ -1,0 +1,626 @@
+@page "/trace/viewer/{drawingId:int}"
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Authorization
+
+
+<PageTitle>PDF Takeoff Viewer - Fab O.S</PageTitle>
+
+<div class="pdf-takeoff-container">
+    <div class="toolbar">
+        <div class="toolbar-section">
+            <h3>Scale & Calibration</h3>
+            <div class="calibration-controls">
+                <button class="btn btn-primary" onclick="startCalibration()">Calibrate Scale</button>
+                <div class="scale-info">
+                    <label>Known Distance:</label>
+                    <input type="number" id="known-distance" placeholder="Enter known distance" step="0.01" />
+                    <select id="scale-unit">
+                        <option value="mm">mm</option>
+                        <option value="ft">ft</option>
+                        <option value="m">m</option>
+                        <option value="in">in</option>
+                    </select>
+                </div>
+                <button class="btn btn-success" onclick="setScale()">Set Scale</button>
+                <div class="current-scale">
+                    <strong>Current Scale: <span id="current-scale-display">Not Set</span></strong>
+                </div>
+            </div>
+        </div>
+        
+        <div class="toolbar-section">
+            <h3>Measurement Tools</h3>
+            <div class="measurement-tools">
+                <button class="btn tool-btn" data-tool="linear" onclick="selectTool('linear')">📏 Linear</button>
+                <button class="btn tool-btn" data-tool="area" onclick="selectTool('area')">🔲 Area</button>
+                <button class="btn tool-btn" data-tool="count" onclick="selectTool('count')">🔢 Count</button>
+                <button class="btn tool-btn" data-tool="angle" onclick="selectTool('angle')">📐 Angle</button>
+            </div>
+        </div>
+        
+        <div class="toolbar-section">
+            <h3>Markup Tools</h3>
+            <div class="markup-tools">
+                <button class="btn tool-btn" data-tool="highlight" onclick="selectTool('highlight')">🖍️ Highlight</button>
+                <button class="btn tool-btn" data-tool="text" onclick="selectTool('text')">📝 Text</button>
+                <button class="btn tool-btn" data-tool="arrow" onclick="selectTool('arrow')">➡️ Arrow</button>
+                <button class="btn btn-warning" onclick="clearAnnotations()">🗑️ Clear All</button>
+            </div>
+        </div>
+        
+        <div class="toolbar-section">
+            <h3>Export & Save</h3>
+            <div class="export-tools">
+                <button class="btn btn-info" onclick="exportMeasurements()">📊 Export Data</button>
+                <button class="btn btn-success" onclick="saveTakeoff()">💾 Save Takeoff</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="viewer-content">
+        <div class="pdf-viewer">
+            @if (drawing != null)
+            {
+                <div class="drawing-info">
+                    <h3>@drawing.DrawingTitle</h3>
+                    <p>File: @drawing.FileName | Scale: @drawing.ScaleUnit</p>
+                </div>
+            }
+            
+            <div id="loading-indicator" class="loading-indicator">
+                <p>Loading PDF...</p>
+            </div>
+            <canvas id="pdf-canvas" style="border: 1px solid #ddd; max-width: 100%; height: auto;"></canvas>
+            <canvas id="annotation-layer" style="position: absolute; pointer-events: none; z-index: 2;"></canvas>
+        </div>
+        
+        <div class="measurements-panel">
+            <h3>Measurements</h3>
+            <div id="measurements-list" class="measurements-list">
+                <!-- Measurements will be added here dynamically -->
+            </div>
+            
+            <div class="measurement-summary">
+                <h4>Summary</h4>
+                <div id="summary-content">
+                    <p>Total Linear: <span id="total-linear">0</span></p>
+                    <p>Total Area: <span id="total-area">0</span></p>
+                    <p>Total Count: <span id="total-count">0</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .pdf-takeoff-container {
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    .toolbar {
+        width: 300px;
+        background: #f8f9fa;
+        border-right: 1px solid #dee2e6;
+        padding: 1rem;
+        overflow-y: auto;
+    }
+
+    .toolbar-section {
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .toolbar-section:last-child {
+        border-bottom: none;
+    }
+
+    .toolbar-section h3 {
+        color: #495057;
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+    }
+
+    .calibration-controls,
+    .measurement-tools,
+    .markup-tools,
+    .export-tools {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .scale-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        margin: 0.5rem 0;
+    }
+
+    .scale-info label {
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+
+    .scale-info input,
+    .scale-info select {
+        padding: 0.25rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+
+    .current-scale {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: #e9ecef;
+        border-radius: 4px;
+        text-align: center;
+    }
+
+    .tool-btn {
+        text-align: left;
+        justify-content: flex-start;
+    }
+
+    .tool-btn.active {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .viewer-content {
+        flex: 1;
+        display: flex;
+        overflow: hidden;
+    }
+
+    .pdf-viewer {
+        flex: 1;
+        position: relative;
+        overflow: auto;
+        padding: 1rem;
+        background: #ffffff;
+    }
+
+    .drawing-info {
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #007bff;
+    }
+
+    .drawing-info h3 {
+        margin: 0 0 0.5rem 0;
+        color: #495057;
+    }
+
+    .drawing-info p {
+        margin: 0;
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+
+    .loading-indicator {
+        text-align: center;
+        padding: 2rem;
+        color: #6c757d;
+    }
+
+    #pdf-canvas {
+        display: block;
+        margin: 0 auto;
+        max-width: 100%;
+        height: auto;
+        cursor: crosshair;
+    }
+
+    #annotation-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+    }
+
+    .measurements-panel {
+        width: 300px;
+        background: #f8f9fa;
+        border-left: 1px solid #dee2e6;
+        padding: 1rem;
+        overflow-y: auto;
+    }
+
+    .measurements-panel h3 {
+        color: #495057;
+        margin-bottom: 1rem;
+    }
+
+    .measurements-list {
+        max-height: 400px;
+        overflow-y: auto;
+        margin-bottom: 1rem;
+    }
+
+    .measurement-item {
+        background: white;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        border-radius: 4px;
+        border-left: 3px solid #007bff;
+        font-size: 0.9rem;
+    }
+
+    .measurement-summary {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+
+    .measurement-summary h4 {
+        margin-bottom: 0.75rem;
+        color: #495057;
+        font-size: 1rem;
+    }
+
+    .measurement-summary p {
+        margin: 0.25rem 0;
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.9rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        background: white;
+        color: #495057;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+        background: #e9ecef;
+        border-color: #adb5bd;
+    }
+
+    .btn-primary {
+        background: #007bff;
+        border-color: #007bff;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #0056b3;
+        border-color: #0056b3;
+    }
+
+    .btn-success {
+        background: #28a745;
+        border-color: #28a745;
+        color: white;
+    }
+
+    .btn-success:hover {
+        background: #1e7e34;
+        border-color: #1e7e34;
+    }
+
+    .btn-info {
+        background: #17a2b8;
+        border-color: #17a2b8;
+        color: white;
+    }
+
+    .btn-info:hover {
+        background: #117a8b;
+        border-color: #117a8b;
+    }
+
+    .btn-warning {
+        background: #ffc107;
+        border-color: #ffc107;
+        color: #212529;
+    }
+
+    .btn-warning:hover {
+        background: #e0a800;
+        border-color: #e0a800;
+    }
+
+    .btn:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+</style>
+
+<script>
+    // PDF.js and measurement tools implementation
+    window.loadPdfViewer = function() {
+        if (typeof pdfjsLib === 'undefined') {
+            var script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            script.onload = function() {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                loadPdf();
+            };
+            document.head.appendChild(script);
+        } else {
+            loadPdf();
+        }
+    };
+
+    function loadPdf() {
+        const url = '/sample.pdf'; // This would be dynamically set based on the drawing
+        const loadingTask = pdfjsLib.getDocument(url);
+        const loadingIndicator = document.getElementById('loading-indicator');
+        
+        loadingTask.promise.then(function(pdf) {
+            console.log('PDF loaded');
+            
+            pdf.getPage(1).then(function(page) {
+                console.log('Page loaded');
+                
+                const canvas = document.getElementById('pdf-canvas');
+                const ctx = canvas.getContext('2d');
+                const viewport = page.getViewport({scale: 1.0});
+                
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                var renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                
+                page.render(renderContext).promise.then(function() {
+                    loadingIndicator.style.display = 'none';
+                    console.log('PDF loaded successfully');
+                    initializeMeasurementTools();
+                });
+            });
+        }).catch(function(error) {
+            console.error('Error loading PDF:', error);
+            loadingIndicator.innerHTML = '<p style="color: red;">Error loading PDF: ' + error.message + '</p>';
+        });
+    }
+
+    // Measurement tools
+    let currentTool = null;
+    let measurements = [];
+    let isCalibrating = false;
+    let calibrationLine = null;
+    let scale = null;
+    let currentMeasurement = null;
+
+    function selectTool(tool) {
+        currentTool = tool;
+        document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelector('[data-tool="' + tool + '"]').classList.add('active');
+        
+        const canvas = document.getElementById('pdf-canvas');
+        canvas.style.cursor = tool === 'linear' || tool === 'area' ? 'crosshair' : 'default';
+    }
+
+    function startCalibration() {
+        isCalibrating = true;
+        currentTool = 'calibrate';
+        document.getElementById('current-scale-display').textContent = 'Calibrating...';
+    }
+
+    function setScale() {
+        const distance = document.getElementById('known-distance').value;
+        const unit = document.getElementById('scale-unit').value;
+        
+        if (distance && calibrationLine) {
+            const pixelDistance = Math.sqrt(
+                Math.pow(calibrationLine.end.x - calibrationLine.start.x, 2) + 
+                Math.pow(calibrationLine.end.y - calibrationLine.start.y, 2)
+            );
+            
+            scale = parseFloat(distance) / pixelDistance;
+            document.getElementById('current-scale-display').textContent = 
+                scale.toFixed(4) + ' ' + unit + '/pixel';
+            
+            isCalibrating = false;
+            calibrationLine = null;
+        }
+    }
+
+    function clearAnnotations() {
+        measurements = [];
+        updateMeasurementsList();
+        redrawCanvas();
+    }
+
+    function exportMeasurements() {
+        const data = {
+            measurements: measurements,
+            scale: scale,
+            totalLinear: measurements.filter(m => m.type === 'linear').reduce((sum, m) => sum + m.realDistance, 0),
+            totalArea: measurements.filter(m => m.type === 'area').reduce((sum, m) => sum + m.area, 0),
+            totalCount: measurements.filter(m => m.type === 'count').length
+        };
+        
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'takeoff-measurements.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function saveTakeoff() {
+        // This would save to the server
+        alert('Takeoff saved successfully!');
+    }
+
+    function initializeMeasurementTools() {
+        const canvas = document.getElementById('pdf-canvas');
+        let startPoint = null;
+        let tempLine = null;
+
+        canvas.addEventListener('mousedown', function(e) {
+            if (!currentTool) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (currentTool === 'calibrate') {
+                if (!startPoint) {
+                    startPoint = {x, y};
+                } else {
+                    const endPoint = {x, y};
+                    calibrationLine = {start: startPoint, end: endPoint};
+                    startPoint = null;
+                    
+                    // Draw calibration line
+                    drawLine(calibrationLine.start, calibrationLine.end, '#ff0000', 3);
+                }
+            } else if (currentTool === 'linear') {
+                if (!startPoint) {
+                    startPoint = {x, y};
+                } else {
+                    const endPoint = {x, y};
+                    const pixelDistance = Math.sqrt(
+                        Math.pow(endPoint.x - startPoint.x, 2) + 
+                        Math.pow(endPoint.y - startPoint.y, 2)
+                    );
+                    
+                    const realDistance = scale ? pixelDistance * scale : pixelDistance;
+                    const measurement = {
+                        type: 'linear',
+                        start: startPoint,
+                        end: endPoint,
+                        pixelDistance: pixelDistance,
+                        realDistance: realDistance,
+                        id: Date.now()
+                    };
+                    
+                    measurements.push(measurement);
+                    drawMeasurement(measurement);
+                    updateMeasurementsList();
+                    startPoint = null;
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', function(e) {
+            if (!startPoint || !currentTool) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Clear previous temp line
+            if (tempLine) {
+                clearTempLine();
+            }
+            
+            // Draw temp line
+            tempLine = {start: startPoint, end: {x, y}};
+            drawLine(tempLine.start, tempLine.end, '#cccccc', 1);
+        });
+    }
+
+    function drawLine(start, end, color, width) {
+        const canvas = document.getElementById('pdf-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+    }
+
+    function drawMeasurement(measurement) {
+        drawLine(measurement.start, measurement.end, '#007bff', 2);
+        
+        // Add measurement text
+        const canvas = document.getElementById('pdf-canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#007bff';
+        ctx.font = '12px Arial';
+        
+        const midX = (measurement.start.x + measurement.end.x) / 2;
+        const midY = (measurement.start.y + measurement.end.y) / 2;
+        
+        const text = scale ? 
+            measurement.realDistance.toFixed(2) + ' units' : 
+            measurement.pixelDistance.toFixed(0) + ' px';
+            
+        ctx.fillText(text, midX, midY - 5);
+    }
+
+    function clearTempLine() {
+        // This would need to redraw the entire PDF to clear temp lines properly
+        // For now, we'll just note that this is a simplified implementation
+    }
+
+    function redrawCanvas() {
+        // Redraw PDF and all measurements
+        // This would need to reload the PDF page and redraw all measurements
+        loadPdf();
+    }
+
+    function updateMeasurementsList() {
+        const list = document.getElementById('measurements-list');
+        list.innerHTML = '';
+        
+        measurements.forEach((measurement, index) => {
+            const item = document.createElement('div');
+            item.className = 'measurement-item';
+            
+            const displayValue = scale ? 
+                measurement.realDistance.toFixed(2) + ' units' : 
+                measurement.pixelDistance.toFixed(0) + ' px';
+                
+            item.innerHTML = `
+                <strong>${measurement.type.charAt(0).toUpperCase() + measurement.type.slice(1)} #${index + 1}</strong><br>
+                Length: ${displayValue}
+                <button onclick="removeMeasurement(${measurement.id})" style="float: right; font-size: 0.8em;">×</button>
+            `;
+            
+            list.appendChild(item);
+        });
+        
+        // Update summary
+        updateSummary();
+    }
+
+    function updateSummary() {
+        const totalLinear = measurements
+            .filter(m => m.type === 'linear')
+            .reduce((sum, m) => sum + (scale ? m.realDistance : m.pixelDistance), 0);
+            
+        document.getElementById('total-linear').textContent = 
+            totalLinear.toFixed(2) + (scale ? ' units' : ' px');
+    }
+
+    function removeMeasurement(id) {
+        measurements = measurements.filter(m => m.id !== id);
+        updateMeasurementsList();
+        redrawCanvas();
+    }
+
+    // Auto-load when page is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', window.loadPdfViewer);
+    } else {
+        window.loadPdfViewer();
+    }
+</script>

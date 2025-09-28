@@ -1,0 +1,207 @@
+/* PackageCard Component Styles */
+
+/* Layout Container */
+.package-layout {
+    display: flex;
+    justify-content: center;
+    padding: 2rem 1rem;
+    min-height: calc(100vh - 80px);
+}
+
+.package-container {
+    width: 100%;
+    max-width: 1200px;
+}
+
+/* Card Styles */
+.package-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+    margin-bottom: 1.5rem;
+}
+
+.package-card-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+    border-bottom: 2px solid #CBD5E0;
+    border-radius: 12px 12px 0 0;
+}
+
+.package-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: white;
+    border-radius: 8px;
+    color: #3b82f6;
+    font-size: 1.2rem;
+}
+
+.package-card-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.package-card-body {
+    padding: 1.5rem;
+}
+
+/* Form Grid */
+.package-form-grid {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.package-form-grid.two-column {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.package-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.package-form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+/* Section Dividers */
+.package-section {
+    padding: 1.5rem 0;
+    border-bottom: 2px solid #CBD5E0;
+}
+
+.package-section:last-child {
+    border-bottom: none;
+}
+
+.package-section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #E5E7EB;
+}
+
+/* Form Controls */
+.package-form-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #374151;
+}
+
+.package-form-control {
+    padding: 0.65rem 0.9rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: #1f2937;
+    background: white;
+    transition: all 0.2s ease;
+}
+
+.package-form-control:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.08);
+}
+
+.package-form-control:disabled {
+    background-color: #f9fafb;
+    color: #9ca3af;
+    cursor: not-allowed;
+}
+
+.package-form-control-plaintext {
+    padding: 0.65rem 0.9rem;
+    font-size: 0.95rem;
+    color: #1f2937;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+}
+
+textarea.package-form-control {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* Loading and Error States */
+.package-loading,
+.package-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+}
+
+.package-error {
+    color: #dc2626;
+}
+
+.package-error i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Badge Styles */
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 4px;
+}
+
+.badge.bg-info {
+    background: #3b82f6;
+    color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .package-layout {
+        padding: 1rem 0.5rem;
+    }
+
+    .package-form-grid.two-column {
+        grid-template-columns: 1fr;
+    }
+
+    .package-card-header {
+        padding: 1rem;
+    }
+
+    .package-card-body {
+        padding: 1rem;
+    }
+}

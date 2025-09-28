@@ -1,0 +1,60 @@
+@inherits LayoutComponentBase
+@using FabOS.WebServer.Components.Layout
+@using FabOS.WebServer.Services
+@inject BreadcrumbService BreadcrumbService
+@implements IDisposable
+
+<div class="fabos-app">
+    <!-- Interactive Sidebar Component -->
+    <InteractiveSidebar />
+
+    <!-- Main Content Area -->
+    <div class="fabos-main-content">
+        <!-- Top Bar -->
+        <div class="fabos-top-bar">
+            <div class="fabos-breadcrumb">
+                @if (!string.IsNullOrEmpty(BreadcrumbService.CurrentBreadcrumb))
+                {
+                    <i class="fas fa-home"></i>
+                    <span>Home</span>
+                    <i class="fas fa-chevron-right"></i>
+                    <span>@BreadcrumbService.CurrentBreadcrumb</span>
+                }
+                else
+                {
+                    <span class="fabos-current-module">Current Module</span>
+                }
+            </div>
+            <div class="fabos-user-section">
+                <div class="fabos-user-info">
+                    <span class="fabos-user-name">Admin User</span>
+                    <span class="fabos-user-email">admin@steelestimation.com</span>
+                </div>
+                <button class="fabos-user-menu-button">⚙️</button>
+            </div>
+        </div>
+
+        <!-- Page Content -->
+        <div class="fabos-page-content">
+            @Body
+        </div>
+    </div>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        BreadcrumbService.OnBreadcrumbChanged += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        BreadcrumbService.OnBreadcrumbChanged -= StateHasChanged;
+    }
+}

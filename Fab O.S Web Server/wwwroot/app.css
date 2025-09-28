@@ -1,0 +1,720 @@
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+/* ==========================================
+   FAB.OS LAYOUT STYLES
+   ========================================== */
+
+/* CSS Variables for Fab.OS Brand Colors */
+:root {
+    --fabos-primary: #0D1A80;
+    --fabos-secondary: #3144CD;
+    --fabos-accent: #5261D5;
+    --fabos-light: #F8F9FF;
+    --fabos-dark: #1A1A2E;
+    --fabos-gray-50: #F9FAFB;
+    --fabos-gray-100: #F3F4F6;
+    --fabos-gray-200: #E5E7EB;
+    --fabos-gray-300: #D1D5DB;
+    --fabos-gray-400: #9CA3AF;
+    --fabos-gray-500: #6B7280;
+    --fabos-gray-600: #4B5563;
+    --fabos-gray-700: #374151;
+    --fabos-gray-800: #1F2937;
+    --fabos-gray-900: #111827;
+    
+    --fabos-sidebar-width: 280px;
+    --fabos-sidebar-collapsed-width: 64px;
+    --fabos-topbar-height: 64px;
+    
+    --fabos-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --fabos-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    --fabos-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --fabos-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Global App Container */
+.fabos-app {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background-color: var(--fabos-gray-50);
+}
+
+/* ==========================================
+   SIDEBAR STYLES
+   ========================================== */
+
+.fabos-sidebar {
+    width: var(--fabos-sidebar-width);
+    min-width: var(--fabos-sidebar-width);
+    background: linear-gradient(180deg, var(--fabos-primary) 0%, var(--fabos-secondary) 100%);
+    box-shadow: var(--fabos-shadow-lg);
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    z-index: 40;
+}
+
+.fabos-sidebar.collapsed {
+    width: var(--fabos-sidebar-collapsed-width);
+    min-width: var(--fabos-sidebar-collapsed-width);
+}
+
+/* Sidebar Header */
+.fabos-sidebar-header {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    gap: 0.75rem;
+    pointer-events: auto;
+}
+
+/* Hamburger Button */
+.fabos-hamburger-button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 32px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    z-index: 100;
+    position: relative;
+    pointer-events: auto;
+}
+
+.fabos-hamburger-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.fabos-hamburger-line {
+    width: 18px;
+    height: 2px;
+    background-color: white;
+    margin: 2px 0;
+    border-radius: 1px;
+    transition: all 0.2s ease;
+}
+
+.fabos-hamburger-button:hover .fabos-hamburger-line {
+    background-color: var(--fabos-accent);
+}
+
+/* Logo Section */
+.fabos-logo-section {
+    padding: 1.25rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.fabos-logo-button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.75rem;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.fabos-logo-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+.fabos-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.fabos-brand-text {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: white;
+    margin-left: 0.75rem;
+    letter-spacing: -0.02em;
+}
+
+.fabos-module-indicator {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin-left: auto;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    backdrop-filter: blur(10px);
+}
+
+/* Module Selector Dropdown */
+.fabos-module-selector {
+    position: absolute;
+    top: 120px;
+    left: 1rem;
+    right: 1rem;
+    background: white;
+    border-radius: 16px;
+    box-shadow: var(--fabos-shadow-lg);
+    z-index: 50;
+    overflow: hidden;
+    animation: fabos-slideDown 0.2s ease-out;
+}
+
+@keyframes fabos-slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fabos-module-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--fabos-gray-200);
+    background: var(--fabos-gray-50);
+}
+
+.fabos-module-title {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--fabos-gray-900);
+}
+
+.fabos-close-button {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--fabos-gray-400);
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.fabos-close-button:hover {
+    background: var(--fabos-gray-200);
+    color: var(--fabos-gray-600);
+}
+
+.fabos-module-list {
+    padding: 0.5rem;
+}
+
+.fabos-module-item {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+    padding: 1rem;
+    background: none;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    margin-bottom: 0.25rem;
+}
+
+.fabos-module-item:hover {
+    background: var(--fabos-gray-50);
+    transform: translateX(4px);
+}
+
+.fabos-module-item.active {
+    background: linear-gradient(135deg, var(--fabos-primary), var(--fabos-secondary));
+    color: white;
+}
+
+.fabos-module-item.active .fabos-module-icon {
+    background: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.fabos-module-item:hover .fabos-module-icon {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.05);
+}
+
+.fabos-module-icon {
+    font-size: 2.25rem;
+    margin-right: 1rem;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.fabos-module-name {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 0.25rem;
+    display: block;
+}
+
+.fabos-module-desc {
+    font-size: 0.875rem;
+    color: var(--fabos-gray-500);
+    display: block;
+}
+
+.fabos-module-item.active .fabos-module-desc {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Navigation Menu */
+.fabos-nav {
+    flex: 1;
+    padding: 1rem 0;
+    overflow-y: auto;
+}
+
+.fabos-nav-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+    margin: 0.125rem 0;
+}
+
+.fabos-nav-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-left-color: var(--fabos-accent);
+    transform: translateX(4px);
+}
+
+.fabos-nav-item.active {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    border-left-color: white;
+}
+
+.fabos-nav-item.active .fabos-nav-icon {
+    background: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+}
+
+.fabos-nav-item:hover .fabos-nav-icon {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.05);
+}
+
+.fabos-nav-icon {
+    font-size: 1.75rem;
+    margin-right: 1rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.fabos-nav-text {
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+/* Collapsed Sidebar Styles */
+.fabos-sidebar.collapsed .fabos-nav-icon {
+    width: 3rem;
+    height: 3rem;
+    font-size: 2rem;
+    margin-right: 0;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 0.75rem;
+}
+
+.fabos-sidebar.collapsed .fabos-nav-item {
+    justify-content: center;
+    padding: 0.75rem;
+}
+
+.fabos-sidebar.collapsed .fabos-nav-item:hover .fabos-nav-icon {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Sidebar Footer */
+.fabos-sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.fabos-collapse-button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    padding: 0.75rem;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+}
+
+.fabos-collapse-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.fabos-collapse-icon {
+    font-size: 1rem;
+    margin-right: 0.5rem;
+}
+
+/* ==========================================
+   MAIN CONTENT STYLES
+   ========================================== */
+
+.fabos-main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-left: 0;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 0;
+}
+
+.fabos-main-content.sidebar-collapsed {
+    margin-left: 0;
+}
+
+/* Top Bar */
+.fabos-top-bar {
+    height: var(--fabos-topbar-height);
+    background: white;
+    border-bottom: 1px solid var(--fabos-gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    box-shadow: var(--fabos-shadow-sm);
+}
+
+.fabos-breadcrumb {
+    display: flex;
+    align-items: center;
+    font-size: 0.875rem;
+    gap: 8px;
+}
+
+.fabos-breadcrumb i {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.fabos-breadcrumb span {
+    color: #374151;
+}
+
+.fabos-breadcrumb i.fa-chevron-right {
+    font-size: 0.65rem;
+    color: #9ca3af;
+}
+
+.fabos-current-module {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    color: var(--fabos-primary);
+    font-size: 1.125rem;
+}
+
+.fabos-breadcrumb-separator {
+    margin: 0 0.5rem;
+    color: var(--fabos-gray-400);
+}
+
+.fabos-current-page {
+    color: var(--fabos-gray-600);
+    font-weight: 500;
+}
+
+.fabos-user-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.fabos-user-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+}
+
+.fabos-user-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--fabos-gray-900);
+}
+
+.fabos-user-email {
+    font-size: 0.75rem;
+    color: var(--fabos-gray-500);
+}
+
+.fabos-user-menu-button {
+    background: var(--fabos-gray-100);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 1.125rem;
+}
+
+.fabos-user-menu-button:hover {
+    background: var(--fabos-gray-200);
+    transform: scale(1.05);
+}
+
+/* Page Content */
+.fabos-page-content {
+    flex: 1;
+    padding: 2rem;
+    overflow-y: auto;
+    background: var(--fabos-gray-50);
+}
+
+/* Backdrop */
+.fabos-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 30;
+    animation: fabos-fadeIn 0.2s ease-out;
+}
+
+@keyframes fabos-fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ==========================================
+   RESPONSIVE DESIGN
+   ========================================== */
+
+@media (max-width: 768px) {
+    .fabos-sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        z-index: 50;
+        transform: translateX(-100%);
+    }
+    
+    .fabos-sidebar:not(.collapsed) {
+        transform: translateX(0);
+    }
+    
+    .fabos-main-content {
+        margin-left: 0;
+    }
+    
+    .fabos-top-bar {
+        padding: 0 1rem;
+    }
+    
+    .fabos-page-content {
+        padding: 1rem;
+    }
+    
+    .fabos-user-info {
+        display: none;
+    }
+}
+
+/* ==========================================
+   ORIGINAL STYLES
+   ========================================== */
+
+h1:focus {
+    outline: none;
+}
+
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid #26b050;
+}
+
+.invalid {
+    outline: 1px solid #e50000;
+}
+
+.validation-message {
+    color: #e50000;
+}
+
+.blazor-error-boundary {
+    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
+    padding: 1rem 1rem 1rem 3.7rem;
+    color: white;
+}
+
+    .blazor-error-boundary::after {
+        content: "An error has occurred."
+    }
+
+.darker-border-checkbox.form-check-input {
+    border-color: #929292;
+}
+
+/* ===== SIDEBAR CONTROLS STYLES ===== */
+
+/* Sidebar Controls Section */
+.fabos-sidebar-controls-section {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Control Buttons */
+.fabos-control-button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.8rem;
+    font-weight: 500;
+    gap: 0.5rem;
+}
+
+.fabos-control-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.fabos-control-button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Control Icon */
+.fabos-control-icon {
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.fabos-control-icon.active {
+    color: var(--fabos-accent);
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+/* Expand Arrow Animation */
+.expand-arrow {
+    transition: transform 0.3s ease;
+}
+
+.expand-arrow.expanded {
+    transform: rotate(180deg);
+}
+
+/* Control Text */
+.fabos-control-text {
+    font-size: 0.8rem;
+    font-weight: 500;
+    flex: 1;
+    text-align: left;
+}
+
+/* Expand Button Specific Styling */
+.fabos-expand-button {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(147, 51, 234, 0.15));
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.fabos-expand-button:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(147, 51, 234, 0.25));
+    border-color: rgba(59, 130, 246, 0.4);
+}
+
+/* Pin Mode Button Active State */
+.fabos-control-button .fabos-control-icon.active {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+/* Responsive adjustments for controls */
+@media (max-width: 768px) {
+    .fabos-sidebar-controls-section {
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .fabos-control-button {
+        padding: 0.5rem 0.6rem;
+        font-size: 0.75rem;
+    }
+    
+    .fabos-control-icon {
+        width: 20px;
+        height: 20px;
+        font-size: 1rem;
+    }
+}

@@ -1,0 +1,433 @@
+/* Fab.OS Modern Toolbar Styles - Green Theme */
+.fabos-toolbar {
+    background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(245,248,250,0.9) 100%);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 12px;
+    padding: 0;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    overflow: visible;
+    position: relative;
+    z-index: 100;
+}
+
+/* Breadcrumb Styles */
+.fabos-breadcrumb {
+    padding: 12px 24px;
+    background: rgba(59, 130, 246, 0.05);
+    border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: #6b7280;
+}
+
+.fabos-breadcrumb i {
+    font-size: 0.85rem;
+    color: #9ca3af;
+}
+
+.fabos-breadcrumb span {
+    color: #374151;
+    font-weight: 500;
+}
+
+.fabos-breadcrumb i.fa-chevron-right {
+    font-size: 0.75rem;
+    margin: 0 4px;
+}
+
+.fabos-toolbar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+}
+
+.fabos-toolbar-content {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 16px 24px;
+    gap: 32px;
+    min-height: 60px;
+    flex-wrap: wrap;
+}
+
+/* Toolbar Sections */
+.fabos-toolbar-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.fabos-toolbar-search {
+    flex: 0 1 400px;
+    min-width: 280px;
+    margin-right: 16px;
+}
+
+.fabos-toolbar-actions {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    margin-left: 16px;
+}
+
+.fabos-toolbar-menu {
+    flex: 1;
+    justify-content: flex-end;
+}
+
+/* Search Styling */
+.fabos-search-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.fabos-search-input {
+    width: 100%;
+    padding: 12px 16px 12px 48px;
+    border: 2px solid rgba(40, 167, 69, 0.2);
+    border-radius: 25px;
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(5px);
+    color: #495057;
+    font-size: 14px;
+    font-weight: 400;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+}
+
+.fabos-search-input::placeholder {
+    color: #6c757d;
+    font-weight: 400;
+}
+
+.fabos-search-input:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+    transform: translateY(-1px);
+}
+
+.fabos-search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+    font-size: 16px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.fabos-search-clear {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #6c757d;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.fabos-search-clear:hover {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+    transform: translateY(-50%) scale(1.1);
+}
+
+/* Button Styling */
+.fabos-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 24px;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    min-height: 44px;
+    outline: none;
+}
+
+.fabos-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.5s ease;
+}
+
+.fabos-btn:hover::before {
+    left: 100%;
+}
+
+.fabos-btn-primary {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.fabos-btn-primary:hover {
+    background: linear-gradient(135deg, #218838 0%, #1aa085 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(40, 167, 69, 0.4);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.fabos-btn-primary:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.fabos-btn-secondary {
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(5px);
+    color: #495057;
+    border: 2px solid rgba(40, 167, 69, 0.3);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fabos-btn-secondary:hover {
+    background: rgba(40, 167, 69, 0.1);
+    border-color: #28a745;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+.fabos-btn-secondary:active {
+    transform: translateY(0);
+}
+
+.fabos-btn-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    border: 2px solid rgba(220, 53, 69, 0.3);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.fabos-btn-danger:hover {
+    background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(220, 53, 69, 0.4);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.fabos-btn-danger:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+.fabos-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.fabos-btn.disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.fabos-btn i {
+    font-size: 16px;
+    opacity: 0.9;
+}
+
+.fabos-btn-text {
+    font-weight: 600;
+    letter-spacing: 0.025em;
+}
+
+/* Dropdown Styling */
+.fabos-dropdown {
+    position: relative;
+}
+
+.fabos-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    background: white;
+    border-radius: 16px;
+    padding: 8px 0;
+    min-width: 220px;
+    box-shadow:
+        0 20px 40px rgba(0, 0, 0, 0.15),
+        0 8px 24px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    z-index: 9999;
+    backdrop-filter: blur(20px);
+    overflow: visible;
+}
+
+.fabos-dropdown-menu::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 20px;
+    width: 12px;
+    height: 12px;
+    background: white;
+    transform: rotate(45deg);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    border-left: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.fabos-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 20px;
+    color: #374151;
+    background: none;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.fabos-dropdown-item:hover {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.fabos-dropdown-item:active {
+    transform: scale(0.98);
+}
+
+.fabos-dropdown-item.disabled {
+    color: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.fabos-dropdown-item.disabled:hover {
+    background: none;
+    color: #9ca3af;
+    transform: none;
+}
+
+.fabos-dropdown-item i {
+    width: 18px;
+    font-size: 16px;
+    text-align: center;
+    opacity: 0.8;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .fabos-toolbar-content {
+        padding: 16px 20px;
+        gap: 16px;
+    }
+    
+    .fabos-toolbar-search {
+        min-width: 240px;
+        flex: 0 1 300px;
+    }
+}
+
+@media (max-width: 768px) {
+    .fabos-toolbar-content {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        padding: 20px;
+    }
+
+    .fabos-toolbar-section {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .fabos-toolbar-search {
+        min-width: auto;
+        flex: none;
+    }
+
+    .fabos-toolbar-actions {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .fabos-btn {
+        flex: 1;
+        min-width: 120px;
+        justify-content: center;
+    }
+
+    .fabos-dropdown-menu {
+        right: auto;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    .fabos-dropdown-menu::before {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%) rotate(45deg);
+    }
+}
+
+@media (max-width: 480px) {
+    .fabos-toolbar {
+        border-radius: 12px;
+        margin-bottom: 16px;
+    }
+
+    .fabos-toolbar-content {
+        padding: 16px;
+    }
+
+    .fabos-btn {
+        padding: 10px 16px;
+        font-size: 13px;
+        min-height: 40px;
+    }
+
+    .fabos-search-input {
+        padding: 12px 16px 12px 44px;
+        font-size: 14px;
+    }
+}

@@ -1,0 +1,203 @@
+@page "/simple-pdf-test"
+@using Microsoft.AspNetCore.Authorization
+
+
+<PageTitle>Simple PDF Test - Fab O.S</PageTitle>
+
+<div class="simple-pdf-container">
+    <h2>Simple PDF Viewer Test</h2>
+    
+    <div class="pdf-status" id="pdf-status">
+        <p>Loading PDF viewer...</p>
+    </div>
+    
+    <!-- Simple PDF Container -->
+    <div class="pdf-container" style="border: 2px solid #ccc; margin: 20px 0; height: 600px; position: relative;">
+        <canvas id="simple-pdf-canvas" style="border: 1px solid #000;"></canvas>
+        <div id="loading-indicator" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+            <p>Loading PDF...</p>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button id="load-pdf-btn" class="btn btn-primary" onclick="loadTestPdf()">Load Test PDF</button>
+        <button id="prev-page" class="btn btn-secondary" onclick="prevPage()">Previous</button>
+        <span id="page-info">Page: <span id="page-num">1</span> / <span id="page-count">--</span></span>
+        <button id="next-page" class="btn btn-secondary" onclick="nextPage()">Next</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+// Set the worker source
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let pdfDoc = null;
+let pageNum = 1;
+let pageRendering = false;
+let pageNumPending = null;
+let scale = 1.5;
+let canvas = null;
+let ctx = null;
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    canvas = document.getElementById('simple-pdf-canvas');
+    ctx = canvas.getContext('2d');
+    
+    // Update status
+    document.getElementById('pdf-status').innerHTML = '<p style="color: green;">PDF.js loaded successfully! Ready to load PDF.</p>';
+    
+    // Auto-load test PDF
+    setTimeout(loadTestPdf, 1000);
+});
+
+/**
+ * Load a test PDF
+ */
+function loadTestPdf() {
+    const url = 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf';
+    
+    document.getElementById('pdf-status').innerHTML = '<p style="color: blue;">Loading PDF from Mozilla...</p>';
+    
+    pdfjsLib.getDocument(url).promise.then(function(pdf) {
+        pdfDoc = pdf;
+        document.getElementById('page-count').textContent = pdf.numPages;
+        document.getElementById('pdf-status').innerHTML = '<p style="color: green;">PDF loaded successfully! ' + pdf.numPages + ' pages found.</p>';
+        
+        // Initial/first page rendering
+        renderPage(pageNum);
+    }).catch(function(error) {
+        console.error('Error loading PDF:', error);
+        document.getElementById('pdf-status').innerHTML = '<p style="color: red;">Error loading PDF: ' + error.message + '</p>';
+    });
+}
+
+/**
+ * Render a page
+ */
+function renderPage(num) {
+    pageRendering = true;
+    
+    // Get page
+    pdfDoc.getPage(num).then(function(page) {
+        const viewport = page.getViewport({scale: scale});
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        // Hide loading indicator
+        document.getElementById('loading-indicator').style.display = 'none';
+        
+        // Render PDF page into canvas context
+        const renderContext = {
+            canvasContext: ctx,
+            viewport: viewport
+        };
+        
+        const renderTask = page.render(renderContext);
+        
+        // Wait for rendering to finish
+        renderTask.promise.then(function() {
+            pageRendering = false;
+            if (pageNumPending !== null) {
+                // New page rendering is pending
+                renderPage(pageNumPending);
+                pageNumPending = null;
+            }
+            document.getElementById('page-num').textContent = num;
+        });
+    });
+}
+
+/**
+ * Queue page rendering
+ */
+function queueRenderPage(num) {
+    if (pageRendering) {
+        pageNumPending = num;
+    } else {
+        renderPage(num);
+    }
+}
+
+/**
+ * Previous page
+ */
+function prevPage() {
+    if (pageNum <= 1) {
+        return;
+    }
+    pageNum--;
+    queueRenderPage(pageNum);
+}
+
+/**
+ * Next page
+ */
+function nextPage() {
+    if (pageNum >= pdfDoc.numPages) {
+        return;
+    }
+    pageNum++;
+    queueRenderPage(pageNum);
+}
+</script>
+
+<style>
+.simple-pdf-container {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.pdf-status {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    border-left: 4px solid #007bff;
+}
+
+.controls {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.controls button {
+    margin: 0 10px;
+    padding: 8px 16px;
+}
+
+.controls span {
+    margin: 0 20px;
+    font-weight: bold;
+}
+
+#simple-pdf-canvas {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    background: white;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.btn {
+    background-color: #007bff;
+    border: 1px solid #007bff;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background-color: #0056b3;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.btn-secondary:hover {
+    background-color: #545b62;
+}
+</style>

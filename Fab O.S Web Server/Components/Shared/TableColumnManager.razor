@@ -1,0 +1,201 @@
+@using FabOS.WebServer.Models.Columns
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+
+<div class="table-column-manager">
+    <button type="button" class="btn-column-reorder @(isOpen ? "active" : "")" @onclick="TogglePanel">
+        <i class="fas fa-columns"></i>
+        <span>Columns</span>
+        @if (HasCustomConfiguration)
+        {
+            <span class="custom-indicator"></span>
+        }
+    </button>
+
+    @if (isOpen)
+    {
+        <div class="column-reorder-panel">
+            <div class="column-panel-header">
+                <span>Manage Columns</span>
+                <button type="button" class="column-panel-close" @onclick="ClosePanel">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="column-panel-body">
+                <ul class="column-list" @ondragover="HandleDragOver" @ondragover:preventDefault="true">
+                    @foreach (var (column, index) in Columns.Select((c, i) => (c, i)))
+                    {
+                        <li class="column-item @(column.IsRequired ? "required" : "") @(draggingIndex == index ? "dragging" : "") @(dragOverIndex == index ? "drag-over" : "")"
+                            draggable="@(!column.IsRequired)"
+                            @ondragstart="@(() => HandleDragStart(index))"
+                            @ondragend="HandleDragEnd"
+                            @ondragenter="@(() => HandleDragEnter(index))"
+                            @ondragleave="HandleDragLeave">
+                            
+                            <span class="column-drag-handle">
+                                <i class="fas fa-grip-vertical"></i>
+                            </span>
+                            
+                            <span class="column-visibility-toggle">
+                                <input type="checkbox" 
+                                       checked="@column.IsVisible" 
+                                       disabled="@column.IsRequired"
+                                       @onchange="@((e) => ToggleVisibility(column, e))" />
+                            </span>
+                            
+                            <span class="column-name">@column.DisplayName</span>
+                            
+                            @if (column.IsRequired)
+                            {
+                                <span class="column-required-badge">Required</span>
+                            }
+                            
+                            @if (column.Width.HasValue)
+                            {
+                                <span class="column-width-display">@column.Width px</span>
+                            }
+                            
+                            <button type="button" class="column-freeze-toggle @(column.IsFrozen ? "frozen" : "")"
+                                    @onclick="@(() => ToggleFreeze(column))">
+                                <i class="fas fa-@(column.IsFrozen ? "lock" : "unlock")"></i>
+                            </button>
+                        </li>
+                    }
+                </ul>
+            </div>
+            
+            <div class="column-bulk-actions">
+                <button type="button" class="column-bulk-btn" @onclick="ShowAll">
+                    <i class="fas fa-eye"></i> Show All
+                </button>
+                <button type="button" class="column-bulk-btn" @onclick="HideAll">
+                    <i class="fas fa-eye-slash"></i> Hide All
+                </button>
+                <button type="button" class="column-bulk-btn" @onclick="ResetToDefaults">
+                    <i class="fas fa-undo"></i> Reset
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<ColumnDefinition> Columns { get; set; } = new();
+    [Parameter] public EventCallback<List<ColumnDefinition>> ColumnsChanged { get; set; }
+    [Parameter] public bool HasCustomConfiguration { get; set; }
+    
+    private bool isOpen = false;
+    private int draggingIndex = -1;
+    private int dragOverIndex = -1;
+    
+    private void TogglePanel()
+    {
+        isOpen = !isOpen;
+        StateHasChanged();
+    }
+
+    private void ClosePanel()
+    {
+        isOpen = false;
+        StateHasChanged();
+    }
+    
+    private void HandleDragStart(int index)
+    {
+        if (!Columns[index].IsRequired)
+        {
+            draggingIndex = index;
+        }
+    }
+    
+    private void HandleDragEnd()
+    {
+        draggingIndex = -1;
+        dragOverIndex = -1;
+    }
+    
+    private void HandleDragEnter(int index)
+    {
+        if (draggingIndex >= 0 && draggingIndex != index && !Columns[index].IsRequired)
+        {
+            dragOverIndex = index;
+        }
+    }
+    
+    private void HandleDragLeave()
+    {
+        dragOverIndex = -1;
+    }
+    
+    private async Task HandleDragOver(DragEventArgs e)
+    {
+        if (draggingIndex >= 0 && dragOverIndex >= 0 && draggingIndex != dragOverIndex)
+        {
+            var draggedColumn = Columns[draggingIndex];
+            Columns.RemoveAt(draggingIndex);
+            Columns.Insert(dragOverIndex, draggedColumn);
+            
+            draggingIndex = dragOverIndex;
+            await NotifyColumnsChanged();
+        }
+    }
+    
+    private async Task ToggleVisibility(ColumnDefinition column, ChangeEventArgs e)
+    {
+        if (!column.IsRequired)
+        {
+            column.IsVisible = (bool)(e.Value ?? false);
+            await NotifyColumnsChanged();
+        }
+    }
+    
+    private async Task ToggleFreeze(ColumnDefinition column)
+    {
+        column.IsFrozen = !column.IsFrozen;
+        if (column.IsFrozen)
+        {
+            await ApplyFrozenColumnStyles();
+        }
+        await NotifyColumnsChanged();
+    }
+    
+    private async Task ShowAll()
+    {
+        foreach (var column in Columns)
+        {
+            column.IsVisible = true;
+        }
+        await NotifyColumnsChanged();
+    }
+    
+    private async Task HideAll()
+    {
+        foreach (var column in Columns.Where(c => !c.IsRequired))
+        {
+            column.IsVisible = false;
+        }
+        await NotifyColumnsChanged();
+    }
+    
+    private async Task ResetToDefaults()
+    {
+        // Reset will be handled by parent component
+        await ColumnsChanged.InvokeAsync(null);
+    }
+    
+    private async Task NotifyColumnsChanged()
+    {
+        await ColumnsChanged.InvokeAsync(Columns);
+    }
+    
+    private async Task ApplyFrozenColumnStyles()
+    {
+        // Calculate frozen column positions
+        var frozenColumns = Columns.Where(c => c.IsFrozen && c.IsVisible).ToList();
+        if (frozenColumns.Any())
+        {
+            await JSRuntime.InvokeVoidAsync("applyFrozenColumns", frozenColumns);
+        }
+    }
+}

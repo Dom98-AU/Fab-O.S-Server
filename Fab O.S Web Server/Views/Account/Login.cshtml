@@ -1,0 +1,118 @@
+@model WebLoginModel
+@{
+    ViewData["Title"] = "Sign In";
+    Layout = null; // Use custom layout for login page
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign In - Fab.OS Platform</title>
+    
+    <!-- Fab.OS Favicons -->
+    <link rel="icon" type="image/x-icon" href="~/fabos-favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="~/fabos-favicon-16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="~/fabos-favicon-32.png">
+    <link rel="apple-touch-icon" href="~/fabos-favicon.png">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <img src="~/images/f_symbol_square_auto.png" alt="Fab.OS Platform" class="login-logo" />
+                <h1 class="login-title">Welcome to Fab.OS</h1>
+                <p class="login-subtitle">Sign in to your steel estimation platform</p>
+            </div>
+            
+            <div class="login-form">
+                @if (ViewData.ModelState.ErrorCount > 0)
+                {
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        @Html.ValidationSummary(false, "", new { @class = "mb-0" })
+                    </div>
+                }
+                
+                <form method="post" asp-action="Login" asp-controller="Account">
+                    <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
+                    
+                    <div class="form-group">
+                        <label asp-for="Email" class="form-label">Email Address</label>
+                        <input asp-for="Email" class="form-control" placeholder="Enter your email address" autocomplete="email" />
+                        <span asp-validation-for="Email" class="text-danger"></span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label asp-for="Password" class="form-label">Password</label>
+                        <input asp-for="Password" class="form-control" placeholder="Enter your password" autocomplete="current-password" />
+                        <span asp-validation-for="Password" class="text-danger"></span>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input asp-for="RememberMe" class="form-check-input" />
+                        <label asp-for="RememberMe" class="form-check-label">
+                            Keep me signed in for 8 hours
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="login-btn">
+                        Sign In to Platform
+                    </button>
+                </form>
+                
+                <div class="test-credentials">
+                    <p class="test-credentials-title">Development Credentials</p>
+                    <code class="test-credential">admin@steelestimation.com</code>
+                    <code class="test-credential">Admin@123</code>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+    
+    <!-- Login Page Enhancements -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-focus first empty field
+            const emailField = document.querySelector('input[name="Email"]');
+            const passwordField = document.querySelector('input[name="Password"]');
+            
+            if (emailField && !emailField.value) {
+                emailField.focus();
+            } else if (passwordField && !passwordField.value) {
+                passwordField.focus();
+            }
+            
+            // Add loading state to button on submit
+            const form = document.querySelector('form');
+            const submitBtn = document.querySelector('.login-btn');
+            
+            form.addEventListener('submit', function() {
+                submitBtn.classList.add('loading');
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Signing In...';
+            });
+            
+            // Remove loading state if validation fails
+            setTimeout(() => {
+                if (document.querySelector('.text-danger')) {
+                    submitBtn.classList.remove('loading');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Sign In to Platform';
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html>

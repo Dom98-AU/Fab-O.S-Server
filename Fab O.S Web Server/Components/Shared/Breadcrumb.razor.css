@@ -1,0 +1,57 @@
+/* Fab.OS Breadcrumb Styles */
+.fabos-breadcrumb-container {
+    margin-bottom: 1rem;
+}
+
+.fabos-breadcrumb {
+    background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(245,248,250,0.9) 100%);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin: 0;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.fabos-breadcrumb-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: #6c757d;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.fabos-breadcrumb-item:not(:last-child)::after {
+    content: "›";
+    margin-left: 0.5rem;
+    color: #dee2e6;
+    font-weight: 600;
+}
+
+.fabos-breadcrumb-item a {
+    color: #28a745;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.fabos-breadcrumb-item a:hover {
+    color: #20c997;
+    text-decoration: underline;
+}
+
+.fabos-breadcrumb-item.active {
+    color: #495057;
+    font-weight: 600;
+}
+
+.fabos-breadcrumb-item i {
+    font-size: 0.75rem;
+}

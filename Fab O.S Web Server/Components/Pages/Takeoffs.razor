@@ -1,0 +1,119 @@
+@page "/takeoffs"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models
+@using Microsoft.EntityFrameworkCore
+
+
+<PageTitle>Takeoffs - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search takeoffs..." />
+
+<!-- Content -->
+<div class="takeoffs-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading takeoffs...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Results Summary and View Switcher -->
+        <div class="content-header">
+            <div class="results-summary">
+                <span class="results-count">@filteredTakeoffs.Count takeoff@(filteredTakeoffs.Count != 1 ? "s" : "") found</span>
+                @if (!string.IsNullOrEmpty(searchTerm))
+                {
+                    <span class="search-filter">• Filtered by "@searchTerm"</span>
+                }
+            </div>
+            
+            <GenericViewSwitcher TItem="TraceDrawing" CurrentView="@currentView"
+                                CurrentViewChanged="@OnViewChanged"
+                                ShowViewPreferences="true" />
+        </div>
+
+        <!-- Views -->
+        @if (filteredTakeoffs.Any())
+        {
+            @if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.TraceDrawing>.ViewType.Table)
+            {
+                <GenericTableView TItem="TraceDrawing"
+                                 Items="@filteredTakeoffs"
+                                 AllItems="@allTakeoffs"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 ShowCheckboxes="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleRowClick"
+                                 OnRowDoubleClick="@HandleRowDoubleClick"
+                                 EnableAdvancedFeatures="true"
+                                 EnableColumnManagement="true"
+                                 EnableFiltering="true"
+                                 EnableViewPreferences="true"
+                                 EntityType="TraceDrawing" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.TraceDrawing>.ViewType.Card)
+            {
+                <GenericCardView TItem="TraceDrawing"
+                                Items="@filteredTakeoffs"
+                                TitleSelector="@(item => item.DrawingNumber ?? item.FileName)"
+                                SubtitleSelector="@(item => $"Project: {item.ProjectId}")"
+                                DescriptionSelector="@(item => item.TraceName ?? "No description available")"
+                                ImageUrlSelector="@(item => item.ThumbnailUrl)"
+                                StatusSelector="@(item => item.ProcessingStatus)"
+                                BadgeSelector="@(item => item.FileType)"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<TraceDrawing>>(this, HandleCardSelectionChanged))"
+                                OnItemClick="@(EventCallback.Factory.Create<TraceDrawing>(this, (item) => OpenTakeoff(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<TraceDrawing>(this, (item) => OpenTakeoff(item.Id)))" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.TraceDrawing>.ViewType.List)
+            {
+                <GenericListView TItem="TraceDrawing"
+                                Items="@filteredTakeoffs"
+                                OnItemClick="@HandleRowClick"
+                                OnItemDoubleClick="@HandleRowDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedListItems"
+                                SelectedItemsChanged="@HandleListSelectionChanged">
+                    <CustomListItemContent Context="takeoff">
+                        <div class="takeoff-list-item">
+                            <div class="takeoff-header">
+                                <h3 class="takeoff-title">@(takeoff.DrawingNumber ?? takeoff.FileName)</h3>
+                                <span class="takeoff-type">@takeoff.FileType</span>
+                            </div>
+                            <p class="takeoff-description">@(takeoff.TraceName ?? "No description available")</p>
+                            <div class="takeoff-meta">
+                                <span class="takeoff-status">@takeoff.ProcessingStatus</span>
+                                <span class="takeoff-date">@takeoff.UploadDate.ToString("MMM dd, yyyy")</span>
+                            </div>
+                        </div>
+                    </CustomListItemContent>
+                </GenericListView>
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-drafting-compass"></i>
+                </div>
+                <h3>No takeoffs found</h3>
+                <p>@(string.IsNullOrEmpty(searchTerm) ? "Start by creating your first takeoff from a drawing." : $"No takeoffs match \"{searchTerm}\". Try adjusting your search.")</p>
+                <button type="button" class="btn btn-primary" @onclick="CreateNewTakeoff">
+                    <i class="fas fa-plus"></i>
+                    Create New Takeoff
+                </button>
+            </div>
+        }
+    }
+</div>

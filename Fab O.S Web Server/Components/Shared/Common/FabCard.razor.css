@@ -1,0 +1,182 @@
+/* Fab.OS Card Component Styles */
+.fabos-card {
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.fabos-card-elevated {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.fabos-card-hoverable:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
+}
+
+.fabos-card-clickable {
+    cursor: pointer;
+}
+
+.fabos-card-clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+/* Card Header */
+.fabos-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 1.5rem 1.5rem 0 1.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    margin-bottom: 0;
+}
+
+.fabos-card-title {
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--fabos-text-primary);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.fabos-card-subtitle {
+    font-size: 0.875rem;
+    color: var(--fabos-text-secondary);
+    margin: 0.25rem 0 0 0;
+    line-height: 1.4;
+}
+
+.fabos-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: 1rem;
+    flex-shrink: 0;
+}
+
+/* Card Body */
+.fabos-card-body {
+    padding: 1.5rem;
+    flex: 1;
+    color: var(--fabos-text-primary);
+    line-height: 1.6;
+}
+
+/* Card Footer */
+.fabos-card-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    background: rgba(248, 249, 250, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+/* Card Variants */
+.fabos-card-primary {
+    border-left: 4px solid var(--fabos-primary-color);
+}
+
+.fabos-card-primary .fabos-card-header {
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.05) 0%, rgba(32, 201, 151, 0.05) 100%);
+}
+
+.fabos-card-secondary {
+    border-left: 4px solid #6c757d;
+}
+
+.fabos-card-secondary .fabos-card-header {
+    background: linear-gradient(135deg, rgba(108, 117, 125, 0.05) 0%, rgba(90, 98, 104, 0.05) 100%);
+}
+
+.fabos-card-success {
+    border-left: 4px solid #28a745;
+}
+
+.fabos-card-success .fabos-card-header {
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.05) 0%, rgba(32, 201, 151, 0.05) 100%);
+}
+
+.fabos-card-warning {
+    border-left: 4px solid #ffc107;
+}
+
+.fabos-card-warning .fabos-card-header {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.05) 0%, rgba(224, 168, 0, 0.05) 100%);
+}
+
+.fabos-card-danger {
+    border-left: 4px solid #dc3545;
+}
+
+.fabos-card-danger .fabos-card-header {
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.05) 0%, rgba(200, 35, 51, 0.05) 100%);
+}
+
+.fabos-card-info {
+    border-left: 4px solid #17a2b8;
+}
+
+.fabos-card-info .fabos-card-header {
+    background: linear-gradient(135deg, rgba(23, 162, 184, 0.05) 0%, rgba(19, 132, 150, 0.05) 100%);
+}
+
+.fabos-card-light {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.fabos-card-dark {
+    background: #343a40;
+    color: white;
+    border: 1px solid #495057;
+}
+
+.fabos-card-dark .fabos-card-title {
+    color: white;
+}
+
+.fabos-card-dark .fabos-card-subtitle {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.fabos-card-dark .fabos-card-body {
+    color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .fabos-card-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+    
+    .fabos-card-actions {
+        margin-left: 0;
+        justify-content: flex-end;
+    }
+    
+    .fabos-card-body {
+        padding: 1rem;
+    }
+    
+    .fabos-card-header {
+        padding: 1rem 1rem 0 1rem;
+    }
+    
+    .fabos-card-footer {
+        padding: 1rem;
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

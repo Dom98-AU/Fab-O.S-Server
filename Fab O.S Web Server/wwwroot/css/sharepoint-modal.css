@@ -1,0 +1,486 @@
+/* Modern SharePoint Modal Styles */
+
+/* Variables for consistent theming */
+:root {
+    --sp-primary: #0078d4;
+    --sp-primary-light: #2b88d8;
+    --sp-primary-dark: #106ebe;
+    --sp-success: #48c78e;
+    --sp-warning: #ffdd57;
+    --sp-danger: #f14668;
+    --sp-info: #3e8ed0;
+    --sp-background: #ffffff;
+    --sp-background-light: #f8f9fa;
+    --sp-border: #e0e6ed;
+    --sp-text: #2c3e50;
+    --sp-text-light: #6c757d;
+    --sp-shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
+    --sp-shadow-md: 0 4px 8px rgba(0,0,0,0.08);
+    --sp-shadow-lg: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+/* Modal Content Container */
+.takeoff-files-modal-content {
+    padding: 24px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    min-height: 400px;
+    border-radius: 12px;
+}
+
+/* SharePoint Status Checking */
+.sharepoint-checking {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    text-align: center;
+}
+
+.sharepoint-checking .spinner-border {
+    width: 48px;
+    height: 48px;
+    border-width: 4px;
+    color: var(--sp-primary) !important;
+}
+
+.sharepoint-checking p {
+    color: var(--sp-text);
+    font-size: 18px;
+    font-weight: 500;
+    margin-top: 20px;
+}
+
+/* SharePoint Setup Section */
+.sharepoint-setup {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.sharepoint-setup .alert {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border: none;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--sp-shadow-sm);
+    margin-bottom: 30px;
+}
+
+.sharepoint-setup .alert h5 {
+    color: var(--sp-primary);
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.sharepoint-setup .alert h5 i {
+    margin-right: 8px;
+    font-size: 24px;
+}
+
+.sharepoint-setup .alert p {
+    color: var(--sp-text);
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+/* Setup Form */
+.setup-form {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: var(--sp-shadow-md);
+}
+
+.setup-form h6 {
+    color: var(--sp-text);
+    font-weight: 600;
+    font-size: 20px;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--sp-border);
+}
+
+.setup-form .form-label {
+    color: var(--sp-text);
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.setup-form .form-control {
+    border: 2px solid var(--sp-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    background: var(--sp-background-light);
+}
+
+.setup-form .form-control:focus {
+    border-color: var(--sp-primary);
+    background: white;
+    box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.1);
+    outline: none;
+}
+
+.setup-form .form-control::placeholder {
+    color: var(--sp-text-light);
+    font-size: 14px;
+}
+
+/* Modern Button Styles */
+.btn {
+    border: none;
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-size: 15px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: none;
+    box-shadow: var(--sp-shadow-sm);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--sp-shadow-md);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--sp-primary) 0%, var(--sp-primary-light) 100%);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, var(--sp-primary-dark) 0%, var(--sp-primary) 100%);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #48c78e 0%, #5dd9a3 100%);
+    color: white;
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, #3abb82 0%, #48c78e 100%);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* Setup Instructions */
+.setup-form .text-muted {
+    background: var(--sp-background-light);
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 30px;
+}
+
+.setup-form .text-muted h6 {
+    color: var(--sp-text);
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 12px;
+    border: none;
+    padding: 0;
+}
+
+.setup-form .text-muted ol {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.setup-form .text-muted li {
+    color: var(--sp-text-light);
+    margin-bottom: 8px;
+    line-height: 1.6;
+}
+
+/* SharePoint Error State */
+.sharepoint-error .alert {
+    background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+    border: none;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--sp-shadow-md);
+}
+
+.sharepoint-error .alert h5 {
+    color: var(--sp-danger);
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.sharepoint-error .alert h5 i {
+    margin-right: 8px;
+    font-size: 24px;
+}
+
+.sharepoint-error .alert p {
+    color: var(--sp-text);
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+.sharepoint-error .btn {
+    margin-top: 20px;
+}
+
+/* Create Folder Section */
+.sharepoint-create-folder {
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.sharepoint-create-folder .alert {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffe8a1 100%);
+    border: none;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--sp-shadow-md);
+    text-align: left;
+}
+
+.sharepoint-create-folder .alert h5 {
+    color: #856404;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.sharepoint-create-folder .alert h5 i {
+    margin-right: 8px;
+    font-size: 24px;
+}
+
+.sharepoint-create-folder .alert p {
+    color: var(--sp-text);
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+.folder-info {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+    box-shadow: var(--sp-shadow-sm);
+}
+
+.folder-info p {
+    color: var(--sp-text);
+    font-weight: 500;
+    margin-bottom: 12px;
+}
+
+.folder-info code {
+    display: block;
+    background: var(--sp-background-light);
+    color: var(--sp-primary);
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 14px;
+    border: 2px solid var(--sp-border);
+}
+
+.btn-lg {
+    padding: 16px 32px;
+    font-size: 16px;
+}
+
+/* Loading Files State */
+.sharepoint-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+}
+
+.sharepoint-loading .spinner-border {
+    width: 48px;
+    height: 48px;
+    border-width: 4px;
+}
+
+.sharepoint-loading p {
+    color: var(--sp-text);
+    font-size: 18px;
+    font-weight: 500;
+    margin-top: 20px;
+}
+
+/* Files Section */
+.sharepoint-files {
+    max-width: 100%;
+}
+
+.file-upload-area {
+    background: linear-gradient(135deg, var(--sp-background-light) 0%, white 100%);
+    border: 2px dashed var(--sp-border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.file-upload-area:hover {
+    border-color: var(--sp-primary);
+    background: linear-gradient(135deg, white 0%, var(--sp-background-light) 100%);
+}
+
+.file-upload-area .form-control {
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.file-upload-area small {
+    display: block;
+    margin-top: 12px;
+    color: var(--sp-text-light);
+    font-size: 14px;
+}
+
+/* Alert Improvements */
+.alert {
+    border-radius: 8px;
+    border: none;
+    padding: 16px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.alert i {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.alert .btn-close {
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    line-height: 1;
+    color: currentColor;
+    opacity: 0.5;
+    cursor: pointer;
+    margin-left: auto;
+    padding: 0;
+    transition: opacity 0.3s ease;
+}
+
+.alert .btn-close:hover {
+    opacity: 1;
+}
+
+/* Spinner Animations */
+.spinner-border {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(0, 120, 212, 0.2);
+    border-right-color: var(--sp-primary);
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+}
+
+.spinner-border-sm {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Smooth Transitions */
+.sharepoint-setup,
+.sharepoint-error,
+.sharepoint-create-folder,
+.sharepoint-loading,
+.sharepoint-files {
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .takeoff-files-modal-content {
+        padding: 16px;
+    }
+
+    .setup-form {
+        padding: 20px;
+    }
+
+    .btn {
+        width: 100%;
+        margin-bottom: 12px;
+    }
+
+    .file-upload-area .form-control {
+        max-width: 100%;
+    }
+}
+
+/* Accessibility */
+.btn:focus-visible,
+.form-control:focus-visible {
+    outline: 3px solid var(--sp-primary);
+    outline-offset: 2px;
+}
+
+/* Icon Spacing */
+.fas,
+.far {
+    margin-right: 8px;
+}
+
+.btn .fas,
+.btn .far {
+    margin-right: 8px;
+}
+
+/* Success Message */
+.alert-success {
+    background: linear-gradient(135deg, #d4edda 0%, #b8dfc1 100%);
+}
+
+.alert-info {
+    background: linear-gradient(135deg, #cce5ff 0%, #a8d1ff 100%);
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffe8a1 100%);
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c2c7 100%);
+}

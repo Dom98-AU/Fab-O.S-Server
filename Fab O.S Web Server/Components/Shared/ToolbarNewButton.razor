@@ -1,0 +1,51 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+
+@if (Actions?.Any(a => a.IsVisible) == true)
+{
+    @if (Actions.Count == 1 && !ForceDropdown)
+    {
+        var action = Actions.First();
+        @if (!string.IsNullOrEmpty(action.NavigateUrl))
+        {
+            <a href="@action.NavigateUrl" 
+               class="fabos-btn fabos-btn-toolbar fabos-btn-new"
+               title="@(action.Tooltip ?? action.Label)">
+                <i class="@(action.Icon ?? DefaultIcon)"></i>
+                <span>@(string.IsNullOrEmpty(ButtonText) ? action.Label : ButtonText)</span>
+            </a>
+        }
+        else
+        {
+            <button class="fabos-btn fabos-btn-toolbar fabos-btn-new" 
+                    @onclick="async () => await ExecuteSingleAction(action)"
+                    disabled="@(!action.IsEnabled)"
+                    title="@(action.Tooltip ?? action.Label)">
+                <i class="@(action.Icon ?? DefaultIcon)"></i>
+                <span>@(string.IsNullOrEmpty(ButtonText) ? action.Label : ButtonText)</span>
+            </button>
+        }
+    }
+    else
+    {
+        <ToolbarDropdown Actions="@Actions"
+                        ButtonText="@ButtonText"
+                        ButtonIcon="@DefaultIcon"
+                        ButtonClass="fabos-btn-new"
+                        OnActionExecuted="@OnActionExecuted" />
+    }
+}
+else if (DefaultUrl != null)
+{
+    <a href="@DefaultUrl" class="fabos-btn fabos-btn-toolbar fabos-btn-new">
+        <i class="@DefaultIcon"></i>
+        <span>@ButtonText</span>
+    </a>
+}
+else if (DefaultAction.HasDelegate)
+{
+    <button class="fabos-btn fabos-btn-toolbar fabos-btn-new" @onclick="DefaultAction">
+        <i class="@DefaultIcon"></i>
+        <span>@ButtonText</span>
+    </button>
+}

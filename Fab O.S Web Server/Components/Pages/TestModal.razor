@@ -1,0 +1,46 @@
+@page "/testmodal"
+@namespace FabOS.WebServer.Components.Pages
+
+<PageTitle>Simple Modal Test</PageTitle>
+
+<div class="test-container">
+    <h1>Simple Modal Test</h1>
+    <p>This test page uses the simplest possible modal implementation to isolate the visibility issue.</p>
+
+    <button class="test-button" @onclick="ToggleModal">
+        @if (showModal)
+        {
+            <text>Close Modal</text>
+        }
+        else
+        {
+            <text>Open Modal</text>
+        }
+    </button>
+
+    @if (showModal)
+    {
+        <div class="simple-modal-backdrop">
+            <div class="simple-modal-content">
+                <div class="simple-modal-header">
+                    <h2>Test Modal</h2>
+                    <button class="simple-close-button" @onclick="ToggleModal">&times;</button>
+                </div>
+                <div class="simple-modal-body">
+                    <p>This is a simple modal test.</p>
+                    <p>It should appear immediately when you click "Open Modal".</p>
+                    <p>No cursor movement should be required.</p>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool showModal = false;
+
+    private void ToggleModal()
+    {
+        showModal = !showModal;
+    }
+}

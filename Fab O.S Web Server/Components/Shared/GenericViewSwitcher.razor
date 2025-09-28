@@ -1,0 +1,34 @@
+@namespace FabOS.WebServer.Components.Shared
+@typeparam TItem where TItem : class
+
+<div class="fabos-view-switcher">
+    <div class="view-options">
+        <button class="view-button @(CurrentView == ViewType.Table ? "active" : "")"
+                @onclick="() => SwitchView(ViewType.Table)" 
+                title="Table View">
+            <i class="fas fa-table"></i>
+            <span class="view-label">Table</span>
+        </button>
+        <button class="view-button @(CurrentView == ViewType.Card ? "active" : "")"
+                @onclick="() => SwitchView(ViewType.Card)" 
+                title="Card View">
+            <i class="fas fa-th-large"></i>
+            <span class="view-label">Cards</span>
+        </button>
+        <button class="view-button @(CurrentView == ViewType.List ? "active" : "")"
+                @onclick="() => SwitchView(ViewType.List)" 
+                title="List View">
+            <i class="fas fa-list"></i>
+            <span class="view-label">List</span>
+        </button>
+    </div>
+    
+    @if (ShowViewPreferences)
+    {
+        <div class="view-preferences">
+            <button class="btn-preferences" title="View Preferences">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+    }
+</div>

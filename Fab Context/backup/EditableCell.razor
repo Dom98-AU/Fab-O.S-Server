@@ -1,0 +1,483 @@
+@using SteelEstimation.Core.Models
+@using SteelEstimation.Core.Entities
+@using Microsoft.AspNetCore.Components.Forms
+@typeparam TItem
+@inject IJSRuntime JS
+
+@if (Template != null && Item != null)
+{
+    <div class="editable-cell @GetCellClass()" @attributes="GetCellAttributes()">
+        @switch (Template.Type)
+        {
+            case CellType.Text:
+                <input type="text" 
+                       class="form-control form-control-sm"
+                       value="@GetCellValue()"
+                       @onchange="@(e => HandleChange(e.Value))"
+                       @onfocusout="HandleFocusOut"
+                       disabled="@(!Template.IsEditable)"
+                       required="@Template.IsRequired" />
+                break;
+                
+            case CellType.Number:
+                <input type="number" 
+                       class="form-control form-control-sm"
+                       value="@GetCellValue()"
+                       @onchange="@(e => HandleChange(e.Value))"
+                       @onfocusout="HandleFocusOut"
+                       min="@Template.MinValue"
+                       max="@Template.MaxValue"
+                       step="@GetNumberStep()"
+                       disabled="@(!Template.IsEditable)"
+                       required="@Template.IsRequired" />
+                break;
+                
+            case CellType.Date:
+                <input type="date" 
+                       class="form-control form-control-sm"
+                       value="@GetDateValue()"
+                       @onchange="@(e => HandleChange(e.Value))"
+                       @onfocusout="HandleFocusOut"
+                       disabled="@(!Template.IsEditable)"
+                       required="@Template.IsRequired" />
+                break;
+                
+            case CellType.DateTime:
+                <input type="datetime-local" 
+                       class="form-control form-control-sm"
+                       value="@GetDateTimeValue()"
+                       @onchange="@(e => HandleChange(e.Value))"
+                       @onfocusout="HandleFocusOut"
+                       disabled="@(!Template.IsEditable)"
+                       required="@Template.IsRequired" />
+                break;
+                
+            case CellType.Select:
+                <select class="form-select form-select-sm"
+                        value="@GetCellValue()"
+                        @onchange="@(e => HandleChange(e.Value))"
+                        @onfocusout="HandleFocusOut"
+                        disabled="@(!Template.IsEditable)"
+                        required="@Template.IsRequired">
+                    @if (!Template.IsRequired)
+                    {
+                        <option value="">-- Select --</option>
+                    }
+                    @if (Template.Options != null)
+                    {
+                        @foreach (var option in Template.Options)
+                        {
+                            <option value="@option.Value" disabled="@option.Disabled">
+                                @option.Display
+                            </option>
+                        }
+                    }
+                </select>
+                break;
+                
+            case CellType.Checkbox:
+                <div class="form-check">
+                    <input type="checkbox" 
+                           class="form-check-input"
+                           checked="@GetBoolValue()"
+                           @onchange="@(e => HandleChange(e.Value))"
+                           disabled="@(!Template.IsEditable)" />
+                </div>
+                break;
+                
+            case CellType.Image:
+                <div class="image-cell-container">
+                    @if (GetImages().Any())
+                    {
+                        <div class="image-thumbnails">
+                            @foreach (var img in GetImages().Take(2))
+                            {
+                                <div class="image-thumbnail-wrapper">
+                                    <img src="@GetImageSrc(img)" 
+                                         class="img-thumbnail"
+                                         @onclick="() => PreviewImage(img)"
+                                         alt="@GetImageAlt(img)" />
+                                    @if (Template.IsEditable)
+                                    {
+                                        <button class="btn btn-sm btn-danger image-delete"
+                                                @onclick="() => DeleteImage(img)">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    }
+                                </div>
+                            }
+                            @if (GetImages().Count() > 2)
+                            {
+                                <span class="image-count">+@(GetImages().Count() - 2)</span>
+                            }
+                        </div>
+                    }
+                    @if (Template.IsEditable && (!Template.MaxImages.HasValue || GetImages().Count() < Template.MaxImages.Value))
+                    {
+                        <button class="btn btn-sm btn-outline-secondary image-upload-btn @(IsPasteTarget ? "paste-ready" : "")"
+                                @onclick="ShowImageUpload"
+                                @onfocus="SetAsPasteTarget"
+                                @onblur="RemovePasteTarget">
+                            <i class="fas fa-camera"></i>
+                        </button>
+                    }
+                </div>
+                break;
+                
+            case CellType.Computed:
+                <span class="computed-value">
+                    @if (Template.ComputeDisplay != null)
+                    {
+                        @Template.ComputeDisplay(Item)
+                    }
+                    else
+                    {
+                        @GetCellValue()
+                    }
+                </span>
+                break;
+                
+            case CellType.Action:
+                @if (Template.CustomRender != null)
+                {
+                    @Template.CustomRender(Item)
+                }
+                break;
+                
+            case CellType.Custom:
+                @if (Template.CustomRender != null)
+                {
+                    @Template.CustomRender(Item)
+                }
+                else
+                {
+                    <span>@GetCellValue()</span>
+                }
+                break;
+                
+            default:
+                <span>@GetCellValue()</span>
+                break;
+        }
+        
+        @if (!string.IsNullOrEmpty(validationMessage))
+        {
+            <div class="invalid-feedback d-block">
+                @validationMessage
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public TItem? Item { get; set; }
+    [Parameter] public CellTemplate<TItem>? Template { get; set; }
+    [Parameter] public EventCallback<object?> OnValueChanged { get; set; }
+    [Parameter] public EventCallback<ImageUpload> OnImageUpload { get; set; }
+    [Parameter] public EventCallback<object> OnImageDelete { get; set; }
+    [Parameter] public EventCallback<object> OnImagePreview { get; set; }
+    
+    private string? validationMessage;
+    private bool IsPasteTarget = false;
+    private ElementReference cellElement;
+    
+    private string GetCellClass()
+    {
+        var classes = new List<string> { "editable-cell" };
+        
+        if (!string.IsNullOrEmpty(Template?.CssClass))
+            classes.Add(Template.CssClass);
+            
+        if (!string.IsNullOrEmpty(validationMessage))
+            classes.Add("is-invalid");
+            
+        if (Template?.Type == CellType.Image)
+            classes.Add("image-cell");
+            
+        if (Template?.Type == CellType.Computed)
+            classes.Add("computed-cell");
+            
+        return string.Join(" ", classes);
+    }
+    
+    private Dictionary<string, object> GetCellAttributes()
+    {
+        var attributes = new Dictionary<string, object>();
+        
+        if (!string.IsNullOrEmpty(Template?.Width))
+            attributes["style"] = $"width: {Template.Width};";
+            
+        if (!string.IsNullOrEmpty(Template?.Key))
+            attributes["data-cell-key"] = Template.Key;
+            
+        return attributes;
+    }
+    
+    private string GetCellValue()
+    {
+        if (Item == null || Template?.GetValue == null)
+            return string.Empty;
+            
+        var value = Template.GetValue(Item);
+        return value?.ToString() ?? string.Empty;
+    }
+    
+    private string GetDateValue()
+    {
+        if (Item == null || Template?.GetValue == null)
+            return string.Empty;
+            
+        var value = Template.GetValue(Item);
+        if (value is DateTime dt)
+            return dt.ToString("yyyy-MM-dd");
+            
+        return string.Empty;
+    }
+    
+    private string GetDateTimeValue()
+    {
+        if (Item == null || Template?.GetValue == null)
+            return string.Empty;
+            
+        var value = Template.GetValue(Item);
+        if (value is DateTime dt)
+            return dt.ToString("yyyy-MM-ddTHH:mm");
+            
+        return string.Empty;
+    }
+    
+    private bool GetBoolValue()
+    {
+        if (Item == null || Template?.GetValue == null)
+            return false;
+            
+        var value = Template.GetValue(Item);
+        return value is bool b && b;
+    }
+    
+    private IEnumerable<object> GetImages()
+    {
+        if (Item == null || Template?.GetValue == null)
+            return Enumerable.Empty<object>();
+            
+        var value = Template.GetValue(Item);
+        
+        if (value is IEnumerable<object> images)
+            return images;
+            
+        if (value != null)
+            return new[] { value };
+            
+        return Enumerable.Empty<object>();
+    }
+    
+    private string GetImageSrc(object img)
+    {
+        if (img is ImageUpload upload)
+            return upload.FilePath;
+            
+        if (img is string path)
+            return path;
+            
+        // Support for base64 images
+        if (img is byte[] bytes)
+            return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
+            
+        return string.Empty;
+    }
+    
+    private string GetImageAlt(object img)
+    {
+        if (img is ImageUpload upload)
+            return upload.FileName;
+            
+        return "Image";
+    }
+    
+    private string GetNumberStep()
+    {
+        if (Template?.DecimalPlaces.HasValue == true)
+        {
+            if (Template.DecimalPlaces.Value == 0)
+                return "1";
+            else
+                return "0." + new string('0', Template.DecimalPlaces.Value - 1) + "1";
+        }
+        return "any";
+    }
+    
+    private async Task HandleChange(object? value)
+    {
+        validationMessage = null;
+        
+        // Validate if validator is provided
+        if (Template?.Validate != null && Item != null)
+        {
+            validationMessage = Template.Validate(Item, value);
+            if (!string.IsNullOrEmpty(validationMessage))
+            {
+                StateHasChanged();
+                return;
+            }
+        }
+        
+        // Set value
+        if (Template?.SetValue != null && Item != null)
+        {
+            Template.SetValue(Item, value);
+        }
+        
+        // Call change handler
+        if (Template?.OnChange != null && Item != null)
+        {
+            await Template.OnChange(Item, value);
+        }
+        
+        await OnValueChanged.InvokeAsync(value);
+        StateHasChanged();
+    }
+    
+    private async Task HandleFocusOut()
+    {
+        if (Template?.OnFocusOut != null && Item != null)
+        {
+            await Template.OnFocusOut(Item);
+        }
+    }
+    
+    private void SetAsPasteTarget()
+    {
+        IsPasteTarget = true;
+        StateHasChanged();
+    }
+    
+    private void RemovePasteTarget()
+    {
+        IsPasteTarget = false;
+        StateHasChanged();
+    }
+    
+    private async Task ShowImageUpload()
+    {
+        // This would typically show a modal or file picker
+        // For now, just set as paste target
+        SetAsPasteTarget();
+    }
+    
+    private async Task DeleteImage(object img)
+    {
+        await OnImageDelete.InvokeAsync(img);
+    }
+    
+    private async Task PreviewImage(object img)
+    {
+        await OnImagePreview.InvokeAsync(img);
+    }
+    
+    [JSInvokable]
+    public async Task HandlePastedImage(string base64Data, string fileName)
+    {
+        if (Template?.Type != CellType.Image || !Template.IsEditable)
+            return;
+            
+        // Create ImageUpload from pasted data
+        var imageUpload = new ImageUpload
+        {
+            FileName = fileName,
+            OriginalFileName = fileName,
+            FilePath = base64Data, // In real implementation, this would be saved to storage
+            ContentType = "image/png",
+            UploadedDate = DateTime.UtcNow
+        };
+        
+        await OnImageUpload.InvokeAsync(imageUpload);
+        RemovePasteTarget();
+    }
+}
+
+<style>
+    .editable-cell {
+        position: relative;
+    }
+    
+    .editable-cell input,
+    .editable-cell select {
+        width: 100%;
+    }
+    
+    .image-cell-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .image-thumbnails {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+    }
+    
+    .image-thumbnail-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .image-thumbnail-wrapper .img-thumbnail {
+        width: 40px;
+        height: 40px;
+        object-fit: cover;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    
+    .image-thumbnail-wrapper:hover .img-thumbnail {
+        transform: scale(1.1);
+    }
+    
+    .image-delete {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        padding: 0;
+        width: 16px;
+        height: 16px;
+        line-height: 1;
+        font-size: 10px;
+        border-radius: 50%;
+        display: none;
+    }
+    
+    .image-thumbnail-wrapper:hover .image-delete {
+        display: block;
+    }
+    
+    .image-count {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-left: 4px;
+    }
+    
+    .image-upload-btn {
+        padding: 2px 6px;
+        font-size: 0.875rem;
+    }
+    
+    .image-upload-btn.paste-ready {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    }
+    
+    .computed-cell {
+        padding: 4px 8px;
+        background-color: #f8f9fa;
+    }
+    
+    .computed-value {
+        font-weight: 500;
+    }
+    
+    .invalid-feedback {
+        font-size: 0.75rem;
+        margin-top: 2px;
+    }
+</style>

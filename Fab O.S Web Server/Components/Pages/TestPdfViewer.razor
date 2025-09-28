@@ -1,0 +1,101 @@
+@page "/test-pdf-viewer"
+@using Microsoft.AspNetCore.Authorization
+
+
+<PageTitle>Test PDF Viewer - Fab O.S</PageTitle>
+
+<div class="test-container">
+    <h2>PDF Takeoff Viewer Test</h2>
+    <p>This is a test page to verify the PDF viewer components are working.</p>
+    
+    <div class="test-links">
+        <a href="/trace/drawings" class="btn btn-primary">📄 Drawing Management</a>
+        <a href="/trace/viewer/1" class="btn btn-success">🎯 PDF Takeoff Viewer (ID: 1)</a>
+        <a href="/simple-pdf-test" class="btn btn-warning">🧪 Simple PDF Test</a>
+    </div>
+    
+    <div class="quick-access">
+        <h4>Quick Access URLs:</h4>
+        <ul>
+            <li><strong>Drawing Management:</strong> <code>http://localhost:5223/trace/drawings</code></li>
+            <li><strong>PDF Takeoff Viewer:</strong> <code>http://localhost:5223/trace/viewer/1</code></li>
+            <li><strong>Simple PDF Test:</strong> <code>http://localhost:5223/simple-pdf-test</code></li>
+        </ul>
+    </div>
+    
+    <div class="test-info">
+        <h4>Component Status:</h4>
+        <ul>
+            <li>✅ PdfTakeoffViewer.razor created</li>
+            <li>✅ CSS styles loaded</li>
+            <li>✅ JavaScript integration ready</li>
+            <li>✅ PDF.js framework configured</li>
+        </ul>
+    </div>
+</div>
+
+<style>
+.test-container {
+    padding: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.test-links {
+    margin: 2rem 0;
+}
+
+.test-links .btn {
+    margin-right: 1rem;
+    margin-bottom: 1rem;
+}
+
+.test-info {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border-left: 4px solid #28a745;
+}
+
+.test-info ul {
+    margin: 0;
+}
+
+.test-info li {
+    margin-bottom: 0.5rem;
+}
+
+.quick-access {
+    background: #e3f2fd;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border-left: 4px solid #2196f3;
+    margin-top: 1rem;
+}
+
+.quick-access ul {
+    margin: 0;
+}
+
+.quick-access li {
+    margin-bottom: 0.5rem;
+}
+
+.quick-access code {
+    background: #fff;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    color: #d32f2f;
+}
+
+.btn-warning {
+    background-color: #ffc107;
+    border-color: #ffc107;
+    color: #212529;
+}
+
+.btn-warning:hover {
+    background-color: #e0a800;
+}
+</style>

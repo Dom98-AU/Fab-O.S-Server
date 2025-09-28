@@ -1,0 +1,153 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Authorization
+
+<div class="fabos-dashboard">
+    <div class="fabos-welcome-section">
+        <h1 class="fabos-welcome-title">Welcome to Fab.OS</h1>
+        <p class="fabos-welcome-subtitle">Your comprehensive steel fabrication platform</p>
+    </div>
+
+    <div class="fabos-dashboard-grid">
+        <!-- Trace Module Card -->
+        <div class="fabos-dashboard-card">
+            <div class="fabos-card-header">
+                <div class="fabos-card-icon">📐</div>
+                <div class="fabos-card-title-section">
+                    <h3 class="fabos-card-title">Trace</h3>
+                    <p class="fabos-card-subtitle">Drawing Analysis & Takeoff</p>
+                </div>
+            </div>
+            <div class="fabos-card-content">
+                <p>Upload drawings, perform automated beam detection, and generate accurate takeoff measurements.</p>
+                <div class="fabos-card-stats">
+                    <div class="fabos-stat">
+                        <span class="fabos-stat-number">12</span>
+                        <span class="fabos-stat-label">Active Drawings</span>
+                    </div>
+                    <div class="fabos-stat">
+                        <span class="fabos-stat-number">8</span>
+                        <span class="fabos-stat-label">Completed</span>
+                    </div>
+                </div>
+            </div>
+            <div class="fabos-card-footer">
+                <a href="/trace/drawings" class="fabos-card-action">Open Trace Module</a>
+            </div>
+        </div>
+
+        <!-- Estimate Module Card -->
+        <div class="fabos-dashboard-card">
+            <div class="fabos-card-header">
+                <div class="fabos-card-icon">💰</div>
+                <div class="fabos-card-title-section">
+                    <h3 class="fabos-card-title">Estimate</h3>
+                    <p class="fabos-card-subtitle">Cost Estimation & Quotes</p>
+                </div>
+            </div>
+            <div class="fabos-card-content">
+                <p>Generate accurate cost estimates, create professional quotes, and manage the estimation workflow.</p>
+                <div class="fabos-card-stats">
+                    <div class="fabos-stat">
+                        <span class="fabos-stat-number">5</span>
+                        <span class="fabos-stat-label">Pending Quotes</span>
+                    </div>
+                    <div class="fabos-stat">
+                        <span class="fabos-stat-number">3</span>
+                        <span class="fabos-stat-label">In Review</span>
+                    </div>
+                </div>
+            </div>
+            <div class="fabos-card-footer">
+                <a href="/estimate/quotes" class="fabos-card-action">Open Estimate Module</a>
+            </div>
+        </div>
+
+        <!-- FabMate Module Card -->
+        <div class="fabos-dashboard-card">
+            <div class="fabos-card-header">
+                <div class="fabos-card-icon">🔧</div>
+                <div class="fabos-card-title-section">
+                    <h3 class="fabos-card-title">FabMate</h3>
+                    <p class="fabos-card-subtitle">Production & Workflow</p>
+                </div>
+            </div>
+            <div class="fabos-card-content">
+                <p>Manage work orders, track production progress, and optimize resource allocation.</p>
+                <div class="fabos-card-stats">
+                    <div class="fabos-stat">
+                        <span class="fabos-stat-number">15</span>
+                        <span class="fabos-stat-label">Active Orders</span>
+                    </div>
+                    <div class="fabos-stat">
+                        <span class="fabos-stat-number">7</span>
+                        <span class="fabos-stat-label">In Progress</span>
+                    </div>
+                </div>
+            </div>
+            <div class="fabos-card-footer">
+                <a href="/fabmate/workorders" class="fabos-card-action">Open FabMate Module</a>
+            </div>
+        </div>
+
+        <!-- QDocs Module Card -->
+        <div class="fabos-dashboard-card">
+            <div class="fabos-card-header">
+                <div class="fabos-card-icon">📋</div>
+                <div class="fabos-card-title-section">
+                    <h3 class="fabos-card-title">QDocs</h3>
+                    <p class="fabos-card-subtitle">Quality Documentation</p>
+                </div>
+            </div>
+            <div class="fabos-card-content">
+                <p>Create quality control documents, manage templates, and generate compliance reports.</p>
+                <div class="fabos-card-stats">
+                    <div class="fabos-stat">
+                        <span class="fabos-stat-number">23</span>
+                        <span class="fabos-stat-label">Documents</span>
+                    </div>
+                    <div class="fabos-stat">
+                        <span class="fabos-stat-number">4</span>
+                        <span class="fabos-stat-label">Templates</span>
+                    </div>
+                </div>
+            </div>
+            <div class="fabos-card-footer">
+                <a href="/qdocs/documents" class="fabos-card-action">Open QDocs Module</a>
+            </div>
+        </div>
+
+        <!-- Database Tools Card -->
+        <div class="fabos-dashboard-card fabos-admin-card">
+            <div class="fabos-card-header">
+                <div class="fabos-card-icon">🗄️</div>
+                <div class="fabos-card-title-section">
+                    <h3 class="fabos-card-title">Database Tools</h3>
+                    <p class="fabos-card-subtitle">System Administration</p>
+                </div>
+            </div>
+            <div class="fabos-card-content">
+                <p>Access database browser, run queries, and manage system data.</p>
+            </div>
+            <div class="fabos-card-footer">
+                <a href="/database" class="fabos-card-action">Open Database Browser</a>
+            </div>
+        </div>
+
+        <!-- Global Settings Card -->
+        <div class="fabos-dashboard-card fabos-admin-card">
+            <div class="fabos-card-header">
+                <div class="fabos-card-icon">⚙️</div>
+                <div class="fabos-card-title-section">
+                    <h3 class="fabos-card-title">Global Settings</h3>
+                    <p class="fabos-card-subtitle">Tenant Configuration</p>
+                </div>
+            </div>
+            <div class="fabos-card-content">
+                <p>Configure tenant-wide settings, manage users, and security policies.</p>
+            </div>
+            <div class="fabos-card-footer">
+                <a href="/settings/tenant" class="fabos-card-action">Open Settings</a>
+            </div>
+        </div>
+    </div>
+</div>

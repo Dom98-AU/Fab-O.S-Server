@@ -1,0 +1,303 @@
+@namespace SteelEstimation.Web.Components.Shared.Common
+@using Microsoft.AspNetCore.Components
+@using SteelEstimation.Core.Interfaces
+@using SteelEstimation.Core.Models
+
+<div class="standard-toolbar @Class">
+    <div class="toolbar-section toolbar-primary">
+        @if (ShowSearch)
+        {
+            <div class="toolbar-search">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="@SearchPlaceholder" 
+                           @bind="SearchTerm" @bind:event="oninput" />
+                    @if (!string.IsNullOrEmpty(SearchTerm))
+                    {
+                        <button class="btn btn-outline-secondary" type="button" @onclick="ClearSearch">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+        
+        @* Use new architecture if ActionProvider is available *@
+        @if (ActionProvider != null && _actionGroup != null)
+        {
+            @if (_actionGroup.NewActions != null && _actionGroup.NewActions.Any(a => a.IsVisible))
+            {
+                <ToolbarNewButton Actions="@_actionGroup.NewActions"
+                                 ButtonText="@NewLabel"
+                                 OnActionExecuted="@HandleActionExecuted" />
+            }
+            
+            @if (_actionGroup.PrimaryActions != null)
+            {
+                @foreach (var action in _actionGroup.PrimaryActions.Where(a => a.IsVisible))
+                {
+                    @if (!string.IsNullOrEmpty(action.NavigateUrl))
+                    {
+                        <a href="@action.NavigateUrl" 
+                           class="btn btn-toolbar @GetButtonClass(action)"
+                           title="@action.Tooltip">
+                            <i class="@action.Icon"></i>
+                            <span>@action.Label</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <button class="btn btn-toolbar @GetButtonClass(action)"
+                                @onclick="async () => await ExecuteAction(action)"
+                                disabled="@(!action.IsEnabled)"
+                                title="@action.Tooltip">
+                            <i class="@action.Icon"></i>
+                            <span>@action.Label</span>
+                        </button>
+                    }
+                }
+            }
+        }
+        else
+        {
+            @* Legacy toolbar code *@
+            @if (ShowNew && !string.IsNullOrEmpty(NewUrl))
+            {
+                <a href="@NewUrl" class="btn btn-toolbar btn-new">
+                    <i class="fas fa-plus"></i>
+                    <span>@NewLabel</span>
+                </a>
+            }
+            @if (ShowNew && OnNewClick.HasDelegate)
+            {
+                <button class="btn btn-toolbar btn-new" @onclick="OnNewClick">
+                    <i class="fas fa-plus"></i>
+                    <span>@NewLabel</span>
+                </button>
+            }
+        
+            @if (ShowDelete)
+            {
+                <button class="btn btn-toolbar btn-delete" @onclick="OnDeleteClick" disabled="@(!OnDeleteClick.HasDelegate)">
+                    <i class="fas fa-trash me-1"></i>
+                    <span>Delete</span>
+                </button>
+            }
+            
+            @if (ShowImport)
+            {
+                <button class="btn btn-toolbar btn-import" @onclick="OnImportClick" disabled="@(!OnImportClick.HasDelegate)">
+                    <i class="fas fa-file-import"></i>
+                    <span>Import</span>
+                </button>
+            }
+            
+            @if (ShowExport)
+            {
+                <button class="btn btn-toolbar btn-export" @onclick="OnExportClick" disabled="@(!OnExportClick.HasDelegate)">
+                    <i class="fas fa-file-export"></i>
+                    <span>Export</span>
+                </button>
+            }
+        }
+        
+        
+        @* Reports/Actions/Related buttons moved to primary section after primary actions *@
+        @if (ActionProvider != null && _actionGroup != null)
+        {
+            @if (_actionGroup.ReportActions != null && _actionGroup.ReportActions.Any(a => a.IsVisible))
+            {
+                <ToolbarDropdown Actions="@_actionGroup.ReportActions"
+                               ButtonText="Reports"
+                               ButtonIcon="fas fa-chart-bar"
+                               ButtonClass="btn-report"
+                               OnActionExecuted="@HandleActionExecuted" />
+            }
+            
+            @if (_actionGroup.MenuActions != null && _actionGroup.MenuActions.Any(a => a.IsVisible))
+            {
+                <ToolbarDropdown Actions="@_actionGroup.MenuActions"
+                               ButtonText="Actions"
+                               ButtonIcon="fas fa-ellipsis-v"
+                               ButtonClass="btn-actions"
+                               OnActionExecuted="@HandleActionExecuted" />
+            }
+            
+            @if (_actionGroup.RelatedActions != null && _actionGroup.RelatedActions.Any(a => a.IsVisible))
+            {
+                <ToolbarDropdown Actions="@_actionGroup.RelatedActions"
+                               ButtonText="Related"
+                               ButtonIcon="fas fa-link"
+                               ButtonClass="btn-related"
+                               BadgeCount="@_actionGroup.RelatedActions.Sum(a => a.BadgeCount)"
+                               OnActionExecuted="@HandleActionExecuted" />
+            }
+        }
+        
+        @PrimaryActions
+    </div>
+
+    <div class="toolbar-section toolbar-secondary">
+        @* Secondary section now mostly empty - only bulk delete for legacy code *@
+        @if (ActionProvider == null)
+        {
+            @* Legacy toolbar code *@
+            @if (ShowBulkDelete && HasSelection)
+            {
+                <button class="btn btn-toolbar btn-delete" @onclick="OnBulkDeleteClick">
+                    <i class="fas fa-trash"></i>
+                    <span>Delete (@SelectionCount)</span>
+                </button>
+            }
+        }
+        
+        @* Legacy dropdowns removed - using ActionProvider pattern instead *@
+        
+        @SecondaryActions
+    </div>
+
+    <div class="toolbar-section toolbar-utilities">
+        @* Legacy refresh button removed - refresh is now in the Actions dropdown *@
+        @UtilityActions
+    </div>
+</div>
+
+@code {
+    // New Architecture Parameters
+    [Parameter] public IToolbarActionProvider? ActionProvider { get; set; }
+    
+    // Display control
+    [Parameter] public bool ShowNew { get; set; } = true;
+    [Parameter] public bool ShowDelete { get; set; } = false;
+    [Parameter] public bool ShowImport { get; set; } = false;
+    [Parameter] public bool ShowExport { get; set; } = false;
+    [Parameter] public bool ShowBulkDelete { get; set; } = true;
+    [Parameter] public bool ShowReport { get; set; } = true;
+    [Parameter] public bool ShowActions { get; set; } = true;
+    [Parameter] public bool ShowRelated { get; set; } = true;
+    [Parameter] public bool ShowSearch { get; set; } = false;
+    [Parameter] public bool ShowRefresh { get; set; } = true;
+    
+    // Labels and text
+    [Parameter] public string NewLabel { get; set; } = "New";
+    [Parameter] public string? NewUrl { get; set; }
+    [Parameter] public string SearchPlaceholder { get; set; } = "Search...";
+    [Parameter] public string Class { get; set; } = "";
+    
+    // State
+    [Parameter] public bool HasSelection { get; set; }
+    [Parameter] public int SelectionCount { get; set; }
+    [Parameter] public bool IsRefreshing { get; set; }
+    // Search binding
+    private string _searchTerm = "";
+    [Parameter] public string SearchTerm 
+    { 
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchTermChanged.InvokeAsync(value);
+            }
+        }
+    }
+    [Parameter] public EventCallback<string> SearchTermChanged { get; set; }
+    
+    // Custom content
+    [Parameter] public RenderFragment? PrimaryActions { get; set; }
+    [Parameter] public RenderFragment? SecondaryActions { get; set; }
+    [Parameter] public RenderFragment? UtilityActions { get; set; }
+    
+    // Data items
+    [Parameter] public List<ToolbarActionItem>? ActionItems { get; set; }
+    [Parameter] public List<ToolbarReportItem>? ReportItems { get; set; }
+    [Parameter] public List<ToolbarRelatedItem>? RelatedItems { get; set; }
+    
+    // Event callbacks
+    [Parameter] public EventCallback OnNewClick { get; set; }
+    [Parameter] public EventCallback OnDeleteClick { get; set; }
+    [Parameter] public EventCallback OnImportClick { get; set; }
+    [Parameter] public EventCallback OnExportClick { get; set; }
+    [Parameter] public EventCallback OnBulkDeleteClick { get; set; }
+    [Parameter] public EventCallback OnRefreshClick { get; set; }
+    [Parameter] public EventCallback<string> OnReportClick { get; set; }
+    [Parameter] public EventCallback<string> OnActionClick { get; set; }
+    
+    // State for new architecture
+    private ToolbarActionGroup? _actionGroup;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (ActionProvider != null)
+        {
+            _actionGroup = await ActionProvider.GetActionsAsync();
+        }
+        await base.OnInitializedAsync();
+    }
+    
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ActionProvider != null)
+        {
+            _actionGroup = await ActionProvider.GetActionsAsync();
+        }
+        await base.OnParametersSetAsync();
+    }
+    
+    private async Task ExecuteAction(ToolbarAction action)
+    {
+        if (action.OnClick != null && action.IsEnabled)
+        {
+            await action.OnClick.Invoke();
+        }
+    }
+    
+    private async Task HandleActionExecuted(ToolbarAction action)
+    {
+        // Refresh actions after execution
+        if (ActionProvider != null)
+        {
+            await ActionProvider.RefreshActionsAsync();
+            _actionGroup = await ActionProvider.GetActionsAsync();
+            StateHasChanged();
+        }
+    }
+    
+    private string GetButtonClass(ToolbarAction action)
+    {
+        return action.IsDestructive ? "btn-delete" : "";
+    }
+    
+    private void ClearSearch()
+    {
+        SearchTerm = "";
+    }
+    
+    // Helper classes for toolbar items
+    public class ToolbarActionItem
+    {
+        public string Key { get; set; } = "";
+        public string Label { get; set; } = "";
+        public string Icon { get; set; } = "fas fa-cog";
+        public bool IsDestructive { get; set; }
+        public bool IsDivider { get; set; }
+    }
+    
+    public class ToolbarReportItem
+    {
+        public string Key { get; set; } = "";
+        public string Label { get; set; } = "";
+        public string Icon { get; set; } = "fas fa-file-alt";
+    }
+    
+    public class ToolbarRelatedItem
+    {
+        public string Label { get; set; } = "";
+        public string Url { get; set; } = "#";
+        public string Icon { get; set; } = "fas fa-link";
+        public int Count { get; set; }
+    }
+}

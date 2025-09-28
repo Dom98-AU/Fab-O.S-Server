@@ -1,0 +1,74 @@
+/* Generic Card View */
+.fabos-card-view {
+    min-height: 200px;
+}
+
+.cards-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 1.5rem;
+    padding: 0.5rem;
+}
+
+.card-wrapper {
+    height: fit-content;
+}
+
+/* Empty state */
+.cards-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.cards-empty .empty-icon {
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    font-size: 2rem;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.cards-empty h3 {
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 0.5rem;
+    font-size: 1.5rem;
+}
+
+.cards-empty p {
+    margin-bottom: 0;
+    max-width: 400px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .cards-container {
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .cards-container {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+        padding: 0.25rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .cards-container {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+        padding: 0;
+    }
+}

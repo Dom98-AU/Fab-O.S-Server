@@ -1,0 +1,362 @@
+/* Fab.OS Platform - Site-wide Styles */
+
+:root {
+    /* Fab.OS Brand Colors */
+    --fabos-deep-blue: #0D1A80;
+    --fabos-medium-blue: #3144CD;
+    --fabos-light-blue: #5261D5;
+    --fabos-charcoal: #161616;
+    --fabos-medium-gray: #777777;
+    --fabos-light-gray: #B1B1B1;
+    --fabos-white: #FFFFFF;
+}
+
+/* Global Styles */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--fabos-charcoal);
+    line-height: 1.6;
+}
+
+/* CRITICAL: StandardToolbar Fallback Styles (ensures styles work if scoped CSS fails) */
+.fabos-toolbar,
+div.fabos-toolbar,
+[class*="fabos-toolbar"] {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border-radius: 16px !important;
+    padding: 0 !important;
+    margin-bottom: 24px !important;
+    box-shadow: 
+        0 8px 32px rgba(102, 126, 234, 0.15),
+        0 4px 16px rgba(118, 75, 162, 0.1) !important;
+    overflow: hidden !important;
+    position: relative !important;
+}
+
+.fabos-toolbar-content,
+div.fabos-toolbar-content,
+[class*="fabos-toolbar-content"] {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 20px 28px !important;
+    gap: 24px !important;
+    min-height: 70px !important;
+}
+
+.fabos-toolbar-section,
+div.fabos-toolbar-section,
+[class*="fabos-toolbar-section"] {
+    display: flex !important;
+    align-items: center !important;
+    gap: 16px !important;
+}
+
+.fabos-search-wrapper {
+    position: relative !important;
+    width: 100% !important;
+}
+
+.fabos-search-input {
+    width: 100% !important;
+    padding: 14px 20px 14px 50px !important;
+    border: 2px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 12px !important;
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(10px) !important;
+    color: white !important;
+    font-size: 15px !important;
+    font-weight: 400 !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    outline: none !important;
+}
+
+.fabos-search-input::placeholder {
+    color: rgba(255, 255, 255, 0.7) !important;
+    font-weight: 400 !important;
+}
+
+.fabos-search-icon {
+    position: absolute !important;
+    left: 18px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+    font-size: 16px !important;
+    pointer-events: none !important;
+}
+
+.fabos-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 12px 24px !important;
+    border: 2px solid transparent !important;
+    border-radius: 12px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative !important;
+    overflow: hidden !important;
+    min-height: 44px !important;
+    outline: none !important;
+}
+
+.fabos-btn-primary,
+button.fabos-btn-primary,
+[class*="fabos-btn-primary"] {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+    color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 10px !important;
+    padding: 12px 20px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3) !important;
+}
+
+.fabos-btn-primary:hover,
+button.fabos-btn-primary:hover,
+[class*="fabos-btn-primary"]:hover {
+    background: linear-gradient(135deg, #218838 0%, #1aa085 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 20px rgba(40, 167, 69, 0.4) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.fabos-btn-secondary {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: white !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+/* Base button styling to override any default styles */
+.fabos-btn,
+button.fabos-btn,
+[class*="fabos-btn"] {
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 10px !important;
+    padding: 12px 20px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    text-decoration: none !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+}
+
+.fabos-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.25) !important;
+    border-color: rgba(255, 255, 255, 0.4) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--fabos-deep-blue);
+    font-weight: 600;
+}
+
+/* Links */
+a {
+    color: var(--fabos-medium-blue);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--fabos-deep-blue);
+    text-decoration: underline;
+}
+
+/* Buttons */
+.btn-primary {
+    background: linear-gradient(135deg, #3144CD 0%, #0D1A80 100%);
+    border: none;
+    box-shadow: 0 4px 12px rgba(13, 26, 128, 0.3);
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(13, 26, 128, 0.4);
+}
+
+.btn-primary:focus {
+    box-shadow: 0 0 0 0.2rem rgba(49, 68, 205, 0.25);
+}
+
+/* Cards */
+.card {
+    border: 1px solid rgba(177, 177, 177, 0.2);
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+.card-header {
+    background: linear-gradient(135deg, rgba(248, 249, 250, 0.8) 0%, rgba(255, 255, 255, 0.9) 100%);
+    border-bottom: 1px solid rgba(177, 177, 177, 0.2);
+    color: var(--fabos-deep-blue);
+    font-weight: 600;
+}
+
+/* Forms */
+.form-control {
+    border: 2px solid var(--fabos-light-gray);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.form-control:focus {
+    border-color: var(--fabos-medium-blue);
+    box-shadow: 0 0 0 0.2rem rgba(49, 68, 205, 0.1);
+}
+
+.form-label {
+    color: var(--fabos-charcoal);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+/* Navigation */
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.25rem;
+}
+
+.nav-link {
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.nav-link:hover {
+    transform: translateY(-1px);
+}
+
+/* Dropdown */
+.dropdown-menu {
+    border: 1px solid rgba(177, 177, 177, 0.2);
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    padding: 0.5rem 0;
+}
+
+.dropdown-item {
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background-color: rgba(49, 68, 205, 0.1);
+    color: var(--fabos-deep-blue);
+}
+
+/* Tables */
+.table th {
+    background-color: rgba(49, 68, 205, 0.05);
+    color: var(--fabos-deep-blue);
+    font-weight: 600;
+    border-bottom: 2px solid var(--fabos-medium-blue);
+}
+
+/* Alerts */
+.alert-success {
+    background-color: rgba(40, 167, 69, 0.1);
+    border-color: rgba(40, 167, 69, 0.2);
+    color: #155724;
+}
+
+.alert-danger {
+    background-color: rgba(220, 53, 69, 0.1);
+    border-color: rgba(220, 53, 69, 0.2);
+    color: #721c24;
+}
+
+.alert-info {
+    background-color: rgba(49, 68, 205, 0.1);
+    border-color: rgba(49, 68, 205, 0.2);
+    color: var(--fabos-deep-blue);
+}
+
+/* Utilities */
+.text-primary {
+    color: var(--fabos-medium-blue) !important;
+}
+
+.bg-primary {
+    background: linear-gradient(135deg, #3144CD 0%, #0D1A80 100%) !important;
+}
+
+.border-primary {
+    border-color: var(--fabos-medium-blue) !important;
+}
+
+/* Loading States */
+.loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid transparent;
+    border-top: 2px solid var(--fabos-medium-blue);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+    
+    .card {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Dark mode considerations */
+@media (prefers-color-scheme: dark) {
+    /* Future dark mode support */
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    .card {
+        border-width: 2px;
+    }
+    
+    .btn-primary {
+        border: 2px solid var(--fabos-deep-blue);
+    }
+}

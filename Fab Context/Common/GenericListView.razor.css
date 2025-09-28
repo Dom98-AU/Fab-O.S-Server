@@ -1,0 +1,296 @@
+/* GenericListView Component - Fab.OS Visual Identity */
+
+/* Container */
+.generic-list-view {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+/* List Item */
+.modern-list-item {
+    background: white;
+    border: 1px solid #E5E5E5;
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: max-content; /* Prevent wrapping during horizontal scroll */
+}
+
+.modern-list-item:hover {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-color: #777777; /* Fab.OS Medium Gray */
+    box-shadow: 0 4px 8px rgba(13, 26, 128, 0.08);
+    transform: translateX(4px);
+}
+
+.modern-list-item.selected {
+    background: linear-gradient(135deg, rgba(49, 68, 205, 0.05) 0%, rgba(13, 26, 128, 0.08) 100%);
+    border: 1px solid #3144CD; /* Fab.OS Medium Blue */
+    box-shadow: 0 2px 6px rgba(49, 68, 205, 0.12);
+}
+
+/* Checkbox */
+.modern-list-item-checkbox {
+    flex-shrink: 0;
+}
+
+.modern-list-item-checkbox .form-check-input {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #B1B1B1;
+    cursor: pointer;
+}
+
+.modern-list-item-checkbox .form-check-input:checked {
+    background-color: #3144CD;
+    border-color: #3144CD;
+}
+
+.modern-list-item-checkbox .form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(49, 68, 205, 0.25);
+}
+
+/* Content Area */
+.modern-list-item-content {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+}
+
+/* Avatar */
+.modern-list-item-avatar {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #3144CD 0%, #0D1A80 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(49, 68, 205, 0.2);
+}
+
+.modern-list-item-avatar i {
+    color: white;
+    font-size: 1.125rem;
+}
+
+/* Info Section */
+.modern-list-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.modern-list-item-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #161616; /* Fab.OS Charcoal */
+    margin-bottom: 0.125rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.modern-list-item-subtitle {
+    font-size: 0.8125rem;
+    color: #777777; /* Fab.OS Medium Gray */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.modern-list-item-tertiary {
+    font-size: 0.75rem;
+    color: #B1B1B1; /* Fab.OS Light Gray */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 0.125rem;
+}
+
+/* Status Badge */
+.modern-list-item-status {
+    flex-shrink: 0;
+    padding: 0 0.5rem;
+}
+
+.modern-list-item-status .status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    border-radius: 6px;
+    background: #E5E5E5;
+    color: #777777;
+}
+
+/* Stats Section */
+.modern-list-item-stats {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    padding: 0 1rem;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 60px;
+}
+
+.stat-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #161616; /* Fab.OS Charcoal */
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.625rem;
+    color: #B1B1B1; /* Fab.OS Light Gray */
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 0.25rem;
+}
+
+/* Actions */
+.modern-list-item-actions {
+    flex-shrink: 0;
+}
+
+.modern-list-item-actions .btn-link {
+    padding: 0.5rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.modern-list-item-actions .btn-link:hover {
+    background: rgba(49, 68, 205, 0.1);
+    color: #3144CD !important;
+}
+
+/* Pagination Container */
+.pagination-container {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #E5E5E5;
+}
+
+.pagination {
+    margin-bottom: 0.5rem;
+}
+
+.pagination .page-link {
+    color: #3144CD;
+    border: 1px solid #E5E5E5;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.pagination .page-link:hover {
+    background: linear-gradient(135deg, rgba(49, 68, 205, 0.05) 0%, rgba(13, 26, 128, 0.08) 100%);
+    border-color: #3144CD;
+    color: #3144CD;
+}
+
+.pagination .page-item.active .page-link {
+    background: linear-gradient(135deg, #3144CD 0%, #0D1A80 100%);
+    border-color: #0D1A80;
+    color: white;
+}
+
+.pagination .page-item.disabled .page-link {
+    color: #B1B1B1;
+    background: #f8f9fa;
+    border-color: #E5E5E5;
+    cursor: not-allowed;
+}
+
+.pagination-info {
+    text-align: center;
+    font-size: 0.8125rem;
+    color: #777777;
+    margin-top: 0.5rem;
+}
+
+/* Loading State */
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+    border-width: 0.3em;
+}
+
+/* Custom scrollbar styling */
+.generic-list-view::-webkit-scrollbar {
+    height: 8px;
+}
+
+.generic-list-view::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.generic-list-view::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #B1B1B1 0%, #777777 100%);
+    border-radius: 4px;
+}
+
+.generic-list-view::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #777777 0%, #161616 100%);
+}
+
+/* Responsive Design */
+@media (max-width: 992px) {
+    .modern-list-item-stats {
+        display: none;
+    }
+    
+    .modern-list-item {
+        padding: 0.875rem 1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .modern-list-item-content {
+        gap: 0.75rem;
+    }
+    
+    .list-item-avatar {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .modern-list-item-avatar i {
+        font-size: 1rem;
+    }
+    
+    .modern-list-item-title {
+        font-size: 0.875rem;
+    }
+    
+    .modern-list-item-subtitle {
+        font-size: 0.75rem;
+    }
+    
+    .pagination .page-link {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+    }
+}

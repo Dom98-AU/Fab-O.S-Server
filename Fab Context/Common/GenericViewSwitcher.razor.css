@@ -1,0 +1,206 @@
+/* GenericViewSwitcher Component - Fab.OS Visual Identity */
+
+/* Container */
+.generic-view-switcher {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* View Controls */
+.view-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border: 1px solid #E5E5E5;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(13, 26, 128, 0.05);
+}
+
+/* Theme Variations */
+.view-controls.default {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-color: #E5E5E5;
+}
+
+.view-controls.dark {
+    background: linear-gradient(135deg, #161616 0%, #2a2a2a 100%);
+    border-color: #444;
+}
+
+.view-controls.primary {
+    background: linear-gradient(135deg, rgba(49, 68, 205, 0.05) 0%, rgba(13, 26, 128, 0.08) 100%);
+    border-color: rgba(49, 68, 205, 0.2);
+}
+
+/* Left side controls container */
+.view-controls-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: nowrap;
+}
+
+/* Right side controls container */
+.view-controls-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: nowrap;
+}
+
+/* View Buttons Group */
+.view-buttons {
+    display: flex;
+    gap: 0.5rem;
+    background: white;
+    padding: 0.25rem;
+    border-radius: 8px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Direct child SaveViewPreferences styling */
+.generic-view-switcher ::deep .save-view-preferences {
+    margin: 0;
+    display: inline-block;
+}
+
+/* Individual View Button */
+.btn-view {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #777777; /* Fab.OS Medium Gray */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.btn-view:hover {
+    background: rgba(49, 68, 205, 0.05);
+    color: #3144CD; /* Fab.OS Medium Blue */
+}
+
+.btn-view.active {
+    background: linear-gradient(135deg, #3144CD 0%, #0D1A80 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(49, 68, 205, 0.2);
+}
+
+.btn-view i {
+    font-size: 1rem;
+}
+
+/* View Label */
+.view-label {
+    font-weight: 600;
+    letter-spacing: 0.025em;
+}
+
+/* Item Count */
+.view-count {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.count-badge {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #3144CD; /* Fab.OS Medium Blue */
+}
+
+.count-label {
+    font-size: 0.875rem;
+    color: #777777; /* Fab.OS Medium Gray */
+    font-weight: 500;
+}
+
+/* View Content Area */
+.view-content {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Dark Theme Specific Styles */
+.view-controls.dark .view-buttons {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.view-controls.dark .btn-view {
+    color: #B1B1B1;
+}
+
+.view-controls.dark .btn-view:hover {
+    background: rgba(82, 97, 213, 0.1);
+    color: #5261D5;
+}
+
+.view-controls.dark .btn-view.active {
+    background: linear-gradient(135deg, #5261D5 0%, #3144CD 100%);
+}
+
+.view-controls.dark .view-count {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.view-controls.dark .count-badge {
+    color: #5261D5;
+}
+
+.view-controls.dark .count-label {
+    color: #B1B1B1;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .view-controls {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .view-buttons {
+        justify-content: center;
+    }
+    
+    .view-count {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 576px) {
+    .view-buttons {
+        width: 100%;
+    }
+    
+    .btn-view {
+        flex: 1;
+        justify-content: center;
+    }
+    
+    .view-label {
+        display: none;
+    }
+}

@@ -1,0 +1,110 @@
+/* Fab.OS Toolbar Dropdown Styles */
+.fabos-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.fabos-dropdown-arrow {
+    margin-left: 0.5rem;
+    font-size: 0.75rem;
+    transition: transform 0.2s ease;
+}
+
+.fabos-dropdown-arrow.open {
+    transform: rotate(180deg);
+}
+
+.fabos-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 1000;
+    min-width: 200px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.95) 100%);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    margin-top: 0.25rem;
+    padding: 0.5rem 0;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.2s ease;
+    pointer-events: none;
+}
+
+.fabos-dropdown-menu.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: all;
+}
+
+.fabos-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: none;
+    background: none;
+    color: #495057;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.fabos-dropdown-item:hover:not(.disabled) {
+    background: linear-gradient(135deg, rgba(40,167,69,0.1) 0%, rgba(32,201,151,0.1) 100%);
+    color: #28a745;
+}
+
+.fabos-dropdown-item.disabled {
+    color: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.fabos-dropdown-item i {
+    width: 1rem;
+    text-align: center;
+    font-size: 0.875rem;
+}
+
+.fabos-dropdown-item span {
+    flex: 1;
+}
+
+.fabos-action-badge {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.125rem 0.5rem;
+    border-radius: 12px;
+    line-height: 1;
+}
+
+.fabos-dropdown-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(222,226,230,0.5) 50%, transparent 100%);
+    margin: 0.5rem 1rem;
+}
+
+/* Animation for dropdown appearance */
+@keyframes fabos-dropdown-appear {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.fabos-dropdown-menu.show {
+    animation: fabos-dropdown-appear 0.2s ease;
+}

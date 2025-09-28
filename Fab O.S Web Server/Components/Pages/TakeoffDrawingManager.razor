@@ -1,0 +1,984 @@
+@page "/takeoffs/drawings/{takeoffId:int?}"
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+@using System.ComponentModel.DataAnnotations
+@using System.ComponentModel.DataAnnotations
+@rendermode InteractiveServer
+
+
+<div class="container-fluid px-0">
+    <!-- StandardToolbar for Card Page -->
+    <StandardToolbar ActionProvider="@this" />
+    
+    <!-- Card Page Content -->
+    <div class="card-page-container mx-3 mt-3">
+        <!-- Card Page Header -->
+        <div class="card-page-header mb-4">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h1 class="page-title h3 mb-1">
+                        <i class="fas fa-images text-primary me-2"></i>
+                        Drawing Management
+                    </h1>
+                    <p class="page-subtitle text-muted mb-0">
+                        Upload, manage, and organize drawings for takeoff projects
+                        @if (selectedTakeoff != null)
+                        {
+                            <span class="badge bg-light text-dark ms-2">@(selectedTakeoff.TraceName ?? selectedTakeoff.ProjectName ?? "N/A")</span>
+                        }
+                    </p>
+                </div>
+                <div class="col-auto">
+                    <div class="stat-badges">
+                        <span class="badge bg-primary me-2">
+                            <i class="fas fa-file-pdf me-1"></i>
+                            @(drawings?.Count ?? 0) Drawings
+                        </span>
+                        <span class="badge bg-success me-2">
+                            <i class="fas fa-check-circle me-1"></i>
+                            @(drawings?.Count(d => d.ProcessingStatus == "Completed") ?? 0) Ready
+                        </span>
+                        @if (drawings?.Any(d => d.ProcessingStatus == "In Progress") == true)
+                        {
+                            <span class="badge bg-warning">
+                                <i class="fas fa-cog me-1"></i>
+                                @(drawings.Count(d => d.ProcessingStatus == "In Progress")) Processing
+                            </span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card Page Main Content with Tabs -->
+        <div class="card">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(activeTab == "overview" ? "active" : "")" 
+                                id="overview-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#overview" 
+                                type="button" 
+                                role="tab" 
+                                @onclick='() => SetActiveTab("overview")'>
+                            <i class="fas fa-chart-bar me-2"></i>Overview
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(activeTab == "drawings" ? "active" : "")" 
+                                id="drawings-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#drawings" 
+                                type="button" 
+                                role="tab" 
+                                @onclick='() => SetActiveTab("drawings")'>
+                            <i class="fas fa-images me-2"></i>All Drawings (@(drawings?.Count ?? 0))
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(activeTab == "upload" ? "active" : "")" 
+                                id="upload-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#upload" 
+                                type="button" 
+                                role="tab" 
+                                @onclick='() => SetActiveTab("upload")'>
+                            <i class="fas fa-cloud-upload-alt me-2"></i>Upload & Process
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(activeTab == "settings" ? "active" : "")" 
+                                id="settings-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#settings" 
+                                type="button" 
+                                role="tab" 
+                                @onclick='() => SetActiveTab("settings")'>
+                            <i class="fas fa-cog me-2"></i>Settings
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="card-body p-0">
+                <div class="tab-content">
+                    <!-- Overview Tab -->
+                    <div class="tab-pane fade @(activeTab == "overview" ? "show active" : "")" 
+                         id="overview" 
+                         role="tabpanel" 
+                         aria-labelledby="overview-tab">
+                        <div class="p-4">
+                            <!-- Quick Stats Cards -->
+                            <div class="row g-4 mb-4">
+                                <div class="col-lg-3 col-md-6">
+                                    <div class="stat-card">
+                                        <div class="stat-icon">
+                                            <i class="fas fa-file-pdf"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 class="stat-number">@(drawings?.Count ?? 0)</h3>
+                                            <p class="stat-label">Total Drawings</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-3 col-md-6">
+                                    <div class="stat-card processing">
+                                        <div class="stat-icon">
+                                            <i class="fas fa-cog"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 class="stat-number">@(drawings?.Count(d => d.ProcessingStatus == "In Progress") ?? 0)</h3>
+                                            <p class="stat-label">Processing</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-3 col-md-6">
+                                    <div class="stat-card completed">
+                                        <div class="stat-icon">
+                                            <i class="fas fa-check-circle"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 class="stat-number">@(drawings?.Count(d => d.ProcessingStatus == "Completed") ?? 0)</h3>
+                                            <p class="stat-label">Ready for Takeoff</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recent Activity -->
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">
+                                                <i class="fas fa-history me-2"></i>Recent Activity
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            @if (drawings?.Any() == true)
+                                            {
+                                                <div class="list-group list-group-flush">
+                                                    @foreach (var drawing in drawings.OrderByDescending(d => d.UploadDate).Take(5))
+                                                    {
+                                                        <div class="list-group-item border-0 px-0">
+                                                            <div class="d-flex justify-content-between align-items-start">
+                                                                <div class="me-3">
+                                                                    <i class="fas fa-file-pdf text-primary me-2"></i>
+                                                                    <strong>@drawing.DrawingTitle</strong>
+                                                                    <br>
+                                                                    <small class="text-muted">
+                                                                        Uploaded @drawing.UploadDate.ToString("MMM dd, yyyy HH:mm")
+                                                                    </small>
+                                                                </div>
+                                                                <span class="badge bg-@GetStatusBadgeColor(drawing.ProcessingStatus)">
+                                                                    @drawing.ProcessingStatus
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <p class="text-muted mb-0">No drawings uploaded yet.</p>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">
+                                                <i class="fas fa-chart-pie me-2"></i>Status Distribution
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            @if (drawings?.Any() == true)
+                                            {
+                                                var statusGroups = drawings.GroupBy(d => d.ProcessingStatus).ToList();
+                                                foreach (var group in statusGroups)
+                                                {
+                                                    var percentage = (double)group.Count() / drawings.Count * 100;
+                                                    <div class="mb-3">
+                                                        <div class="d-flex justify-content-between mb-1">
+                                                            <small>@group.Key</small>
+                                                            <small>@group.Count() (@percentage.ToString("F0")%)</small>
+                                                        </div>
+                                                        <div class="progress" style="height: 6px;">
+                                                            <div class="progress-bar bg-@GetStatusBadgeColor(group.Key)" 
+                                                                 style="width: @percentage%">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <p class="text-muted mb-0">No data available.</p>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- All Drawings Tab -->
+                    <div class="tab-pane fade @(activeTab == "drawings" ? "show active" : "")" 
+                         id="drawings" 
+                         role="tabpanel" 
+                         aria-labelledby="drawings-tab">
+                        
+                        <!-- Filters and Search -->
+                        <div class="border-bottom bg-light p-3">
+                            <div class="row g-3">
+                                <div class="col-lg-4">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="searchInput" placeholder="Search drawings..." 
+                                               @bind="searchQuery" @onkeyup="@(async (e) => FilterDrawings(searchQuery))">
+                                        <label for="searchInput">
+                                            <i class="fas fa-search me-2"></i>Search drawings...
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-lg-2">
+                                    <div class="form-floating">
+                                        <select class="form-select" id="statusFilter" @bind="statusFilter" @bind:after="() => FilterDrawings(searchQuery)">
+                                            <option value="">All Status</option>
+                                            <option value="Pending">Pending</option>
+                                            <option value="In Progress">In Progress</option>
+                                            <option value="Completed">Completed</option>
+                                            <option value="Failed">Failed</option>
+                                        </select>
+                                        <label for="statusFilter">Status</label>
+                                    </div>
+                                </div>
+                                <div class="col-lg-2">
+                                    <div class="form-floating">
+                                        <select class="form-select" id="disciplineFilter" @bind="disciplineFilter" @bind:after="() => FilterDrawings(searchQuery)">
+                                            <option value="">All Disciplines</option>
+                                            <option value="Structural">Structural</option>
+                                            <option value="Architectural">Architectural</option>
+                                            <option value="MEP">MEP</option>
+                                            <option value="Civil">Civil</option>
+                                        </select>
+                                        <label for="disciplineFilter">Discipline</label>
+                                    </div>
+                                </div>
+                                <div class="col-lg-2">
+                                    <div class="form-floating">
+                                        <select class="form-select" id="sortBy" @bind="sortBy" @bind:after="() => FilterDrawings(searchQuery)">
+                                            <option value="newest">Newest First</option>
+                                            <option value="oldest">Oldest First</option>
+                                            <option value="name">Name A-Z</option>
+                                            <option value="status">Status</option>
+                                        </select>
+                                        <label for="sortBy">Sort By</label>
+                                    </div>
+                                </div>
+                                <div class="col-lg-2 d-flex align-items-end">
+                                    <button class="btn btn-outline-secondary w-100" @onclick="ClearFilters">
+                                        <i class="fas fa-times me-2"></i>Clear
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Drawings Content -->
+                        <div class="p-3">
+                            @if (isLoading)
+                            {
+                                <div class="loading-state text-center py-5">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-3 text-muted">Loading drawings...</p>
+                                </div>
+                            }
+                            else if (filteredDrawings?.Any() == true)
+                            {
+                                <!-- Drawing Cards Grid -->
+                                <div class="drawings-grid">
+                                    @foreach (var drawing in filteredDrawings)
+                                    {
+                                        <div class="drawing-card @GetCardClasses(drawing)">
+                                            <div class="card-header">
+                                                <div class="drawing-title">
+                                                    <h5 class="card-title mb-1">@drawing.DrawingTitle</h5>
+                                                    <small class="text-muted">@drawing.DrawingNumber</small>
+                                                </div>
+                                                <div class="drawing-status">
+                                                    <span class="badge bg-@GetStatusBadgeColor(drawing.ProcessingStatus)">
+                                                        @drawing.ProcessingStatus
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div class="card-body">
+                                                <div class="drawing-thumbnail">
+                                                    @if (!string.IsNullOrEmpty(drawing.ThumbnailUrl))
+                                                    {
+                                                        <img src="@drawing.ThumbnailUrl" alt="Drawing thumbnail" class="thumbnail-image" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="thumbnail-placeholder">
+                                                            <i class="fas fa-file-pdf fa-3x text-muted"></i>
+                                                            <p class="mb-0 text-muted mt-2">@drawing.FileType</p>
+                                                        </div>
+                                                    }
+                                                </div>
+
+                                                <div class="drawing-info">
+                                                    <div class="info-row">
+                                                        <span class="info-label">
+                                                            <i class="fas fa-building me-1"></i>Project:
+                                                        </span>
+                                                        <span class="info-value">@(drawing.ProjectName ?? "N/A")</span>
+                                                    </div>
+                                                    <div class="info-row">
+                                                        <span class="info-label">
+                                                            <i class="fas fa-user me-1"></i>Client:
+                                                        </span>
+                                                        <span class="info-value">@(drawing.ClientName ?? "N/A")</span>
+                                                    </div>
+                                                    <div class="info-row">
+                                                        <span class="info-label">
+                                                            <i class="fas fa-tools me-1"></i>Discipline:
+                                                        </span>
+                                                        <span class="info-value">@(drawing.Discipline ?? "N/A")</span>
+                                                    </div>
+                                                    <div class="info-row">
+                                                        <span class="info-label">
+                                                            <i class="fas fa-ruler-horizontal me-1"></i>Scale:
+                                                        </span>
+                                                        <span class="info-value">@FormatScale(drawing.Scale, drawing.ScaleUnit)</span>
+                                                    </div>
+                                                    <div class="info-row">
+                                                        <span class="info-label">
+                                                            <i class="fas fa-calendar me-1"></i>Uploaded:
+                                                        </span>
+                                                        <span class="info-value">@drawing.UploadDate.ToString("MMM dd, yyyy")</span>
+                                                    </div>
+                                                    @if (drawing.PageCount.HasValue)
+                                                    {
+                                                        <div class="info-row">
+                                                            <span class="info-label">
+                                                                <i class="fas fa-file-alt me-1"></i>Pages:
+                                                            </span>
+                                                            <span class="info-value">@drawing.PageCount</span>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+
+                                            <div class="card-footer">
+                                                <div class="action-buttons">
+                                                    <button class="btn btn-primary btn-sm" @onclick="() => StartTakeoff(drawing)">
+                                                        <i class="fas fa-ruler-combined me-1"></i>
+                                                        Start Takeoff
+                                                    </button>
+                                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => ViewDrawing(drawing.Id)">
+                                                        <i class="fas fa-eye me-1"></i>
+                                                        View
+                                                    </button>
+                                                    <button class="btn btn-outline-info btn-sm" @onclick="() => EditDrawing(drawing)">
+                                                        <i class="fas fa-edit me-1"></i>
+                                                        Edit
+                                                    </button>
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                            <i class="fas fa-ellipsis-v"></i>
+                                                        </button>
+                                                        <ul class="dropdown-menu">
+                                                            <li><a class="dropdown-item" href="#" @onclick="() => DownloadDrawing(drawing)">
+                                                                <i class="fas fa-download me-2"></i>Download
+                                                            </a></li>
+                                                            <li><a class="dropdown-item" href="#" @onclick="() => DuplicateDrawing(drawing)">
+                                                                <i class="fas fa-copy me-2"></i>Duplicate
+                                                            </a></li>
+                                                            <li><hr class="dropdown-divider"></li>
+                                                            <li><a class="dropdown-item text-danger" href="#" @onclick="() => DeleteDrawing(drawing.Id)">
+                                                                <i class="fas fa-trash me-2"></i>Delete
+                                                            </a></li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="empty-state text-center py-5">
+                                    <div class="empty-icon">
+                                        <i class="fas fa-images fa-4x text-muted"></i>
+                                    </div>
+                                    <h3 class="mt-3">No drawings found</h3>
+                                    <p class="text-muted">Upload your first drawing to start creating takeoffs</p>
+                                    <button class="btn btn-primary btn-lg mt-3" @onclick='() => SetActiveTab("upload")'>
+                                        <i class="fas fa-cloud-upload-alt me-2"></i>
+                                        Upload Drawing
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Upload & Process Tab -->
+                    <div class="tab-pane fade @(activeTab == "upload" ? "show active" : "")" 
+                         id="upload" 
+                         role="tabpanel" 
+                         aria-labelledby="upload-tab">
+                        <div class="p-4">
+                            <div class="row">
+                                <div class="col-lg-8">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">
+                                                <i class="fas fa-cloud-upload-alt me-2"></i>Upload New Drawing
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <EditForm Model="@uploadModel" OnValidSubmit="@SubmitUpload">
+                                                <DataAnnotationsValidator />
+                                                
+                                                <!-- File Upload Area -->
+                                                <div class="file-upload-zone mb-4" 
+                                                     ondragover="event.preventDefault();" 
+                                                     ondrop="event.preventDefault();">
+                                                    <InputFile OnChange="@OnFileSelected" class="d-none" id="fileInput" accept=".pdf,.dwg,.dxf" />
+                                                    <label for="fileInput" class="file-upload-label">
+                                                        <div class="upload-icon">
+                                                            <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                                                        </div>
+                                                        <div class="upload-text">
+                                                            <h6>Click to upload or drag and drop</h6>
+                                                            <p class="text-muted mb-0">PDF, DWG, DXF files up to 50MB</p>
+                                                        </div>
+                                                    </label>
+                                                    
+                                                    @if (selectedFile != null)
+                                                    {
+                                                        <div class="selected-file mt-3">
+                                                            <div class="alert alert-info">
+                                                                <i class="fas fa-file-pdf me-2"></i>
+                                                                <strong>@selectedFile.Name</strong>
+                                                                <span class="text-muted">(@FormatFileSize(selectedFile.Size))</span>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                </div>
+
+                                                <!-- Drawing Details Form -->
+                                                <div class="row g-3">
+                                                    <div class="col-md-6">
+                                                        <div class="form-floating">
+                                                            <InputText @bind-Value="uploadModel.DrawingTitle" class="form-control" id="drawingTitle" placeholder="Drawing Title" />
+                                                            <label for="drawingTitle">Drawing Title</label>
+                                                            <ValidationMessage For="@(() => uploadModel.DrawingTitle)" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="form-floating">
+                                                            <InputText @bind-Value="uploadModel.DrawingNumber" class="form-control" id="drawingNumber" placeholder="Drawing Number" />
+                                                            <label for="drawingNumber">Drawing Number</label>
+                                                            <ValidationMessage For="@(() => uploadModel.DrawingNumber)" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="form-floating">
+                                                            <InputSelect @bind-Value="uploadModel.Discipline" class="form-select" id="discipline">
+                                                                <option value="">Select Discipline</option>
+                                                                <option value="Structural">Structural</option>
+                                                                <option value="Architectural">Architectural</option>
+                                                                <option value="MEP">MEP</option>
+                                                                <option value="Civil">Civil</option>
+                                                            </InputSelect>
+                                                            <label for="discipline">Discipline</label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="form-floating">
+                                                            <InputText @bind-Value="uploadModel.ProjectName" class="form-control" id="projectName" placeholder="Project Name" />
+                                                            <label for="projectName">Project Name</label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="form-floating">
+                                                            <InputText @bind-Value="uploadModel.ClientName" class="form-control" id="clientName" placeholder="Client Name" />
+                                                            <label for="clientName">Client Name</label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="form-floating">
+                                                            <InputNumber @bind-Value="uploadModel.Scale" class="form-control" id="scale" placeholder="Scale" />
+                                                            <label for="scale">Scale (e.g., 1:100)</label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="row mt-4">
+                                                    <div class="col-12">
+                                                        <div class="form-floating">
+                                                            <InputTextArea @bind-Value="uploadModel.Description" class="form-control" id="description" placeholder="Description" style="height: 100px;" />
+                                                            <label for="description">Description (Optional)</label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="mt-4">
+                                                    <button type="submit" class="btn btn-primary btn-lg" disabled="@(selectedFile == null || isUploading)">
+                                                        @if (isUploading)
+                                                        {
+                                                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                                            <span>Uploading...</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <i class="fas fa-cloud-upload-alt me-2"></i>
+                                                            <span>Upload & Process</span>
+                                                        }
+                                                    </button>
+                                                </div>
+                                            </EditForm>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">
+                                                <i class="fas fa-info-circle me-2"></i>Upload Guidelines
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <ul class="list-unstyled">
+                                                <li class="mb-2">
+                                                    <i class="fas fa-check text-success me-2"></i>
+                                                    Supported formats: PDF, DWG, DXF
+                                                </li>
+                                                <li class="mb-2">
+                                                    <i class="fas fa-check text-success me-2"></i>
+                                                    Maximum file size: 50MB
+                                                </li>
+                                                <li class="mb-2">
+                                                    <i class="fas fa-check text-success me-2"></i>
+                                                    High resolution recommended
+                                                </li>
+                                                <li class="mb-2">
+                                                    <i class="fas fa-check text-success me-2"></i>
+                                                    Clear, readable text and dimensions
+                                                </li>
+                                            </ul>
+                                            <hr>
+                                            <h6>Processing Steps:</h6>
+                                            <ol class="ps-3">
+                                                <li>File validation and conversion</li>
+                                                <li>Image processing and enhancement</li>
+                                                <li>Text and dimension recognition</li>
+                                                <li>Ready for takeoff creation</li>
+                                            </ol>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Settings Tab -->
+                    <div class="tab-pane fade @(activeTab == "settings" ? "show active" : "")" 
+                         id="settings" 
+                         role="tabpanel" 
+                         aria-labelledby="settings-tab">
+                        <div class="p-4">
+                            <div class="row">
+                                <div class="col-lg-8">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">
+                                                <i class="fas fa-cog me-2"></i>Drawing Management Settings
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <EditForm Model="@settingsModel" OnValidSubmit="@SaveSettings">
+                                                <div class="row g-4">
+                                                    <div class="col-12">
+                                                        <h6 class="border-bottom pb-2">Default Settings</h6>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="form-floating">
+                                                            <InputSelect @bind-Value="settingsModel.DefaultDiscipline" class="form-select" id="defaultDiscipline">
+                                                                <option value="">No Default</option>
+                                                                <option value="Structural">Structural</option>
+                                                                <option value="Architectural">Architectural</option>
+                                                                <option value="MEP">MEP</option>
+                                                                <option value="Civil">Civil</option>
+                                                            </InputSelect>
+                                                            <label for="defaultDiscipline">Default Discipline</label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="form-floating">
+                                                            <InputText @bind-Value="settingsModel.DefaultProjectName" class="form-control" id="defaultProject" />
+                                                            <label for="defaultProject">Default Project Name</label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="form-floating">
+                                                            <InputText @bind-Value="settingsModel.DefaultClientName" class="form-control" id="defaultClient" />
+                                                            <label for="defaultClient">Default Client Name</label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="form-floating">
+                                                            <InputNumber @bind-Value="settingsModel.DefaultScale" class="form-control" id="defaultScale" />
+                                                            <label for="defaultScale">Default Scale</label>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="col-12">
+                                                        <h6 class="border-bottom pb-2">Processing Options</h6>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <div class="form-check form-switch">
+                                                            <InputCheckbox @bind-Value="settingsModel.AutoProcessUploads" class="form-check-input" id="autoProcess" />
+                                                            <label class="form-check-label" for="autoProcess">
+                                                                Auto-process uploads
+                                                            </label>
+                                                            <div class="form-text">Automatically start processing drawings after upload</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <div class="form-check form-switch">
+                                                            <InputCheckbox @bind-Value="settingsModel.GenerateThumbnails" class="form-check-input" id="thumbnails" />
+                                                            <label class="form-check-label" for="thumbnails">
+                                                                Generate thumbnails
+                                                            </label>
+                                                            <div class="form-text">Create thumbnail images for quick preview</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <div class="form-check form-switch">
+                                                            <InputCheckbox @bind-Value="settingsModel.ExtractMetadata" class="form-check-input" id="metadata" />
+                                                            <label class="form-check-label" for="metadata">
+                                                                Extract metadata
+                                                            </label>
+                                                            <div class="form-text">Automatically extract title, scale, and other metadata</div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="col-12 mt-4">
+                                                        <button type="submit" class="btn btn-primary">
+                                                            <i class="fas fa-save me-2"></i>Save Settings
+                                                        </button>
+                                                        <button type="button" class="btn btn-outline-secondary ms-2" @onclick="ResetSettings">
+                                                            <i class="fas fa-undo me-2"></i>Reset to Defaults
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </EditForm>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="card-title mb-0">
+                                                <i class="fas fa-chart-bar me-2"></i>Storage Usage
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <small>Used Storage</small>
+                                                    <small>2.3 GB / 10 GB</small>
+                                                </div>
+                                                <div class="progress" style="height: 6px;">
+                                                    <div class="progress-bar" style="width: 23%"></div>
+                                                </div>
+                                            </div>
+                                            <hr>
+                                            <div class="storage-breakdown">
+                                                <div class="d-flex justify-content-between mb-2">
+                                                    <span><i class="fas fa-file-pdf text-danger me-2"></i>PDF Files</span>
+                                                    <span>1.8 GB</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between mb-2">
+                                                    <span><i class="fas fa-image text-info me-2"></i>Thumbnails</span>
+                                                    <span>0.3 GB</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between mb-2">
+                                                    <span><i class="fas fa-file-alt text-warning me-2"></i>CAD Files</span>
+                                                    <span>0.2 GB</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@if (showUploadModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-cloud-upload-alt me-2"></i>
+                        Upload New Drawing
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseUploadModal"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="@uploadModel" OnValidSubmit="@SubmitUpload">
+                        <DataAnnotationsValidator />
+                        
+                        @if (currentUploadStep == UploadStep.FileSelection)
+                        {
+                            <div class="upload-step">
+                                <h6 class="step-title">
+                                    <span class="step-number">1</span>
+                                    Select Drawing File
+                                </h6>
+                                
+                                <div class="file-upload-zone" 
+                                     ondragover="event.preventDefault();" 
+                                     ondrop="event.preventDefault();">
+                                    <InputFile OnChange="@OnFileSelected" class="d-none" id="fileInput" accept=".pdf,.dwg,.dxf" />
+                                    <label for="fileInput" class="file-upload-label">
+                                        <div class="upload-icon">
+                                            <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                                        </div>
+                                        <div class="upload-text">
+                                            <h6>Click to upload or drag and drop</h6>
+                                            <p class="text-muted mb-0">PDF, DWG, DXF files up to 50MB</p>
+                                        </div>
+                                    </label>
+                                    
+                                    @if (selectedFile != null)
+                                    {
+                                        <div class="selected-file mt-3">
+                                            <div class="alert alert-info">
+                                                <i class="fas fa-file-pdf me-2"></i>
+                                                <strong>@selectedFile.Name</strong>
+                                                <span class="text-muted">(@FormatFileSize(selectedFile.Size))</span>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        else if (currentUploadStep == UploadStep.DrawingDetails)
+                        {
+                            <div class="upload-step">
+                                <h6 class="step-title">
+                                    <span class="step-number">2</span>
+                                    Drawing Details
+                                </h6>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="uploadModel.DrawingNumber" class="form-control" id="drawingNumber" placeholder="Drawing Number" />
+                                            <label for="drawingNumber">Drawing Number *</label>
+                                            <ValidationMessage For="@(() => uploadModel.DrawingNumber)" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="uploadModel.DrawingTitle" class="form-control" id="drawingTitle" placeholder="Drawing Title" />
+                                            <label for="drawingTitle">Drawing Title *</label>
+                                            <ValidationMessage For="@(() => uploadModel.DrawingTitle)" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="uploadModel.ProjectName" class="form-control" id="projectName" placeholder="Project Name" />
+                                            <label for="projectName">Project Name</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="uploadModel.ClientName" class="form-control" id="clientName" placeholder="Client Name" />
+                                            <label for="clientName">Client Name</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <InputSelect @bind-Value="uploadModel.Discipline" class="form-select" id="discipline">
+                                                <option value="">Select Discipline</option>
+                                                <option value="Structural">Structural</option>
+                                                <option value="Architectural">Architectural</option>
+                                                <option value="MEP">MEP</option>
+                                                <option value="Civil">Civil</option>
+                                            </InputSelect>
+                                            <label for="discipline">Discipline</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <InputNumber @bind-Value="uploadModel.Scale" class="form-control" id="scale" placeholder="Scale" />
+                                            <label for="scale">Scale (1:X)</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <InputText @bind-Value="uploadModel.Revision" class="form-control" id="revision" placeholder="Revision" />
+                                            <label for="revision">Revision</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else if (currentUploadStep == UploadStep.Processing)
+                        {
+                            <div class="upload-step">
+                                <h6 class="step-title">
+                                    <span class="step-number">3</span>
+                                    Processing Drawing
+                                </h6>
+                                
+                                <div class="processing-status">
+                                    <div class="text-center">
+                                        <div class="spinner-border text-primary mb-3" role="status">
+                                            <span class="visually-hidden">Processing...</span>
+                                        </div>
+                                        <h6>@processingMessage</h6>
+                                        <div class="progress mt-3">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                 role="progressbar" 
+                                                 style="width: @(uploadProgress)%"
+                                                 aria-valuenow="@uploadProgress" 
+                                                 aria-valuemin="0" 
+                                                 aria-valuemax="100">
+                                                @uploadProgress%
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </EditForm>
+                </div>
+                <div class="modal-footer">
+                    @if (currentUploadStep == UploadStep.FileSelection)
+                    {
+                        <button type="button" class="btn btn-secondary" @onclick="CloseUploadModal">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="NextStep" disabled="@(selectedFile == null)">
+                            <i class="fas fa-arrow-right me-2"></i>Next
+                        </button>
+                    }
+                    else if (currentUploadStep == UploadStep.DrawingDetails)
+                    {
+                        <button type="button" class="btn btn-secondary" @onclick="PreviousStep">
+                            <i class="fas fa-arrow-left me-2"></i>Back
+                        </button>
+                        <button type="button" class="btn btn-success" @onclick="StartUpload">
+                            <i class="fas fa-upload me-2"></i>Upload & Process
+                        </button>
+                    }
+                    else if (currentUploadStep == UploadStep.Processing)
+                    {
+                        <button type="button" class="btn btn-secondary" disabled>Processing...</button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+// ...existing code...
+
+<!-- Edit Drawing Modal -->
+@if (showEditModal && editingDrawing != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>
+                        Edit Drawing Details
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="@editModel" OnValidSubmit="@SaveDrawingChanges">
+                        <DataAnnotationsValidator />
+                        
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="editModel.DrawingNumber" class="form-control" id="editDrawingNumber" />
+                                    <label for="editDrawingNumber">Drawing Number</label>
+                                    <ValidationMessage For="@(() => editModel.DrawingNumber)" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="editModel.DrawingTitle" class="form-control" id="editDrawingTitle" />
+                                    <label for="editDrawingTitle">Drawing Title</label>
+                                    <ValidationMessage For="@(() => editModel.DrawingTitle)" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="editModel.ProjectName" class="form-control" id="editProjectName" />
+                                    <label for="editProjectName">Project Name</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="editModel.ClientName" class="form-control" id="editClientName" />
+                                    <label for="editClientName">Client Name</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputSelect @bind-Value="editModel.Discipline" class="form-select" id="editDiscipline">
+                                        <option value="">Select Discipline</option>
+                                        <option value="Structural">Structural</option>
+                                        <option value="Architectural">Architectural</option>
+                                        <option value="MEP">MEP</option>
+                                        <option value="Civil">Civil</option>
+                                    </InputSelect>
+                                    <label for="editDiscipline">Discipline</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputNumber @bind-Value="editModel.Scale" class="form-control" id="editScale" />
+                                    <label for="editScale">Scale (1:X)</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <InputText @bind-Value="editModel.Revision" class="form-control" id="editRevision" />
+                                    <label for="editRevision">Revision</label>
+                                </div>
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveDrawingChanges">
+                        <i class="fas fa-save me-2"></i>Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

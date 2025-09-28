@@ -1,0 +1,489 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Models
+@using FabOS.WebServer.Models.Filtering
+@using FabOS.WebServer.Models.Columns
+@using Microsoft.AspNetCore.Components
+@typeparam TItem
+
+@if (!isExpanded)
+{
+    <!-- Normal Embedded View -->
+    <div class="embeddable-list-part @CssClass @(isModalOpening ? "modal-opening" : "")" @ref="componentContainer">
+    <!-- Mini Toolbar -->
+    <div class="list-part-toolbar">
+        <div class="toolbar-left">
+            <!-- Search Box -->
+            <div class="list-search-wrapper">
+                <i class="fas fa-search list-search-icon"></i>
+                <input type="text"
+                       class="list-search-input"
+                       placeholder="@SearchPlaceholder"
+                       @bind="searchTerm"
+                       @bind:event="oninput"
+                       @onkeyup="HandleSearch" />
+                @if (!string.IsNullOrEmpty(searchTerm))
+                {
+                    <button type="button" class="list-search-clear" @onclick="ClearSearch">
+                        <i class="fas fa-times"></i>
+                    </button>
+                }
+            </div>
+
+            <!-- Results Count -->
+            <div class="results-info">
+                <span class="results-count">@GetFilteredItems().Count() @ItemsLabel</span>
+                @if (!string.IsNullOrEmpty(searchTerm))
+                {
+                    <span class="search-filter">filtered</span>
+                }
+            </div>
+        </div>
+
+        <div class="toolbar-right">
+            <!-- View Switcher -->
+            @if (ShowViewSwitcher)
+            {
+                <div class="view-switcher">
+                    <button type="button"
+                            class="view-btn @(currentView == ViewType.Table ? "active" : "")"
+                            @onclick="() => ChangeView(ViewType.Table)"
+                            title="Table View">
+                        <i class="fas fa-table"></i>
+                    </button>
+                    <button type="button"
+                            class="view-btn @(currentView == ViewType.Card ? "active" : "")"
+                            @onclick="() => ChangeView(ViewType.Card)"
+                            title="Card View">
+                        <i class="fas fa-th-large"></i>
+                    </button>
+                    <button type="button"
+                            class="view-btn @(currentView == ViewType.List ? "active" : "")"
+                            @onclick="() => ChangeView(ViewType.List)"
+                            title="List View">
+                        <i class="fas fa-list"></i>
+                    </button>
+                </div>
+            }
+
+            <!-- Filter and Column Management -->
+            @if (ShowFilters)
+            {
+                <FilterSystem FilterProvider="@FilterProvider"
+                             FilterDefinitions="@FilterDefinitions"
+                             ActiveFilters="@ActiveFilters"
+                             OnFiltersChanged="@HandleFiltersChanged" />
+            }
+
+            @if (ShowColumnManager)
+            {
+                <ColumnReorderManager Columns="@ColumnDefinitions"
+                                    OnColumnsChanged="@HandleColumnsChanged"
+                                    DefaultColumns="@DefaultColumns" />
+            }
+
+            <!-- Expand Button -->
+            <button type="button"
+                    class="list-btn list-btn-secondary expand-btn"
+                    @onclick="ToggleExpanded"
+                    @ref="expandButton"
+                    title="@(isExpanded ? "Collapse" : "Expand")">
+                <i class="fas @(isExpanded ? "fa-compress" : "fa-expand")"></i>
+                <span class="btn-text">@(isExpanded ? "Collapse" : "Expand")</span>
+            </button>
+
+            <!-- Action Buttons -->
+            @if (ShowActions && ActionProvider != null)
+            {
+                <div class="action-buttons">
+                    @{
+                        var actions = ActionProvider.GetActions();
+
+                        <!-- New Button -->
+                        var newAction = actions?.PrimaryActions?.FirstOrDefault(a => a.Text == "New");
+                        if (newAction != null)
+                        {
+                            <button type="button"
+                                    class="list-btn list-btn-primary @(newAction.IsDisabled ? "disabled" : "")"
+                                    @onclick="() => ExecuteAction(newAction)"
+                                    disabled="@newAction.IsDisabled"
+                                    title="@(newAction.Tooltip ?? "New")">
+                                <i class="fas fa-plus"></i>
+                                <span class="btn-text">New</span>
+                            </button>
+                        }
+
+                        <!-- Edit Button -->
+                        var editAction = actions?.PrimaryActions?.FirstOrDefault(a => a.Text == "Edit");
+                        if (editAction != null && selectedItems.Any())
+                        {
+                            <button type="button"
+                                    class="list-btn list-btn-secondary @(editAction.IsDisabled ? "disabled" : "")"
+                                    @onclick="() => ExecuteAction(editAction)"
+                                    disabled="@editAction.IsDisabled"
+                                    title="@(editAction.Tooltip ?? "Edit")">
+                                <i class="fas fa-edit"></i>
+                                <span class="btn-text">Edit</span>
+                            </button>
+                        }
+
+                        <!-- Delete Button -->
+                        var deleteAction = actions?.PrimaryActions?.FirstOrDefault(a => a.Text == "Delete");
+                        if (deleteAction != null && selectedItems.Any())
+                        {
+                            <button type="button"
+                                    class="list-btn list-btn-danger @(deleteAction.IsDisabled ? "disabled" : "")"
+                                    @onclick="() => ExecuteAction(deleteAction)"
+                                    disabled="@deleteAction.IsDisabled"
+                                    title="@(deleteAction.Tooltip ?? "Delete")">
+                                <i class="fas fa-trash"></i>
+                                <span class="btn-text">Delete</span>
+                            </button>
+                        }
+
+                        <!-- Actions Dropdown -->
+                        @if (actions?.MenuActions?.Any() == true)
+                        {
+                            <div class="list-dropdown">
+                                <button type="button"
+                                        class="list-btn list-btn-secondary"
+                                        @onclick="ToggleActionsMenu">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                    <span class="btn-text">Actions</span>
+                                </button>
+                                @if (showActionsMenu)
+                                {
+                                    <div class="list-dropdown-menu">
+                                        @foreach (var action in actions.MenuActions)
+                                        {
+                                            <button type="button"
+                                                    class="list-dropdown-item @(action.IsDisabled ? "disabled" : "")"
+                                                    @onclick="() => { ExecuteAction(action); showActionsMenu = false; }"
+                                                    disabled="@action.IsDisabled">
+                                                @if (!string.IsNullOrEmpty(action.Icon))
+                                                {
+                                                    <i class="@action.Icon"></i>
+                                                }
+                                                <span>@action.Text</span>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="list-part-content">
+        @{
+            var filteredItems = GetFilteredItems();
+        }
+
+        @if (!filteredItems.Any())
+        {
+            <div class="empty-state">
+                <i class="fas fa-inbox empty-icon"></i>
+                <p class="empty-text">@EmptyMessage</p>
+            </div>
+        }
+        else
+        {
+            @switch (currentView)
+            {
+                case ViewType.Table:
+                    <GenericTableView TItem="TItem"
+                                     Items="@filteredItems"
+                                     AllowSelection="@AllowSelection"
+                                     SelectedItems="@selectedItems"
+                                     SelectedItemsChanged="@HandleSelectionChanged"
+                                     OnRowClick="@HandleItemClick"
+                                     OnRowDoubleClick="@HandleItemDoubleClick"
+                                     ActionsTemplate="@TableActionsTemplate" />
+                    break;
+
+                case ViewType.Card:
+                    <GenericCardView TItem="TItem"
+                                    Items="@filteredItems"
+                                    TitleSelector="@CardTitleSelector"
+                                    SubtitleSelector="@CardSubtitleSelector"
+                                    DescriptionSelector="@CardDescriptionSelector"
+                                    ImageUrlSelector="@CardImageSelector"
+                                    StatusSelector="@CardStatusSelector"
+                                    BadgeSelector="@CardBadgeSelector"
+                                    AllowSelection="@AllowSelection"
+                                    SelectedItems="@selectedItems"
+                                    SelectedItemsChanged="@HandleSelectionChanged"
+                                    OnItemClick="@HandleItemClick"
+                                    OnItemDoubleClick="@HandleItemDoubleClick" />
+                    break;
+
+                case ViewType.List:
+                    <GenericListView TItem="TItem"
+                                    Items="@filteredItems"
+                                    AllowSelection="@AllowSelection"
+                                    SelectedItems="@selectedItems"
+                                    SelectedItemsChanged="@HandleSelectionChanged"
+                                    OnItemClick="@HandleItemClick"
+                                    OnItemDoubleClick="@HandleItemDoubleClick"
+                                    ItemIcon="@ListIconTemplate"
+                                    ItemTitle="@ListTitleTemplate"
+                                    ItemSubtitle="@ListSubtitleTemplate"
+                                    ItemStatus="@ListStatusTemplate"
+                                    ItemDetails="@ListDetailsTemplate" />
+                    break;
+            }
+        }
+    </div>
+</div>
+}
+else
+{
+    <!-- Expanded Modal View -->
+    <div class="modal-backdrop" @onclick="CloseOnBackdropClick" @ref="modalBackdrop">
+        <div class="modal-content expanded-list-modal" @onclick:stopPropagation="true" tabindex="-1" @ref="modalContent">
+            <!-- Modal Header -->
+            <div class="modal-header">
+                <h3 class="modal-title">@(string.IsNullOrEmpty(ItemsLabel) ? "Items" : ItemsLabel)</h3>
+                <button type="button"
+                        class="modal-close-btn"
+                        @onclick="ToggleExpanded"
+                        title="Close Modal"
+                        autofocus>
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Modal Toolbar -->
+            <div class="modal-toolbar">
+                <div class="toolbar-left">
+                    <!-- Search Box -->
+                    <div class="list-search-wrapper">
+                        <i class="fas fa-search list-search-icon"></i>
+                        <input type="text"
+                               class="list-search-input"
+                               placeholder="@SearchPlaceholder"
+                               @bind="searchTerm"
+                               @bind:event="oninput"
+                               @onkeyup="HandleSearch" />
+                        @if (!string.IsNullOrEmpty(searchTerm))
+                        {
+                            <button type="button" class="list-search-clear" @onclick="ClearSearch">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        }
+                    </div>
+
+                    <!-- Results Count -->
+                    <div class="results-info">
+                        <span class="results-count">@GetFilteredItems().Count() @ItemsLabel</span>
+                        @if (!string.IsNullOrEmpty(searchTerm))
+                        {
+                            <span class="search-filter">filtered</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="toolbar-right">
+                    <!-- View Switcher -->
+                    @if (ShowViewSwitcher)
+                    {
+                        <div class="view-switcher">
+                            <button type="button"
+                                    class="view-btn @(currentView == ViewType.Table ? "active" : "")"
+                                    @onclick="() => ChangeView(ViewType.Table)"
+                                    title="Table View">
+                                <i class="fas fa-table"></i>
+                            </button>
+                            <button type="button"
+                                    class="view-btn @(currentView == ViewType.Card ? "active" : "")"
+                                    @onclick="() => ChangeView(ViewType.Card)"
+                                    title="Card View">
+                                <i class="fas fa-th-large"></i>
+                            </button>
+                            <button type="button"
+                                    class="view-btn @(currentView == ViewType.List ? "active" : "")"
+                                    @onclick="() => ChangeView(ViewType.List)"
+                                    title="List View">
+                                <i class="fas fa-list"></i>
+                            </button>
+                        </div>
+                    }
+
+                    <!-- Filter and Column Management -->
+                    @if (ShowFilters)
+                    {
+                        <FilterSystem FilterProvider="@FilterProvider"
+                                     FilterDefinitions="@FilterDefinitions"
+                                     ActiveFilters="@ActiveFilters"
+                                     OnFiltersChanged="@HandleFiltersChanged" />
+                    }
+
+                    @if (ShowColumnManager)
+                    {
+                        <ColumnReorderManager Columns="@ColumnDefinitions"
+                                            OnColumnsChanged="@HandleColumnsChanged"
+                                            DefaultColumns="@DefaultColumns" />
+                    }
+
+                    <!-- Action Buttons -->
+                    @if (ShowActions && ActionProvider != null)
+                    {
+                        <div class="action-buttons">
+                            @{
+                                var actions = ActionProvider.GetActions();
+
+                                <!-- New Button -->
+                                var newAction = actions?.PrimaryActions?.FirstOrDefault(a => a.Text == "New");
+                                if (newAction != null)
+                                {
+                                    <button type="button"
+                                            class="list-btn list-btn-primary @(newAction.IsDisabled ? "disabled" : "")"
+                                            @onclick="() => ExecuteAction(newAction)"
+                                            disabled="@newAction.IsDisabled"
+                                            title="@(newAction.Tooltip ?? "New")">
+                                        <i class="fas fa-plus"></i>
+                                        <span class="btn-text">New</span>
+                                    </button>
+                                }
+
+                                <!-- Edit Button -->
+                                var editAction = actions?.PrimaryActions?.FirstOrDefault(a => a.Text == "Edit");
+                                if (editAction != null && selectedItems.Any())
+                                {
+                                    <button type="button"
+                                            class="list-btn list-btn-secondary @(editAction.IsDisabled ? "disabled" : "")"
+                                            @onclick="() => ExecuteAction(editAction)"
+                                            disabled="@editAction.IsDisabled"
+                                            title="@(editAction.Tooltip ?? "Edit")">
+                                        <i class="fas fa-edit"></i>
+                                        <span class="btn-text">Edit</span>
+                                    </button>
+                                }
+
+                                <!-- Delete Button -->
+                                var deleteAction = actions?.PrimaryActions?.FirstOrDefault(a => a.Text == "Delete");
+                                if (deleteAction != null && selectedItems.Any())
+                                {
+                                    <button type="button"
+                                            class="list-btn list-btn-danger @(deleteAction.IsDisabled ? "disabled" : "")"
+                                            @onclick="() => ExecuteAction(deleteAction)"
+                                            disabled="@deleteAction.IsDisabled"
+                                            title="@(deleteAction.Tooltip ?? "Delete")">
+                                        <i class="fas fa-trash"></i>
+                                        <span class="btn-text">Delete</span>
+                                    </button>
+                                }
+
+                                <!-- Actions Dropdown -->
+                                @if (actions?.MenuActions?.Any() == true)
+                                {
+                                    <div class="list-dropdown">
+                                        <button type="button"
+                                                class="list-btn list-btn-secondary"
+                                                @onclick="ToggleActionsMenu">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                            <span class="btn-text">Actions</span>
+                                        </button>
+                                        @if (showActionsMenu)
+                                        {
+                                            <div class="list-dropdown-menu">
+                                                @foreach (var action in actions.MenuActions)
+                                                {
+                                                    <button type="button"
+                                                            class="list-dropdown-item @(action.IsDisabled ? "disabled" : "")"
+                                                            @onclick="() => { ExecuteAction(action); showActionsMenu = false; }"
+                                                            disabled="@action.IsDisabled">
+                                                        @if (!string.IsNullOrEmpty(action.Icon))
+                                                        {
+                                                            <i class="@action.Icon"></i>
+                                                        }
+                                                        <span>@action.Text</span>
+                                                    </button>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Modal Content Area -->
+            <div class="modal-body">
+                @{
+                    var filteredItems = GetFilteredItems();
+                }
+
+                @if (!filteredItems.Any())
+                {
+                    <div class="empty-state">
+                        <i class="fas fa-inbox empty-icon"></i>
+                        <p class="empty-text">@EmptyMessage</p>
+                    </div>
+                }
+                else
+                {
+                    @switch (currentView)
+                    {
+                        case ViewType.Table:
+                            <GenericTableView TItem="TItem"
+                                             Items="@filteredItems"
+                                             AllowSelection="@AllowSelection"
+                                             SelectedItems="@selectedItems"
+                                             SelectedItemsChanged="@HandleSelectionChanged"
+                                             OnRowClick="@HandleItemClick"
+                                             OnRowDoubleClick="@HandleItemDoubleClick"
+                                             ActionsTemplate="@TableActionsTemplate" />
+                            break;
+
+                        case ViewType.Card:
+                            <GenericCardView TItem="TItem"
+                                            Items="@filteredItems"
+                                            TitleSelector="@CardTitleSelector"
+                                            SubtitleSelector="@CardSubtitleSelector"
+                                            DescriptionSelector="@CardDescriptionSelector"
+                                            ImageUrlSelector="@CardImageSelector"
+                                            StatusSelector="@CardStatusSelector"
+                                            BadgeSelector="@CardBadgeSelector"
+                                            AllowSelection="@AllowSelection"
+                                            SelectedItems="@selectedItems"
+                                            SelectedItemsChanged="@HandleSelectionChanged"
+                                            OnItemClick="@HandleItemClick"
+                                            OnItemDoubleClick="@HandleItemDoubleClick" />
+                            break;
+
+                        case ViewType.List:
+                            <GenericListView TItem="TItem"
+                                            Items="@filteredItems"
+                                            AllowSelection="@AllowSelection"
+                                            SelectedItems="@selectedItems"
+                                            SelectedItemsChanged="@HandleSelectionChanged"
+                                            OnItemClick="@HandleItemClick"
+                                            OnItemDoubleClick="@HandleItemDoubleClick"
+                                            ItemIcon="@ListIconTemplate"
+                                            ItemTitle="@ListTitleTemplate"
+                                            ItemSubtitle="@ListSubtitleTemplate"
+                                            ItemStatus="@ListStatusTemplate"
+                                            ItemDetails="@ListDetailsTemplate" />
+                            break;
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    public enum ViewType
+    {
+        Table,
+        Card,
+        List
+    }
+}

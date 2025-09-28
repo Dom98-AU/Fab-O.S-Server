@@ -1,0 +1,283 @@
+@namespace SteelEstimation.Web.Components.Shared.Common
+@rendermode InteractiveServer
+@using SteelEstimation.Core.Models
+@using SteelEstimation.Core.Entities
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@implements IDisposable
+
+<div class="editable-table-container @Config?.CssClass">
+    @if (Items == null || !Items.Any())
+    {
+        <div class="empty-message">
+            <i class="fas fa-table fa-3x text-muted mb-3"></i>
+            <p>@(Config?.EmptyMessage ?? "No data available")</p>
+            @if (Config?.AllowAddRows == true)
+            {
+                <button class="btn btn-primary btn-sm" @onclick="AddNewRow">
+                    <i class="fas fa-plus me-2"></i>Add Row
+                </button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover editable-table @tableClass" @ref="tableElement">
+                <thead>
+                    <tr>
+                        @if (Config?.ShowSelectionColumn == true)
+                        {
+                            <th class="selection-column">
+                                <input type="checkbox" class="form-check-input"
+                                       @onchange="ToggleSelectAll" />
+                            </th>
+                        }
+                        @if (Config?.ShowRowNumbers == true)
+                        {
+                            <th class="row-number-column">#</th>
+                        }
+                        @foreach (var column in GetVisibleColumns())
+                        {
+                            <th class="@GetHeaderClass(column)"
+                                style="@GetHeaderStyle(column)"
+                                data-column-key="@column.Key">
+                                @column.DisplayName
+                            </th>
+                        }
+                        @if (Config?.AllowDeleteRows == true)
+                        {
+                            <th class="action-column">Actions</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @{
+                        var rowIndex = 0;
+                        foreach (var item in Items)
+                        {
+                            var currentRowIndex = rowIndex;
+                            <tr class="@GetRowClass(item)">
+                                @if (Config?.ShowSelectionColumn == true)
+                                {
+                                    <td class="selection-column">
+                                        <input type="checkbox" class="form-check-input"
+                                               checked="@IsSelected(item)"
+                                               @onchange="() => ToggleSelection(item)" />
+                                    </td>
+                                }
+                                @if (Config?.ShowRowNumbers == true)
+                                {
+                                    <td class="row-number-column">@(currentRowIndex + 1)</td>
+                                }
+                                @foreach (var column in GetVisibleColumns())
+                                {
+                                    <td class="@GetCellClass(column, item)"
+                                        style="@GetCellStyle(column)">
+                                        @if (IsEditing(item, column.Key))
+                                        {
+                                            @RenderEditCell(item, column)
+                                        }
+                                        else
+                                        {
+                                            @RenderDisplayCell(item, column)
+                                        }
+                                    </td>
+                                }
+                                @if (Config?.AllowDeleteRows == true)
+                                {
+                                    <td class="action-column">
+                                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteRow(item)">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                }
+                            </tr>
+                            rowIndex++;
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Config?.AllowAddRows == true)
+        {
+            <div class="add-row-footer">
+                <button class="btn btn-primary btn-sm" @onclick="AddNewRow">
+                    <i class="fas fa-plus me-2"></i>Add Row
+                </button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    
+    [Parameter, EditorRequired] public List<object> Items { get; set; } = new();
+    [Parameter] public EditableTableConfig<object>? Config { get; set; }
+    [Parameter] public EventCallback<object> OnRowClick { get; set; }
+    [Parameter] public EventCallback<object> OnRowEdit { get; set; }
+    [Parameter] public EventCallback<object> OnRowDelete { get; set; }
+    [Parameter] public EventCallback<object> OnRowAdd { get; set; }
+    [Parameter] public EventCallback<List<object>> OnSelectionChanged { get; set; }
+    
+    private ElementReference tableElement;
+    private HashSet<object> selectedItems = new();
+    private Dictionary<string, object?> editingCells = new();
+    private string tableClass = "";
+    
+    protected override void OnInitialized()
+    {
+        tableClass = Config?.TableClass ?? "";
+    }
+    
+    private List<CellTemplate<object>> GetVisibleColumns()
+    {
+        return Config?.Columns?.Where(c => c.IsVisible).ToList() ?? new();
+    }
+    
+    private string GetHeaderClass(CellTemplate<object> column)
+    {
+        var classes = new List<string>();
+        if (!string.IsNullOrEmpty(column.CssClass)) classes.Add(column.CssClass);
+        return string.Join(" ", classes);
+    }
+    
+    private string GetHeaderStyle(CellTemplate<object> column)
+    {
+        var styles = new List<string>();
+        if (!string.IsNullOrEmpty(column.Width)) styles.Add($"width: {column.Width}");
+        return string.Join("; ", styles);
+    }
+    
+    private string GetCellClass(CellTemplate<object> column, object item)
+    {
+        var classes = new List<string>();
+        if (column.IsEditable) classes.Add("editable");
+        if (!string.IsNullOrEmpty(column.CssClass)) classes.Add(column.CssClass);
+        return string.Join(" ", classes);
+    }
+    
+    private string GetCellStyle(CellTemplate<object> column)
+    {
+        return GetHeaderStyle(column); // Same style as header for consistency
+    }
+    
+    private string GetRowClass(object item)
+    {
+        var classes = new List<string>();
+        if (IsSelected(item)) classes.Add("selected");
+        if (Config?.RowCssClass != null) classes.Add(Config.RowCssClass(item));
+        return string.Join(" ", classes);
+    }
+    
+    private bool IsSelected(object item)
+    {
+        return selectedItems.Contains(item);
+    }
+    
+    private bool IsEditing(object item, string columnKey)
+    {
+        var key = GetEditKey(item, columnKey);
+        return editingCells.ContainsKey(key);
+    }
+    
+    private string GetEditKey(object item, string columnKey)
+    {
+        return $"{item?.GetHashCode()}_{columnKey}";
+    }
+    
+    private void ToggleSelection(object item)
+    {
+        if (IsSelected(item))
+        {
+            selectedItems.Remove(item);
+        }
+        else
+        {
+            selectedItems.Add(item);
+        }
+        OnSelectionChanged.InvokeAsync(selectedItems.ToList());
+    }
+    
+    private void ToggleSelectAll()
+    {
+        if (selectedItems.Count == Items.Count)
+        {
+            selectedItems.Clear();
+        }
+        else
+        {
+            selectedItems = new HashSet<object>(Items);
+        }
+        OnSelectionChanged.InvokeAsync(selectedItems.ToList());
+    }
+    
+    private RenderFragment RenderDisplayCell(object item, CellTemplate<object> column)
+    {
+        return builder =>
+        {
+            if (column.DisplayTemplate != null)
+            {
+                builder.AddContent(0, column.DisplayTemplate(item));
+            }
+            else
+            {
+                var value = column.ValueGetter?.Invoke(item);
+                builder.AddContent(1, value?.ToString() ?? "");
+            }
+        };
+    }
+    
+    private RenderFragment RenderEditCell(object item, CellTemplate<object> column)
+    {
+        return builder =>
+        {
+            if (column.EditTemplate != null)
+            {
+                builder.AddContent(0, column.EditTemplate(item));
+            }
+            else
+            {
+                builder.OpenElement(0, "input");
+                builder.AddAttribute(1, "type", "text");
+                builder.AddAttribute(2, "class", "form-control form-control-sm");
+                builder.AddAttribute(3, "value", editingCells[GetEditKey(item, column.Key)]);
+                builder.AddAttribute(4, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(
+                    this, e => UpdateCellValue(item, column, e.Value?.ToString())));
+                builder.CloseElement();
+            }
+        };
+    }
+    
+    private void UpdateCellValue(object item, CellTemplate<object> column, string? value)
+    {
+        column.ValueSetter?.Invoke(item, value);
+        editingCells.Remove(GetEditKey(item, column.Key));
+        OnRowEdit.InvokeAsync(item);
+    }
+    
+    private async Task AddNewRow()
+    {
+        if (Config?.CreateNewItem != null)
+        {
+            var newItem = Config.CreateNewItem();
+            Items.Add(newItem);
+            await OnRowAdd.InvokeAsync(newItem);
+        }
+    }
+    
+    private async Task DeleteRow(object item)
+    {
+        Items.Remove(item);
+        selectedItems.Remove(item);
+        await OnRowDelete.InvokeAsync(item);
+    }
+    
+    public void Dispose()
+    {
+        selectedItems.Clear();
+        editingCells.Clear();
+    }
+}

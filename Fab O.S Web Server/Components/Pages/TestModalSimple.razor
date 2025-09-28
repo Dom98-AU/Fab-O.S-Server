@@ -1,0 +1,151 @@
+@page "/testmodal2"
+@layout FabOS.WebServer.Components.Layout.MainLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using FabOS.WebServer.Components.Shared
+
+<PageTitle>Modal Test - Fab.OS</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1>Modal Test Page</h1>
+            <p>This is a responsive modal test within the authenticated application.</p>
+
+            <button class="btn btn-primary" @onclick="OpenModal">
+                Open Modal
+            </button>
+
+            <button class="btn btn-success ms-2" @onclick="OpenFullscreenModal">
+                Open Fullscreen Modal
+            </button>
+
+            <div class="mt-3">
+                <p>Standard Modal: <strong class="text-info">@(showModal ? "OPEN" : "CLOSED")</strong></p>
+                <p>Fullscreen Modal: <strong class="text-success">@(showFullscreenModal ? "OPEN" : "CLOSED")</strong></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ModalTemplate IsVisible="showModal"
+              IsVisibleChanged="@((value) => showModal = value)"
+              Title="Standard Modal"
+              ModalType="ModalTemplate.ModalDisplayType.Standard"
+              Size="ModalTemplate.ModalSize.Large"
+              CloseOnBackdrop="false">
+    <h3>Standard Modal</h3>
+    <p>This is a centered modal with the same styling as the fullscreen version.</p>
+
+    <div class="modal-info-section">
+        <h4>Features:</h4>
+        <ul>
+            <li>Centered modal dialog</li>
+            <li>Same visual styling as fullscreen</li>
+            <li>Smooth animations</li>
+            <li>Professional gradient header</li>
+            <li>Clean, modern design</li>
+        </ul>
+    </div>
+
+    <div class="modal-instructions">
+        <h4>Instructions:</h4>
+        <ol>
+            <li>This modal appears centered on screen</li>
+            <li>Click the close button to dismiss</li>
+            <li>Same styling as fullscreen but more compact</li>
+        </ol>
+    </div>
+
+    <div class="modal-demo-content">
+        <h4>Demo Content:</h4>
+        <p>This demonstrates the consistent styling between modal types.</p>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Option A</h5>
+                        <p class="card-text">Sample content in card layout.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Option B</h5>
+                        <p class="card-text">More sample content.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</ModalTemplate>
+
+<ModalTemplate IsVisible="showFullscreenModal"
+              IsVisibleChanged="@((value) => showFullscreenModal = value)"
+              Title="Fullscreen Responsive Modal"
+              ModalType="ModalTemplate.ModalDisplayType.Fullscreen"
+              CloseOnBackdrop="false">
+    <h3>Fullscreen Modal</h3>
+    <p>This modal fills the available space while respecting the sidebar state.</p>
+
+    <div class="modal-info-section">
+        <h4>Features:</h4>
+        <ul>
+            <li>Fullscreen layout that adapts to sidebar</li>
+            <li>Clean CSS-based implementation</li>
+            <li>Smooth animations</li>
+            <li>Allows sidebar interaction</li>
+            <li>Responsive to sidebar state changes</li>
+        </ul>
+    </div>
+
+    <div class="modal-instructions">
+        <h4>Instructions:</h4>
+        <ol>
+            <li>Try collapsing/expanding the sidebar while this modal is open</li>
+            <li>Notice the modal adjusts its position dynamically</li>
+            <li>The modal respects the sidebar boundaries</li>
+            <li>You can still interact with the sidebar</li>
+        </ol>
+    </div>
+
+    <div class="modal-demo-content">
+        <h4>Demo Content:</h4>
+        <p>This area demonstrates the scrollable content within the fullscreen modal.</p>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Card 1</h5>
+                        <p class="card-text">Example content in a card layout.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Card 2</h5>
+                        <p class="card-text">More example content.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</ModalTemplate>
+
+
+@code {
+    private bool showModal = false;
+    private bool showFullscreenModal = false;
+
+    private void OpenModal()
+    {
+        showModal = true;
+    }
+
+    private void OpenFullscreenModal()
+    {
+        showFullscreenModal = true;
+    }
+}

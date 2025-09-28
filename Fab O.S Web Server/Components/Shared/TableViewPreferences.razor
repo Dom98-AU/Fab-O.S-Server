@@ -1,0 +1,347 @@
+@using FabOS.WebServer.Models.ViewState
+@using FabOS.WebServer.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IViewPreferencesService ViewService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<div class="table-view-preferences">
+    <button type="button" class="btn-view-preferences @(isOpen ? "active" : "")" @onclick="ToggleDropdown">
+        <i class="fas fa-bookmark"></i>
+        <span>@(currentView?.Name ?? "Default View")</span>
+        <i class="fas fa-chevron-down"></i>
+        @if (hasUnsavedChanges)
+        {
+            <span class="unsaved-indicator"></span>
+        }
+    </button>
+    
+    @if (isOpen)
+    {
+        <div class="view-preferences-dropdown">
+            <div class="view-dropdown-header">
+                Saved Views
+            </div>
+            
+            @if (isLoading)
+            {
+                <div class="view-loading">
+                    <div class="view-spinner"></div>
+                </div>
+            }
+            else if (savedViews.Any())
+            {
+                <div class="view-list">
+                    @foreach (var view in savedViews)
+                    {
+                        <div class="view-item @(view.Id == currentView?.Id ? "active" : "")"
+                             @onclick="@(() => LoadView(view))">
+                            <div class="view-item-content">
+                                <div class="view-item-name">@view.Name</div>
+                                <div class="view-item-meta">
+                                    @if (view.IsDefault)
+                                    {
+                                        <span class="view-badge default">Default</span>
+                                    }
+                                    @if (view.IsShared)
+                                    {
+                                        <span class="view-badge shared">Shared</span>
+                                    }
+                                    @if (view.Id == currentView?.Id)
+                                    {
+                                        <span class="view-badge current">Current</span>
+                                    }
+                                    <span>@view.LastModified.ToString("MMM dd")</span>
+                                </div>
+                            </div>
+                            <div class="view-item-actions">
+                                @if (!view.IsDefault)
+                                {
+                                    <button type="button" class="view-action-btn" 
+                                            title="Set as Default"
+                                            @onclick:stopPropagation="true"
+                                            @onclick="@(() => SetAsDefault(view))">
+                                        <i class="fas fa-star"></i>
+                                    </button>
+                                    <button type="button" class="view-action-btn delete" 
+                                            title="Delete"
+                                            @onclick:stopPropagation="true"
+                                            @onclick="@(() => DeleteView(view))">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="view-empty">
+                    <div class="view-empty-icon">
+                        <i class="fas fa-bookmark"></i>
+                    </div>
+                    <div class="view-empty-title">No Saved Views</div>
+                    <div class="view-empty-description">
+                        Save your current table configuration to quickly access it later.
+                    </div>
+                </div>
+            }
+            
+            <div class="view-dropdown-actions">
+                @if (hasUnsavedChanges)
+                {
+                    <button type="button" class="view-action primary" @onclick="SaveCurrentView">
+                        <i class="fas fa-save"></i>
+                        Save Current View
+                    </button>
+                }
+                <button type="button" class="view-action" @onclick="ShowSaveAsDialog">
+                    <i class="fas fa-plus"></i>
+                    Save As New View
+                </button>
+                <button type="button" class="view-action" @onclick="ResetToDefault">
+                    <i class="fas fa-undo"></i>
+                    Reset to Default
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@if (showSaveDialog)
+{
+    <div class="dialog-overlay" @onclick="CloseSaveDialog"></div>
+    <div class="save-view-dialog">
+        <div class="save-dialog-header">
+            Save View Configuration
+        </div>
+        <div class="save-dialog-body">
+            <div class="save-form-group">
+                <label class="save-form-label">View Name</label>
+                <input type="text" class="save-form-input" 
+                       @bind="newViewName" 
+                       placeholder="Enter a name for this view..." />
+            </div>
+            
+            <div class="save-form-checkbox">
+                <input type="checkbox" id="makeDefault" @bind="makeDefault" />
+                <label for="makeDefault">Set as my default view</label>
+            </div>
+            
+            <div class="save-form-checkbox">
+                <input type="checkbox" id="shareWithCompany" @bind="shareWithCompany" />
+                <label for="shareWithCompany">Share with all company users</label>
+            </div>
+        </div>
+        <div class="save-dialog-footer">
+            <button type="button" class="dialog-btn cancel" @onclick="CloseSaveDialog">
+                Cancel
+            </button>
+            <button type="button" class="dialog-btn save" @onclick="ConfirmSaveView">
+                <i class="fas fa-save"></i> Save View
+            </button>
+        </div>
+    </div>
+}
+
+@if (showNotification)
+{
+    <div class="view-notification">
+        <div class="notification-icon @notificationClass">
+            <i class="fas fa-@notificationIcon"></i>
+        </div>
+        <div class="notification-content">
+            <div class="notification-title">@notificationTitle</div>
+            <div class="notification-message">@notificationMessage</div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string ViewType { get; set; } = "Table";
+    [Parameter] public string EntityType { get; set; } = "";
+    [Parameter] public ViewState? CurrentState { get; set; }
+    [Parameter] public EventCallback<ViewState> OnViewLoaded { get; set; }
+    [Parameter] public bool HasUnsavedChanges { get; set; }
+    
+    private bool isOpen = false;
+    private bool isLoading = false;
+    private bool showSaveDialog = false;
+    private bool showNotification = false;
+    
+    private List<SavedViewPreference> savedViews = new();
+    private SavedViewPreference? currentView;
+    
+    private string newViewName = "";
+    private bool makeDefault = false;
+    private bool shareWithCompany = false;
+    
+    private string notificationTitle = "";
+    private string notificationMessage = "";
+    private string notificationClass = "success";
+    private string notificationIcon = "check";
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSavedViews();
+    }
+    
+    private async Task LoadSavedViews()
+    {
+        isLoading = true;
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User.Identity?.Name ?? "Anonymous";
+            
+            savedViews = await ViewService.GetUserViews(userId, EntityType);
+            
+            // Find and load default view
+            var defaultView = savedViews.FirstOrDefault(v => v.IsDefault);
+            if (defaultView != null)
+            {
+                await LoadView(defaultView);
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private async Task LoadView(SavedViewPreference view)
+    {
+        currentView = view;
+        if (view.ViewState != null)
+        {
+            await OnViewLoaded.InvokeAsync(view.ViewState);
+        }
+        isOpen = false;
+        hasUnsavedChanges = false;
+    }
+    
+    private void ToggleDropdown()
+    {
+        isOpen = !isOpen;
+        StateHasChanged();
+    }
+    
+    private void ShowSaveAsDialog()
+    {
+        newViewName = currentView?.Name ?? "Custom View";
+        makeDefault = false;
+        shareWithCompany = false;
+        showSaveDialog = true;
+        isOpen = false;
+    }
+    
+    private void CloseSaveDialog()
+    {
+        showSaveDialog = false;
+        newViewName = "";
+    }
+    
+    private async Task SaveCurrentView()
+    {
+        if (currentView != null && CurrentState != null)
+        {
+            currentView.ViewState = CurrentState;
+            currentView.LastModified = DateTime.UtcNow;
+            
+            await ViewService.SaveView(currentView);
+            hasUnsavedChanges = false;
+            ShowNotification("View Saved", "Your changes have been saved.", "success", "check");
+        }
+    }
+    
+    private async Task ConfirmSaveView()
+    {
+        if (string.IsNullOrWhiteSpace(newViewName))
+        {
+            ShowNotification("Invalid Name", "Please enter a name for the view.", "error", "exclamation");
+            return;
+        }
+        
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.Identity?.Name ?? "Anonymous";
+        
+        var newView = new SavedViewPreference
+        {
+            Name = newViewName,
+            EntityType = EntityType,
+            ViewType = ViewType,
+            UserId = userId,
+            IsDefault = makeDefault,
+            IsShared = shareWithCompany,
+            ViewState = CurrentState,
+            CreatedDate = DateTime.UtcNow,
+            LastModified = DateTime.UtcNow
+        };
+        
+        await ViewService.SaveView(newView);
+        await LoadSavedViews();
+        
+        currentView = newView;
+        hasUnsavedChanges = false;
+        showSaveDialog = false;
+        
+        ShowNotification("View Created", $"\"{newViewName}\" has been saved.", "success", "check");
+    }
+    
+    private async Task SetAsDefault(SavedViewPreference view)
+    {
+        // Clear other defaults
+        foreach (var v in savedViews.Where(v => v.IsDefault))
+        {
+            v.IsDefault = false;
+            await ViewService.SaveView(v);
+        }
+        
+        view.IsDefault = true;
+        await ViewService.SaveView(view);
+        await LoadSavedViews();
+        
+        ShowNotification("Default Set", $"\"{view.Name}\" is now your default view.", "success", "star");
+    }
+    
+    private async Task DeleteView(SavedViewPreference view)
+    {
+        await ViewService.DeleteView(view.Id);
+        await LoadSavedViews();
+        
+        if (currentView?.Id == view.Id)
+        {
+            currentView = null;
+            await ResetToDefault();
+        }
+        
+        ShowNotification("View Deleted", $"\"{view.Name}\" has been removed.", "success", "trash");
+    }
+    
+    private async Task ResetToDefault()
+    {
+        currentView = null;
+        await OnViewLoaded.InvokeAsync(null); // Signal to reset to default
+        hasUnsavedChanges = false;
+        isOpen = false;
+    }
+    
+    private void ShowNotification(string title, string message, string cssClass, string icon)
+    {
+        notificationTitle = title;
+        notificationMessage = message;
+        notificationClass = cssClass;
+        notificationIcon = icon;
+        showNotification = true;
+        
+        // Auto-hide after 3 seconds
+        Task.Run(async () =>
+        {
+            await Task.Delay(3000);
+            showNotification = false;
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+    
+    private bool hasUnsavedChanges = false;
+}

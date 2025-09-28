@@ -1,0 +1,39 @@
+@namespace SteelEstimation.Web.Components.Shared.Common
+@using SteelEstimation.Core.Models
+
+@if (Items != null && Items.Any())
+{
+    <nav aria-label="breadcrumb" class="breadcrumb-container">
+        <ol class="breadcrumb">
+            @foreach (var item in Items)
+            {
+                @if (item.IsActive)
+                {
+                    <li class="breadcrumb-item active" aria-current="page">
+                        @if (!string.IsNullOrEmpty(item.Icon))
+                        {
+                            <i class="@item.Icon"></i>
+                        }
+                        <span>@item.Label</span>
+                    </li>
+                }
+                else
+                {
+                    <li class="breadcrumb-item">
+                        <a href="@item.Url">
+                            @if (!string.IsNullOrEmpty(item.Icon))
+                            {
+                                <i class="@item.Icon"></i>
+                            }
+                            <span>@item.Label</span>
+                        </a>
+                    </li>
+                }
+            }
+        </ol>
+    </nav>
+}
+
+@code {
+    [Parameter] public List<BreadcrumbItem>? Items { get; set; }
+}

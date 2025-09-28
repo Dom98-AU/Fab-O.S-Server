@@ -1,0 +1,14 @@
+@namespace SteelEstimation.Web.Components.Shared.Common
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components
+@using SteelEstimation.Core.Interfaces
+
+<div class="save-view-preferences">
+    <button type="button" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-save"></i> Save View
+    </button>
+</div>
+
+@code {
+    [Parameter] public IViewStateProvider? ViewStateProvider { get; set; }
+}

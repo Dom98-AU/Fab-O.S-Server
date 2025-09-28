@@ -1,0 +1,59 @@
+@namespace FabOS.WebServer.Components.Shared
+@typeparam TItem
+
+<div class="fabos-card-view">
+    @if (Items?.Any() == true)
+    {
+        <div class="cards-container">
+            @foreach (var item in Items)
+            {
+                <div class="card-wrapper">
+                    <GenericCard TItem="TItem"
+                                 Item="@item"
+                                 Config="@CardConfig"
+                                 TitleSelector="@TitleSelector"
+                                 SubtitleSelector="@SubtitleSelector"
+                                 DescriptionSelector="@DescriptionSelector"
+                                 ImageUrlSelector="@ImageUrlSelector"
+                                 StatusSelector="@StatusSelector"
+                                 BadgeSelector="@BadgeSelector"
+                                 IsSelected="@(IsItemSelected(item))"
+                                 IsSelectable="@AllowSelection"
+                                 OnClick="@OnItemClick"
+                                 OnDoubleClick="@OnItemDoubleClick"
+                                 OnSelectionChanged="@OnSelectionChanged">
+                        
+                        @if (CustomCardContent != null)
+                        {
+                            @CustomCardContent(item)
+                        }
+                        
+                        @if (CustomCardActions != null)
+                        {
+                            <div slot="actions">
+                                @CustomCardActions(item)
+                            </div>
+                        }
+                    </GenericCard>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="cards-empty">
+            @if (EmptyContent != null)
+            {
+                @EmptyContent
+            }
+            else
+            {
+                <div class="empty-icon">
+                    <i class="fas fa-th-large"></i>
+                </div>
+                <h3>No items found</h3>
+                <p>No items match your current filters.</p>
+            }
+        </div>
+    }
+</div>

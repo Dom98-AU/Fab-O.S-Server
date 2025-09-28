@@ -1,0 +1,696 @@
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Services.Interfaces
+@inject IGooglePlacesService GooglePlacesService
+@inject IConfiguration Configuration
+
+<div class="contact-card @(IsEditMode ? "edit-mode" : "")">
+    @if (IsEditMode)
+    {
+        <div class="contact-card-header editing">
+            <div class="contact-icon">
+                <i class="fas fa-user-edit"></i>
+            </div>
+            <h4>@(Contact.Id == 0 ? "New Contact" : "Edit Contact")</h4>
+        </div>
+        <div class="contact-card-body">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>First Name *</label>
+                    <input type="text" class="form-control" @bind="Contact.FirstName" placeholder="John" />
+                </div>
+                <div class="form-group">
+                    <label>Last Name *</label>
+                    <input type="text" class="form-control" @bind="Contact.LastName" placeholder="Doe" />
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" class="form-control" @bind="Contact.Title" placeholder="Project Manager" />
+                </div>
+                <div class="form-group">
+                    <label>Department</label>
+                    <input type="text" class="form-control" @bind="Contact.Department" placeholder="Engineering" />
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group full-width">
+                    <label>Email *</label>
+                    <input type="email" class="form-control" @bind="Contact.Email" placeholder="john.doe@company.com" />
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" class="form-control" @bind="Contact.PhoneNumber" placeholder="(02) 1234 5678" />
+                </div>
+                <div class="form-group">
+                    <label>Mobile</label>
+                    <input type="tel" class="form-control" @bind="Contact.MobileNumber" placeholder="0412 345 678" />
+                </div>
+            </div>
+
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="@($"inherit-{Contact.Id}")"
+                       checked="@Contact.InheritCustomerAddress"
+                       @onchange="OnInheritAddressChanged">
+                <label class="form-check-label" for="@($"inherit-{Contact.Id}")">
+                    Use Customer Address
+                </label>
+            </div>
+
+            @if (!Contact.InheritCustomerAddress)
+            {
+                <hr class="my-3" />
+                <h5>Contact Address</h5>
+
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label>Search Address</label>
+                        <input type="text" class="form-control form-control-lg"
+                               @bind="addressSearchText" @bind:event="oninput"
+                               @onkeyup="SearchAddress"
+                               placeholder="Start typing an address..." />
+                        @if (showSuggestions && addressSuggestions.Any())
+                        {
+                            <div class="address-suggestions">
+                                @foreach (var suggestion in addressSuggestions)
+                                {
+                                    <div class="suggestion-item" @onclick="@(() => SelectAddress(suggestion))">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                        <div>
+                                            <div class="suggestion-main">@suggestion.MainText</div>
+                                            <div class="suggestion-secondary">@suggestion.SecondaryText</div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label>Address Line 1</label>
+                        <input type="text" class="form-control" @bind="Contact.AddressLine1" placeholder="123 Main Street" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label>Address Line 2</label>
+                        <input type="text" class="form-control" @bind="Contact.AddressLine2" placeholder="Suite 100" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>City</label>
+                        <input type="text" class="form-control" @bind="Contact.City" placeholder="Sydney" />
+                    </div>
+                    <div class="form-group">
+                        <label>State</label>
+                        <input type="text" class="form-control" @bind="Contact.State" placeholder="NSW" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Postal Code</label>
+                        <input type="text" class="form-control" @bind="Contact.PostalCode" placeholder="2000" />
+                    </div>
+                    <div class="form-group">
+                        <label>Country</label>
+                        <input type="text" class="form-control" @bind="Contact.Country" placeholder="Australia" />
+                    </div>
+                </div>
+            }
+
+            <div class="form-check mt-3">
+                <input type="checkbox" class="form-check-input" id="@($"primary-{Contact.Id}")" @bind="Contact.IsPrimary">
+                <label class="form-check-label" for="@($"primary-{Contact.Id}")">
+                    Primary Contact
+                </label>
+            </div>
+        </div>
+        <div class="contact-card-footer">
+            <button type="button" class="btn btn-success" @onclick="SaveContact">
+                <i class="fas fa-check"></i> Save
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="CancelEdit">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="contact-card-header">
+            @if (Contact.IsPrimary)
+            {
+                <span class="badge badge-primary">Primary</span>
+            }
+            <div class="contact-actions">
+                <button type="button" class="btn-icon" @onclick="EditContact" title="Edit">
+                    <i class="fas fa-edit"></i>
+                </button>
+                @if (!Contact.IsPrimary)
+                {
+                    <button type="button" class="btn-icon" @onclick="SetAsPrimary" title="Set as Primary">
+                        <i class="fas fa-star"></i>
+                    </button>
+                }
+                <button type="button" class="btn-icon text-danger" @onclick="DeleteContact" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+        <div class="contact-card-body">
+            <div class="contact-avatar">
+                <i class="fas fa-user-circle"></i>
+            </div>
+            <div class="contact-info">
+                <h4 class="contact-name">
+                    @Contact.FirstName @Contact.LastName
+                </h4>
+                @if (!string.IsNullOrEmpty(Contact.Title))
+                {
+                    <p class="contact-title">@Contact.Title</p>
+                }
+                @if (!string.IsNullOrEmpty(Contact.Department))
+                {
+                    <p class="contact-department"><i class="fas fa-building"></i> @Contact.Department</p>
+                }
+            </div>
+            <div class="contact-details">
+                @if (!string.IsNullOrEmpty(Contact.Email))
+                {
+                    <div class="detail-item">
+                        <i class="fas fa-envelope"></i>
+                        <a href="mailto:@Contact.Email">@Contact.Email</a>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(Contact.PhoneNumber))
+                {
+                    <div class="detail-item">
+                        <i class="fas fa-phone"></i>
+                        <a href="tel:@Contact.PhoneNumber">@Contact.PhoneNumber</a>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(Contact.MobileNumber))
+                {
+                    <div class="detail-item">
+                        <i class="fas fa-mobile-alt"></i>
+                        <a href="tel:@Contact.MobileNumber">@Contact.MobileNumber</a>
+                    </div>
+                }
+                @if (!Contact.InheritCustomerAddress && !string.IsNullOrEmpty(Contact.FormattedAddress))
+                {
+                    <div class="detail-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span class="address-text">@Contact.FormattedAddress</span>
+                    </div>
+                }
+                else if (!Contact.InheritCustomerAddress && !string.IsNullOrEmpty(Contact.AddressLine1))
+                {
+                    <div class="detail-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span class="address-text">
+                            @Contact.AddressLine1<br />
+                            @if (!string.IsNullOrEmpty(Contact.AddressLine2))
+                            {
+                                @Contact.AddressLine2<br />
+                            }
+                            @Contact.City, @Contact.State @Contact.PostalCode
+                        </span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .contact-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        overflow: hidden;
+        margin-bottom: 20px;
+    }
+
+    .contact-card:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+    }
+
+    .contact-card.edit-mode {
+        border: 2px solid #28a745;
+        box-shadow: 0 4px 20px rgba(40, 167, 69, 0.2);
+    }
+
+    .contact-card-header {
+        padding: 15px 20px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .contact-card-header.editing {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .contact-card-header.editing h4 {
+        color: white;
+        margin: 0;
+    }
+
+    .contact-icon {
+        width: 40px;
+        height: 40px;
+        background: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #28a745;
+        font-size: 18px;
+    }
+
+    .contact-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn-icon {
+        background: none;
+        border: none;
+        color: #6c757d;
+        cursor: pointer;
+        padding: 6px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+
+    .btn-icon:hover {
+        background: rgba(0,0,0,0.05);
+        color: #495057;
+    }
+
+    .btn-icon.text-danger:hover {
+        background: rgba(220,53,69,0.1);
+        color: #dc3545;
+    }
+
+    .contact-card-body {
+        padding: 20px;
+    }
+
+    .contact-avatar {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 60px;
+        color: #dee2e6;
+    }
+
+    .contact-info {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .contact-name {
+        font-size: 20px;
+        font-weight: 600;
+        color: #212529;
+        margin: 0 0 5px 0;
+    }
+
+    .contact-title {
+        color: #6c757d;
+        font-size: 14px;
+        margin: 5px 0;
+    }
+
+    .contact-department {
+        color: #6c757d;
+        font-size: 14px;
+        margin: 5px 0;
+    }
+
+    .contact-department i {
+        margin-right: 5px;
+    }
+
+    .contact-details {
+        border-top: 1px solid #e9ecef;
+        padding-top: 15px;
+    }
+
+    .detail-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+        color: #495057;
+        font-size: 14px;
+    }
+
+    .detail-item i {
+        color: #28a745;
+        width: 16px;
+    }
+
+    .detail-item a {
+        color: #495057;
+        text-decoration: none;
+    }
+
+    .detail-item a:hover {
+        color: #28a745;
+        text-decoration: underline;
+    }
+
+    .badge-primary {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .form-row {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+
+    .form-group {
+        flex: 1;
+    }
+
+    .form-group.full-width {
+        flex: 1 0 100%;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #28a745;
+        box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+    }
+
+    .form-check {
+        margin: 20px 0 10px 0;
+    }
+
+    .form-check-input {
+        margin-right: 8px;
+    }
+
+    .form-check-label {
+        font-size: 14px;
+        color: #495057;
+    }
+
+    .contact-card-footer {
+        padding: 15px 20px;
+        background: #f8f9fa;
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        border-top: 1px solid #dee2e6;
+    }
+
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+    }
+
+    .btn-success:hover {
+        background: linear-gradient(135deg, #218838 0%, #1aa085 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background: #5a6268;
+    }
+
+    .address-suggestions {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        max-height: 300px;
+        overflow-y: auto;
+        z-index: 1000;
+        margin-top: 4px;
+    }
+
+    .suggestion-item {
+        padding: 12px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border-bottom: 1px solid #f1f3f5;
+    }
+
+    .suggestion-item:hover {
+        background: #f8f9fa;
+    }
+
+    .suggestion-item i {
+        color: #28a745;
+        font-size: 16px;
+    }
+
+    .suggestion-main {
+        font-weight: 600;
+        color: #212529;
+        font-size: 14px;
+    }
+
+    .suggestion-secondary {
+        color: #6c757d;
+        font-size: 12px;
+        margin-top: 2px;
+    }
+
+    .address-text {
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    hr {
+        border-color: #dee2e6;
+        opacity: 0.25;
+    }
+</style>
+
+@code {
+    [Parameter] public CustomerContact Contact { get; set; } = new();
+    [Parameter] public EventCallback<CustomerContact> OnSave { get; set; }
+    [Parameter] public EventCallback<CustomerContact> OnDelete { get; set; }
+    [Parameter] public EventCallback<CustomerContact> OnSetPrimary { get; set; }
+    [Parameter] public bool IsEditMode { get; set; } = false;
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public string? CustomerAddress { get; set; }
+
+    private CustomerContact? originalContact;
+    private string addressSearchText = "";
+    private bool showSuggestions = false;
+    private List<PlaceAutocompletePrediction> addressSuggestions = new();
+    private string sessionToken = Guid.NewGuid().ToString();
+
+    protected override void OnParametersSet()
+    {
+        if (IsEditMode && originalContact == null)
+        {
+            // Create a copy for cancellation
+            originalContact = new CustomerContact
+            {
+                Id = Contact.Id,
+                FirstName = Contact.FirstName,
+                LastName = Contact.LastName,
+                Title = Contact.Title,
+                Department = Contact.Department,
+                Email = Contact.Email,
+                PhoneNumber = Contact.PhoneNumber,
+                MobileNumber = Contact.MobileNumber,
+                AddressLine1 = Contact.AddressLine1,
+                AddressLine2 = Contact.AddressLine2,
+                City = Contact.City,
+                State = Contact.State,
+                PostalCode = Contact.PostalCode,
+                Country = Contact.Country,
+                GooglePlaceId = Contact.GooglePlaceId,
+                FormattedAddress = Contact.FormattedAddress,
+                InheritCustomerAddress = Contact.InheritCustomerAddress,
+                IsPrimary = Contact.IsPrimary
+            };
+        }
+    }
+
+    private async Task SearchAddress(KeyboardEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(addressSearchText) || addressSearchText.Length < 3)
+        {
+            showSuggestions = false;
+            addressSuggestions.Clear();
+            return;
+        }
+
+        addressSuggestions = await GooglePlacesService.AutocompleteAsync(addressSearchText, sessionToken);
+        showSuggestions = addressSuggestions.Any();
+        StateHasChanged();
+    }
+
+    private async Task SelectAddress(PlaceAutocompletePrediction suggestion)
+    {
+        var details = await GooglePlacesService.GetPlaceDetailsAsync(suggestion.PlaceId, sessionToken);
+
+        Contact.FormattedAddress = details.FormattedAddress;
+        Contact.GooglePlaceId = suggestion.PlaceId;
+
+        // Construct address line 1 from street number and route
+        var addressLine1Parts = new List<string>();
+        if (!string.IsNullOrEmpty(details.StreetNumber))
+            addressLine1Parts.Add(details.StreetNumber);
+        if (!string.IsNullOrEmpty(details.Route))
+            addressLine1Parts.Add(details.Route);
+
+        Contact.AddressLine1 = string.Join(" ", addressLine1Parts);
+        Contact.City = details.Locality;
+        Contact.State = details.State;
+        Contact.PostalCode = details.PostalCode;
+        Contact.Country = details.Country ?? "Australia";
+
+        showSuggestions = false;
+        addressSearchText = suggestion.Description;
+        sessionToken = Guid.NewGuid().ToString(); // Generate new session token after selection
+        StateHasChanged();
+    }
+
+    private void OnInheritAddressChanged(ChangeEventArgs e)
+    {
+        Contact.InheritCustomerAddress = (bool)(e.Value ?? false);
+        if (Contact.InheritCustomerAddress)
+        {
+            // Clear address fields when inheriting from customer
+            Contact.AddressLine1 = null;
+            Contact.AddressLine2 = null;
+            Contact.City = null;
+            Contact.State = null;
+            Contact.PostalCode = null;
+            Contact.Country = null;
+            Contact.GooglePlaceId = null;
+            Contact.FormattedAddress = null;
+            addressSearchText = "";
+        }
+        StateHasChanged();
+    }
+
+    private async Task SaveContact()
+    {
+        await OnSave.InvokeAsync(Contact);
+        originalContact = null;
+    }
+
+    private async Task CancelEdit()
+    {
+        if (originalContact != null && Contact.Id > 0)
+        {
+            // Restore original values
+            Contact.FirstName = originalContact.FirstName;
+            Contact.LastName = originalContact.LastName;
+            Contact.Title = originalContact.Title;
+            Contact.Department = originalContact.Department;
+            Contact.Email = originalContact.Email;
+            Contact.PhoneNumber = originalContact.PhoneNumber;
+            Contact.MobileNumber = originalContact.MobileNumber;
+            Contact.AddressLine1 = originalContact.AddressLine1;
+            Contact.AddressLine2 = originalContact.AddressLine2;
+            Contact.City = originalContact.City;
+            Contact.State = originalContact.State;
+            Contact.PostalCode = originalContact.PostalCode;
+            Contact.Country = originalContact.Country;
+            Contact.GooglePlaceId = originalContact.GooglePlaceId;
+            Contact.FormattedAddress = originalContact.FormattedAddress;
+            Contact.InheritCustomerAddress = originalContact.InheritCustomerAddress;
+            Contact.IsPrimary = originalContact.IsPrimary;
+        }
+        originalContact = null;
+        await OnCancel.InvokeAsync();
+    }
+
+    private void EditContact()
+    {
+        IsEditMode = true;
+        StateHasChanged();
+    }
+
+    private async Task DeleteContact()
+    {
+        await OnDelete.InvokeAsync(Contact);
+    }
+
+    private async Task SetAsPrimary()
+    {
+        await OnSetPrimary.InvokeAsync(Contact);
+    }
+}

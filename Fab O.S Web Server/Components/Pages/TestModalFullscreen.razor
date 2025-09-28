@@ -1,0 +1,279 @@
+@page "/testmodal3"
+@using Microsoft.JSInterop
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@inject IJSRuntime JS
+
+<PageTitle>Fullscreen Modal Test</PageTitle>
+
+<div class="modal-test-container">
+    <h1>Fullscreen Modal Test</h1>
+    <p>This modal expands to fill the available space while respecting the sidebar.</p>
+
+    <button class="btn-primary" @onclick="OpenModal">
+        Open Fullscreen Modal
+    </button>
+
+    <p>Modal Status: <strong>@(isModalOpen ? "OPEN" : "CLOSED")</strong></p>
+</div>
+
+@if (isModalOpen)
+{
+    <div class="fullscreen-modal-wrapper">
+        <div class="fullscreen-modal-content">
+            <div class="modal-header">
+                <h2>Fullscreen Responsive Modal</h2>
+                <button class="modal-close-btn" @onclick="CloseModal" aria-label="Close">
+                    ✕ Close
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <h3>Fullscreen Modal</h3>
+                <p>This modal fills the available space while respecting the sidebar state.</p>
+
+                <div class="modal-info-section">
+                    <h4>Features:</h4>
+                    <ul>
+                        <li>Fullscreen layout that adapts to sidebar</li>
+                        <li>Clean CSS-based implementation</li>
+                        <li>No complex JavaScript required</li>
+                        <li>Smooth animations</li>
+                        <li>Allows sidebar interaction</li>
+                    </ul>
+                </div>
+
+                <div class="modal-instructions">
+                    <h4>Instructions:</h4>
+                    <ol>
+                        <li>Try collapsing/expanding the sidebar</li>
+                        <li>Notice the modal adjusts its position</li>
+                        <li>You can interact with the sidebar while modal is open</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    :root {
+        --sidebar-width-collapsed: 60px;
+        --sidebar-width-standard: 280px;
+        --sidebar-width-expanded: 420px;
+        --header-height: 60px;
+        --modal-gap: 20px;
+    }
+
+    .modal-test-container {
+        padding: 2rem;
+    }
+
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background-color 0.2s;
+    }
+
+    .btn-primary:hover {
+        background-color: #0056b3;
+    }
+
+    .fullscreen-modal-wrapper {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1050;
+        pointer-events: none;
+        animation: fadeIn 0.2s ease;
+    }
+
+    .fullscreen-modal-content {
+        position: fixed;
+        top: var(--header-height);
+        left: calc(var(--sidebar-width-standard) + var(--modal-gap));
+        right: var(--modal-gap);
+        bottom: var(--modal-gap);
+        background: white;
+        border-radius: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        pointer-events: auto;
+        animation: slideIn 0.3s ease;
+        transition: left 0.3s ease;
+    }
+
+    /* Adjust for collapsed sidebar */
+    .fabos-sidebar.collapsed ~ .fabos-main-content .fullscreen-modal-content {
+        left: calc(var(--sidebar-width-collapsed) + var(--modal-gap));
+    }
+
+    /* Adjust for expanded sidebar */
+    .fabos-sidebar.expanded ~ .fabos-main-content .fullscreen-modal-content {
+        left: calc(var(--sidebar-width-expanded) + var(--modal-gap));
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.5rem;
+        border-bottom: 1px solid #dee2e6;
+        background: linear-gradient(to right, #f8f9fa, white);
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        color: #333;
+        font-size: 1.75rem;
+    }
+
+    .modal-close-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background-color 0.2s;
+    }
+
+    .modal-close-btn:hover {
+        background-color: #c82333;
+    }
+
+    .modal-body {
+        padding: 2rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .modal-body h3 {
+        margin-top: 0;
+        color: #333;
+    }
+
+    .modal-info-section,
+    .modal-instructions {
+        margin: 1.5rem 0;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+    }
+
+    .modal-info-section {
+        background: #f0f8ff;
+        border-left: 4px solid #007bff;
+    }
+
+    .modal-instructions {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+    }
+
+    .modal-info-section h4 {
+        margin-top: 0;
+        color: #004085;
+    }
+
+    .modal-instructions h4 {
+        margin-top: 0;
+        color: #856404;
+    }
+
+    .modal-info-section ul {
+        margin: 0.5rem 0;
+        padding-left: 1.5rem;
+        color: #004085;
+        line-height: 1.8;
+    }
+
+    .modal-instructions ol {
+        margin: 0.5rem 0;
+        padding-left: 1.5rem;
+        color: #856404;
+        line-height: 1.8;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+
+    @@keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    /* Media query for smaller screens */
+    @@media (max-width: 768px) {
+        .fullscreen-modal-content {
+            left: var(--modal-gap);
+            top: var(--modal-gap);
+        }
+    }
+</style>
+
+@code {
+    private bool isModalOpen = false;
+
+    private async Task OpenModal()
+    {
+        isModalOpen = true;
+        StateHasChanged();
+
+        // Optional: Update position after render
+        await Task.Delay(50);
+        await UpdateModalPosition();
+    }
+
+    private void CloseModal()
+    {
+        isModalOpen = false;
+        StateHasChanged();
+    }
+
+    private async Task UpdateModalPosition()
+    {
+        try
+        {
+            // Simple JS to check sidebar state if needed
+            await JS.InvokeVoidAsync("eval", @"
+                const sidebar = document.querySelector('.fabos-sidebar');
+                const modal = document.querySelector('.fullscreen-modal-content');
+                if (sidebar && modal) {
+                    const isCollapsed = sidebar.classList.contains('collapsed');
+                    const isExpanded = sidebar.classList.contains('expanded');
+
+                    let leftOffset = 300; // default
+                    if (isCollapsed) leftOffset = 80;
+                    else if (isExpanded) leftOffset = 440;
+
+                    modal.style.left = leftOffset + 'px';
+                }
+            ");
+        }
+        catch
+        {
+            // Ignore errors - CSS fallback will handle positioning
+        }
+    }
+}

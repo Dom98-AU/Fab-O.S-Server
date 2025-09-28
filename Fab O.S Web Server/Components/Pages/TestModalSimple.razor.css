@@ -1,0 +1,73 @@
+/* TestModalSimple Component - Content Specific Styles */
+
+/* Content sections specific to this page */
+.modal-info-section,
+.modal-instructions,
+.modal-demo-content {
+    margin: 1.5rem 0;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+}
+
+.modal-info-section {
+    background: #f0f8ff;
+    border-left: 4px solid #007bff;
+}
+
+.modal-instructions {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.modal-demo-content {
+    background: #f8f9fa;
+    border-left: 4px solid #6c757d;
+}
+
+.modal-info-section h4 {
+    margin-top: 0;
+    color: #004085;
+}
+
+.modal-instructions h4 {
+    margin-top: 0;
+    color: #856404;
+}
+
+.modal-demo-content h4 {
+    margin-top: 0;
+    color: #495057;
+}
+
+.modal-info-section ul {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+    color: #004085;
+    line-height: 1.8;
+}
+
+.modal-instructions ol {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+    color: #856404;
+    line-height: 1.8;
+}
+
+/* Card styles for demo content */
+.card {
+    margin-bottom: 1rem;
+    border: 1px solid #dee2e6;
+}
+
+.card-body {
+    padding: 1rem;
+}
+
+.card-title {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.card-text {
+    color: #6c757d;
+}

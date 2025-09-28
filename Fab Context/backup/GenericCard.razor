@@ -1,0 +1,252 @@
+@typeparam TItem
+@using System.Reflection
+@using SteelEstimation.Core.Models
+
+<div class="generic-card @(IsSelected ? "selected" : "") @AdditionalCssClass" 
+     @onclick="HandleClick">
+    
+    @if (ShowSelection)
+    {
+        <div class="card-selection" @onclick:stopPropagation="true">
+            <input type="checkbox" class="form-check-input" @bind="IsSelected" @bind:after="HandleSelectionChange" />
+        </div>
+    }
+    
+    @if (HasStatus)
+    {
+        <div class="status-ribbon @GetStatusClass()">
+            @GetStatusText()
+        </div>
+    }
+    
+    <div class="card-content">
+        <!-- Avatar/Icon -->
+        <div class="card-avatar">
+            <i class="@GetIcon()"></i>
+        </div>
+        
+        <!-- Main Info -->
+        <div class="card-info">
+            <h5 class="card-title" title="@GetPrimaryText()">
+                @GetPrimaryText()
+            </h5>
+            
+            @if (!string.IsNullOrEmpty(GetSecondaryText()))
+            {
+                <p class="card-subtitle" title="@GetSecondaryText()">
+                    <i class="@GetSecondaryIcon()"></i> @GetSecondaryText()
+                </p>
+            }
+            
+            @if (!string.IsNullOrEmpty(GetTertiaryText()))
+            {
+                <p class="card-description">
+                    @GetTertiaryText()
+                </p>
+            }
+        </div>
+        
+        <!-- Stats Grid -->
+        @if (Config?.Stats?.Any() == true)
+        {
+            <div class="stats-grid">
+                @foreach (var stat in Config.Stats.Take(MaxStats))
+                {
+                    <div class="stat-box @stat.CssClass">
+                        <i class="@stat.Icon"></i>
+                        <div class="stat-content">
+                            <span class="stat-value">@GetStatValue(stat)</span>
+                            <span class="stat-label">@stat.Label</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        
+        <!-- Custom Content Slot -->
+        @if (CustomContent != null)
+        {
+            @CustomContent(Item!)
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public TItem? Item { get; set; }
+    [Parameter] public GenericDisplayConfig? Config { get; set; }
+    [Parameter] public bool ShowSelection { get; set; } = false;
+    [Parameter] public bool IsSelected { get; set; } = false;
+    [Parameter] public EventCallback<TItem> OnClick { get; set; }
+    [Parameter] public EventCallback<bool> IsSelectedChanged { get; set; }
+    [Parameter] public RenderFragment<TItem>? CustomContent { get; set; }
+    [Parameter] public string AdditionalCssClass { get; set; } = "";
+    [Parameter] public int MaxStats { get; set; } = 4;
+    
+    private PropertyInfo? GetProperty(string propertyName)
+    {
+        if (string.IsNullOrEmpty(propertyName) || Item == null)
+            return null;
+            
+        // Handle nested properties (e.g., "Customer.Name")
+        var parts = propertyName.Split('.');
+        if (parts.Length == 1)
+        {
+            return typeof(TItem).GetProperty(propertyName);
+        }
+        
+        // For nested properties, we'll need more complex logic
+        // For now, just handle simple properties
+        return typeof(TItem).GetProperty(parts[0]);
+    }
+    
+    private object? GetPropertyValue(string propertyName)
+    {
+        if (Item == null || string.IsNullOrEmpty(propertyName))
+            return null;
+            
+        var property = GetProperty(propertyName);
+        return property?.GetValue(Item);
+    }
+    
+    private string GetPrimaryText()
+    {
+        if (string.IsNullOrEmpty(Config?.PrimaryProperty))
+            return Item?.ToString() ?? "No Data";
+            
+        return GetPropertyValue(Config.PrimaryProperty)?.ToString() ?? "Unknown";
+    }
+    
+    private string GetSecondaryText()
+    {
+        if (string.IsNullOrEmpty(Config?.SecondaryProperty))
+            return "";
+            
+        return GetPropertyValue(Config.SecondaryProperty)?.ToString() ?? "";
+    }
+    
+    private string GetTertiaryText()
+    {
+        if (string.IsNullOrEmpty(Config?.TertiaryProperty))
+            return "";
+            
+        var value = GetPropertyValue(Config.TertiaryProperty)?.ToString() ?? "";
+        
+        // Truncate long descriptions
+        if (value.Length > 100)
+            return value.Substring(0, 97) + "...";
+            
+        return value;
+    }
+    
+    private string GetIcon()
+    {
+        if (!string.IsNullOrEmpty(Config?.IconProperty))
+        {
+            var iconValue = GetPropertyValue(Config.IconProperty)?.ToString();
+            if (!string.IsNullOrEmpty(iconValue))
+                return iconValue;
+        }
+        
+        return Config?.DefaultIcon ?? "fas fa-cube";
+    }
+    
+    private string GetSecondaryIcon()
+    {
+        // Return appropriate icon based on content type
+        if (Config?.SecondaryProperty?.Contains("Email") == true)
+            return "fas fa-envelope";
+        if (Config?.SecondaryProperty?.Contains("Phone") == true)
+            return "fas fa-phone";
+        if (Config?.SecondaryProperty?.Contains("Trading") == true)
+            return "fas fa-store";
+        if (Config?.SecondaryProperty?.Contains("Customer") == true)
+            return "fas fa-building";
+            
+        return "fas fa-info-circle";
+    }
+    
+    private bool HasStatus => !string.IsNullOrEmpty(Config?.StatusProperty);
+    
+    private string GetStatusText()
+    {
+        if (string.IsNullOrEmpty(Config?.StatusProperty))
+            return "";
+            
+        return GetPropertyValue(Config.StatusProperty)?.ToString() ?? "";
+    }
+    
+    private string GetStatusClass()
+    {
+        if (Config?.StatusClasses == null || !HasStatus)
+            return "";
+            
+        var statusValue = GetPropertyValue(Config.StatusProperty!);
+        if (statusValue != null && Config.StatusClasses.TryGetValue(statusValue, out var cssClass))
+        {
+            return cssClass;
+        }
+        
+        // Default status classes based on common values
+        var statusText = statusValue?.ToString()?.ToLower() ?? "";
+        return statusText switch
+        {
+            "active" => "active",
+            "inactive" => "inactive",
+            "approved" => "approved",
+            "pending" => "pending",
+            "completed" => "completed",
+            "draft" => "draft",
+            _ => ""
+        };
+    }
+    
+    private string GetStatValue(StatMapping stat)
+    {
+        object? value;
+        
+        if (stat.IsComputed && stat.ComputeValue != null)
+        {
+            value = stat.ComputeValue(Item!);
+        }
+        else
+        {
+            value = GetPropertyValue(stat.PropertyName);
+        }
+        
+        if (value == null)
+            return "0";
+            
+        // Apply formatting
+        if (!string.IsNullOrEmpty(stat.Format))
+        {
+            return value switch
+            {
+                decimal d => d.ToString(stat.Format),
+                double db => db.ToString(stat.Format),
+                float f => f.ToString(stat.Format),
+                int i => i.ToString(stat.Format),
+                long l => l.ToString(stat.Format),
+                DateTime dt => dt.ToString(stat.Format),
+                _ => value.ToString() ?? "0"
+            };
+        }
+        
+        return value.ToString() ?? "0";
+    }
+    
+    private async Task HandleClick()
+    {
+        if (OnClick.HasDelegate)
+        {
+            await OnClick.InvokeAsync(Item!);
+        }
+    }
+    
+    private async Task HandleSelectionChange()
+    {
+        if (IsSelectedChanged.HasDelegate)
+        {
+            await IsSelectedChanged.InvokeAsync(IsSelected);
+        }
+    }
+}

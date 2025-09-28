@@ -1,0 +1,243 @@
+@namespace FabOS.WebServer.Components.Shared
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (IsVisible)
+{
+    @if (ModalType == ModalDisplayType.Standard)
+    {
+        <!-- Standard Centered Modal -->
+        <div class="modal-backdrop" @onclick="HandleBackdropClick"></div>
+        <div class="modal-wrapper">
+            <div class="modal-container" style="@GetSizeStyle()">
+                <div class="modal-content">
+                    @if (ShowHeader)
+                    {
+                        <div class="modal-header">
+                            <h2>@Title</h2>
+                            @if (ShowCloseButton)
+                            {
+                                <button class="modal-close-btn" @onclick="CloseModal" aria-label="Close">
+                                    <i class="fas fa-times"></i> Close
+                                </button>
+                            }
+                        </div>
+                    }
+                    <div class="modal-body">
+                        @ChildContent
+                    </div>
+                    @if (FooterContent != null)
+                    {
+                        <div class="modal-footer">
+                            @FooterContent
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Fullscreen Modal -->
+        <div class="modal-fullscreen-wrapper">
+            <div class="modal-fullscreen">
+                @if (ShowHeader)
+                {
+                    <div class="modal-header">
+                        <h2>@Title</h2>
+                        @if (ShowCloseButton)
+                        {
+                            <button class="modal-close-btn" @onclick="CloseModal" aria-label="Close">
+                                <i class="fas fa-times"></i> Close
+                            </button>
+                        }
+                    </div>
+                }
+                <div class="modal-body">
+                    @ChildContent
+                </div>
+                @if (FooterContent != null)
+                {
+                    <div class="modal-footer">
+                        @FooterContent
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public string Title { get; set; } = "Modal";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? FooterContent { get; set; }
+    [Parameter] public bool ShowHeader { get; set; } = true;
+    [Parameter] public bool ShowCloseButton { get; set; } = true;
+    [Parameter] public bool CloseOnBackdrop { get; set; } = false;
+    [Parameter] public ModalDisplayType ModalType { get; set; } = ModalDisplayType.Standard;
+    [Parameter] public ModalSize Size { get; set; } = ModalSize.Large;
+    [Parameter] public EventCallback OnOpen { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private IJSObjectReference? modalModule;
+    private DotNetObjectReference<ModalTemplate>? dotNetRef;
+    private object? mutationObserver;
+    private object? escapeKeyHandler;
+    private object? focusTrapHandler;
+
+    public enum ModalDisplayType
+    {
+        Standard,
+        Fullscreen
+    }
+
+    public enum ModalSize
+    {
+        Small,
+        Medium,
+        Large,
+        ExtraLarge
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        dotNetRef = DotNetObjectReference.Create(this);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                modalModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/modal-helpers.js");
+
+                if (modalModule != null && dotNetRef != null)
+                {
+                    escapeKeyHandler = await modalModule.InvokeAsync<object>("addEscapeKeyListener", dotNetRef);
+                }
+            }
+            catch (JSException ex)
+            {
+                Console.WriteLine($"Failed to load modal JavaScript module: {ex.Message}");
+            }
+        }
+
+        if (IsVisible && modalModule != null)
+        {
+            try
+            {
+                if (ModalType == ModalDisplayType.Fullscreen)
+                {
+                    mutationObserver = await modalModule.InvokeAsync<object>("initializeModalPositioning");
+                    focusTrapHandler = await modalModule.InvokeAsync<object>("trapFocus", ".modal-fullscreen");
+                }
+                else
+                {
+                    focusTrapHandler = await modalModule.InvokeAsync<object>("trapFocus", ".modal-container");
+                }
+
+                await modalModule.InvokeVoidAsync("setBodyModalOpen", true);
+            }
+            catch (JSException ex)
+            {
+                Console.WriteLine($"JavaScript error during modal setup: {ex.Message}");
+            }
+        }
+        else if (!IsVisible && modalModule != null)
+        {
+            await CleanupModalResources();
+        }
+    }
+
+    private string GetSizeStyle()
+    {
+        return Size switch
+        {
+            ModalSize.Small => "max-width: 500px;",
+            ModalSize.Medium => "max-width: 700px;",
+            ModalSize.Large => "max-width: 900px;",
+            ModalSize.ExtraLarge => "max-width: 1200px;",
+            _ => "max-width: 900px;"
+        };
+    }
+
+    private async Task HandleBackdropClick()
+    {
+        if (CloseOnBackdrop)
+        {
+            await CloseModal();
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(false);
+        await OnClose.InvokeAsync();
+        await CleanupModalResources();
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task CloseFromJS()
+    {
+        await CloseModal();
+    }
+
+    private async Task CleanupModalResources()
+    {
+        if (modalModule != null)
+        {
+            try
+            {
+                if (mutationObserver != null)
+                {
+                    await modalModule.InvokeVoidAsync("disposeModalPositioning", mutationObserver);
+                    mutationObserver = null;
+                }
+
+                if (focusTrapHandler != null)
+                {
+                    var selector = ModalType == ModalDisplayType.Fullscreen ? ".modal-fullscreen" : ".modal-container";
+                    await modalModule.InvokeVoidAsync("releaseFocusTrap", selector, focusTrapHandler);
+                    focusTrapHandler = null;
+                }
+
+                await modalModule.InvokeVoidAsync("setBodyModalOpen", false);
+            }
+            catch (JSException ex)
+            {
+                Console.WriteLine($"JavaScript cleanup error: {ex.Message}");
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await CleanupModalResources();
+
+        if (modalModule != null)
+        {
+            try
+            {
+                if (escapeKeyHandler != null)
+                {
+                    await modalModule.InvokeVoidAsync("removeEscapeKeyListener", escapeKeyHandler);
+                }
+
+                await modalModule.DisposeAsync();
+            }
+            catch (JSException ex)
+            {
+                Console.WriteLine($"Disposal error: {ex.Message}");
+            }
+        }
+
+        dotNetRef?.Dispose();
+    }
+}

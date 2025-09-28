@@ -1,0 +1,136 @@
+/* Modal Infrastructure CSS - Global Positioning and Overlays */
+/* This file contains only the structural CSS for modals */
+/* Content styling should be in component-specific CSS files */
+
+/* Modal Backdrop/Overlay */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1040;
+    animation: fadeIn 0.2s ease;
+}
+
+/* Modal Wrapper - Centers the modal */
+.modal-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+/* Modal Container */
+.modal-container {
+    position: relative;
+    pointer-events: auto;
+    max-width: 90vw;
+    max-height: 90vh;
+    animation: slideIn 0.3s ease;
+}
+
+/* Fullscreen Modal Wrapper */
+.modal-fullscreen-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1040;
+    pointer-events: none;
+}
+
+/* Fullscreen Modal Container */
+.modal-fullscreen {
+    position: fixed;
+    top: 60px; /* Account for header */
+    left: 280px; /* Default sidebar width */
+    right: 20px;
+    bottom: 20px;
+    background: white;
+    border-radius: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
+    animation: slideIn 0.3s ease;
+    transition: left 0.3s ease;
+    z-index: 1041;
+}
+
+/* Adjust for collapsed sidebar */
+.sidebar-collapsed .modal-fullscreen {
+    left: 80px;
+}
+
+/* Adjust for expanded sidebar */
+.sidebar-expanded .modal-fullscreen {
+    left: 440px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes slideOut {
+    from {
+        opacity: 1;
+        transform: scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .modal-fullscreen {
+        left: 20px;
+        top: 20px;
+        right: 20px;
+        bottom: 20px;
+    }
+
+    .modal-container {
+        max-width: 95vw;
+        max-height: 95vh;
+    }
+}
+
+/* Accessibility */
+.modal-container:focus,
+.modal-fullscreen:focus {
+    outline: 2px solid #0066cc;
+    outline-offset: 2px;
+}
+
+/* Prevent body scroll when modal is open */
+body.modal-open {
+    overflow: hidden;
+}

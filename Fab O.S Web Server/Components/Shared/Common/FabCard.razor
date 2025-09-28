@@ -1,0 +1,42 @@
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="fabos-card @GetCardClasses()">
+    @if (!string.IsNullOrEmpty(Title) || HeaderContent != null)
+    {
+        <div class="fabos-card-header">
+            @if (HeaderContent != null)
+            {
+                @HeaderContent
+            }
+            else
+            {
+                <h3 class="fabos-card-title">@Title</h3>
+                @if (!string.IsNullOrEmpty(Subtitle))
+                {
+                    <p class="fabos-card-subtitle">@Subtitle</p>
+                }
+            }
+            @if (Actions != null)
+            {
+                <div class="fabos-card-actions">
+                    @Actions
+                </div>
+            }
+        </div>
+    }
+    
+    <div class="fabos-card-body">
+        @if (ChildContent != null)
+        {
+            @ChildContent
+        }
+    </div>
+    
+    @if (FooterContent != null)
+    {
+        <div class="fabos-card-footer">
+            @FooterContent
+        </div>
+    }
+</div>

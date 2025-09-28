@@ -1,0 +1,158 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Models.Filtering
+@using Microsoft.AspNetCore.Components
+
+<div class="filter-system @(IsOpen ? "open" : "")">
+    <div class="filter-header">
+        <button class="filter-toggle" @onclick="ToggleFilter">
+            <i class="fas fa-filter"></i>
+            <span>Filters</span>
+            @if (ActiveFilters.Any())
+            {
+                <span class="filter-count">@ActiveFilters.Count</span>
+            }
+        </button>
+
+        @if (ActiveFilters.Any())
+        {
+            <div class="active-filters">
+                @foreach (var filter in ActiveFilters)
+                {
+                    <div class="filter-chip">
+                        <span class="chip-text">@filter.GetDisplayText()</span>
+                        <button class="chip-remove" @onclick="() => RemoveFilter(filter.Id)">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                }
+                <button class="clear-all-filters" @onclick="ClearAllFilters">
+                    Clear All
+                </button>
+            </div>
+        }
+    </div>
+
+    @if (IsOpen)
+    {
+        <div class="filter-panel">
+            <div class="filter-panel-header">
+                <h3>Configure Filters</h3>
+                <button class="close-panel" @onclick="ToggleFilter">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="filter-builder">
+                @foreach (var definition in FilterDefinitions)
+                {
+                    <div class="filter-field">
+                        <label>@definition.DisplayName</label>
+                        @if (definition.Description != null)
+                        {
+                            <span class="field-description">@definition.Description</span>
+                        }
+
+                        <div class="filter-controls">
+                            <select class="operator-select" @onchange="(e) => OnOperatorChange(definition.PropertyName, e.Value?.ToString())">
+                                <option value="">Select operator...</option>
+                                @foreach (var op in definition.GetAvailableOperators())
+                                {
+                                    <option value="@op">@GetOperatorDisplayName(op)</option>
+                                }
+                            </select>
+
+                            @{
+                                var currentRule = tempRules.FirstOrDefault(r => r.Field == definition.PropertyName);
+                                if (currentRule != null && !IsNullOperator(currentRule.Operator))
+                                {
+                                    <div class="value-input">
+                                        @switch (definition.Type)
+                                        {
+                                            case FabOS.WebServer.Models.Filtering.FilterType.Text:
+                                                <input type="text"
+                                                       placeholder="Enter value..."
+                                                       @bind="currentRule.Value" />
+                                                break;
+                                            case FabOS.WebServer.Models.Filtering.FilterType.Number:
+                                            case FabOS.WebServer.Models.Filtering.FilterType.Currency:
+                                            case FabOS.WebServer.Models.Filtering.FilterType.Percentage:
+                                                <input type="number"
+                                                       placeholder="Enter number..."
+                                                       @bind="currentRule.Value" />
+                                                @if (currentRule.Operator == FilterOperator.Between)
+                                                {
+                                                    <span class="between-separator">and</span>
+                                                    <input type="number"
+                                                           placeholder="Enter second value..."
+                                                           @bind="currentRule.SecondValue" />
+                                                }
+                                                break;
+                                            case FabOS.WebServer.Models.Filtering.FilterType.Date:
+                                                <input type="date" value="@(currentRule.Value?.ToString())" @onchange="(e) => currentRule.Value = e.Value?.ToString()" />
+                                                @if (currentRule.Operator == FilterOperator.Between)
+                                                {
+                                                    <span class="between-separator">and</span>
+                                                    <input type="date" value="@(currentRule.SecondValue?.ToString())" @onchange="(e) => currentRule.SecondValue = e.Value?.ToString()" />
+                                                }
+                                                break;
+                                            case FabOS.WebServer.Models.Filtering.FilterType.DateTime:
+                                                <input type="datetime-local" value="@(currentRule.Value?.ToString())" @onchange="(e) => currentRule.Value = e.Value?.ToString()" />
+                                                @if (currentRule.Operator == FilterOperator.Between)
+                                                {
+                                                    <span class="between-separator">and</span>
+                                                    <input type="datetime-local" value="@(currentRule.SecondValue?.ToString())" @onchange="(e) => currentRule.SecondValue = e.Value?.ToString()" />
+                                                }
+                                                break;
+                                            case FabOS.WebServer.Models.Filtering.FilterType.Boolean:
+                                                break;
+                                            case FabOS.WebServer.Models.Filtering.FilterType.Select:
+                                                @if (definition.Options != null)
+                                                {
+                                                    <select @bind="currentRule.Value">
+                                                        <option value="">Select...</option>
+                                                        @foreach (var option in definition.Options)
+                                                        {
+                                                            <option value="@option.Key">@option.Value</option>
+                                                        }
+                                                    </select>
+                                                }
+                                                break;
+                                            case FabOS.WebServer.Models.Filtering.FilterType.MultiSelect:
+                                                @if (definition.Options != null)
+                                                {
+                                                    <div class="multi-select">
+                                                        @foreach (var option in definition.Options)
+                                                        {
+                                                            <label class="checkbox-option">
+                                                                <input type="checkbox"
+                                                                       value="@option.Key"
+                                                                       @onchange="(e) => OnMultiSelectChange(currentRule, option.Key, (bool)e.Value)" />
+                                                                <span>@option.Value</span>
+                                                            </label>
+                                                        }
+                                                    </div>
+                                                }
+                                                break;
+                                        }
+                                    </div>
+
+                                    <button class="add-filter-btn" @onclick="() => ApplyFieldFilter(definition, currentRule)">
+                                        <i class="fas fa-plus"></i>
+                                        Add
+                                    </button>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="filter-panel-footer">
+                <button class="btn-secondary" @onclick="CancelFilter">Cancel</button>
+                <button class="btn-primary" @onclick="ApplyFilters">Apply Filters</button>
+            </div>
+        </div>
+
+        <div class="filter-overlay" @onclick="ToggleFilter"></div>
+    }
+</div>

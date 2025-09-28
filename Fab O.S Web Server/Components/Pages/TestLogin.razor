@@ -1,0 +1,77 @@
+@page "/test-login"
+@using FabOS.WebServer.Authentication
+
+<h3>Test Login</h3>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Test Authentication</h5>
+            </div>
+            <div class="card-body">
+                @if (!string.IsNullOrEmpty(message))
+                {
+                    <div class="alert @(isSuccess ? "alert-success" : "alert-danger")">
+                        @message
+                    </div>
+                }
+
+                <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <InputText id="email" class="form-control" @bind-Value="loginModel.Email" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <InputText id="password" type="password" class="form-control" @bind-Value="loginModel.Password" />
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Test Login</button>
+                </EditForm>
+
+                <hr />
+
+                <h6>Try these common passwords:</h6>
+                <div class="btn-group-vertical w-100">
+                    <button class="btn btn-success btn-sm" @onclick='() => TryPassword("Admin@123")'>Admin@123 ✅ CORRECT</button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick='() => TryPassword("admin")'>admin</button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick='() => TryPassword("admin123")'>admin123</button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick='() => TryPassword("password")'>password</button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick='() => TryPassword("steel")'>steel</button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick='() => TryPassword("system")'>system</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>User Information</h5>
+            </div>
+            <div class="card-body">
+                @if (user != null)
+                {
+                    <table class="table table-sm">
+                        <tr><td><strong>ID:</strong></td><td>@user.Id</td></tr>
+                        <tr><td><strong>Email:</strong></td><td>@user.Email</td></tr>
+                        <tr><td><strong>Name:</strong></td><td>@user.FirstName @user.LastName</td></tr>
+                        <tr><td><strong>Username:</strong></td><td>@user.Username</td></tr>
+                        <tr><td><strong>Active:</strong></td><td>@user.IsActive</td></tr>
+                        <tr><td><strong>Company:</strong></td><td>@user.Company</td></tr>
+                        <tr><td><strong>Hash Preview:</strong></td><td>@(string.IsNullOrEmpty(user.PasswordHash) ? "N/A" : user.PasswordHash.Substring(0, Math.Min(20, user.PasswordHash.Length)))...</td></tr>
+                    </table>
+                }
+                else
+                {
+                    <p class="text-muted">No user loaded</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FabOS.WebServer</RootNamespace>
+    <AssemblyName>FabOS.WebServer</AssemblyName>
+    
+    <!-- Razor optimizations for .NET 8 -->
+    <RazorCompileOnBuild>true</RazorCompileOnBuild>
+    <RazorCompileOnPublish>true</RazorCompileOnPublish>
+    
+    <!-- Enable source generators -->
+    <UseRazorSourceGenerator>true</UseRazorSourceGenerator>
+    <RazorLangVersion>8.0</RazorLangVersion>
+    
+    <!-- Additional optimizations -->
+    <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
+    <!-- Disable emitting generated files to avoid duplicates -->
+    <EmitCompilerGeneratedFiles>false</EmitCompilerGeneratedFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Entity Framework Core for Azure SQL -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" />
+    
+    <!-- Azure Key Vault for connection strings -->
+    <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.6.0" />
+    <PackageReference Include="Azure.Identity" Version="1.14.2" />
+    
+    <!-- Authentication & Identity -->
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="8.0.0" />
+    
+    <!-- Application Insights for monitoring -->
+    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.22.0" />
+    
+    <!-- Background Jobs -->
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.9" />
+    <PackageReference Include="Hangfire.SqlServer" Version="1.8.9" />
+
+    <!-- Microsoft Graph for SharePoint Integration -->
+    <PackageReference Include="Microsoft.Graph" Version="5.56.0" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.73.1" />
+  </ItemGroup>
+
+</Project>

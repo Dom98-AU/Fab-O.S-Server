@@ -1,0 +1,96 @@
+@namespace FabOS.WebServer.Components.Shared
+@typeparam TItem
+@using System.Reflection
+@using FabOS.WebServer.Models
+
+<div class="fabos-generic-card @(IsSelected ? "selected" : "") @AdditionalCssClass" 
+     @onclick="HandleClick">
+    
+    @if (IsSelectable)
+    {
+        <div class="fabos-card-selection" @onclick:stopPropagation="true">
+            <input type="checkbox" class="form-check-input" @bind="IsSelected" @bind:after="() => HandleSelectionChange(IsSelected)" />
+        </div>
+    }
+    
+    @if (HasStatus())
+    {
+        <div class="fabos-status-ribbon @GetStatusClass()">
+            @GetStatusText()
+        </div>
+    }
+    
+    <div class="fabos-card-content">
+        <!-- Avatar/Icon -->
+        <div class="fabos-card-avatar">
+            <i class="@GetIcon()"></i>
+        </div>
+        
+        <!-- Main Info -->
+        <div class="fabos-card-info">
+            <h5 class="fabos-card-title" title="@GetPrimaryText()">
+                @GetPrimaryText()
+            </h5>
+            
+            @if (!string.IsNullOrEmpty(GetSecondaryText()))
+            {
+                <p class="fabos-card-subtitle" title="@GetSecondaryText()">
+                    <i class="@GetSecondaryIcon()"></i> @GetSecondaryText()
+                </p>
+            }
+            
+            @if (!string.IsNullOrEmpty(GetTertiaryText()))
+            {
+                <p class="fabos-card-meta" title="@GetTertiaryText()">
+                    <i class="@GetTertiaryIcon()"></i> @GetTertiaryText()
+                </p>
+            }
+        </div>
+        
+        <!-- Stats -->
+        @if (Config?.Stats != null && Config.Stats.Any())
+        {
+            <div class="fabos-card-stats">
+                @foreach (var stat in Config.Stats)
+                {
+                    <div class="fabos-stat">
+                        <small>@stat.Label</small>
+                        <span>@GetStatValue(stat)</span>
+                    </div>
+                }
+            </div>
+        }
+        
+        <!-- Action Buttons -->
+        @if (Config?.Actions != null && Config.Actions.Any())
+        {
+            <div class="fabos-card-actions">
+                @foreach (var action in Config.Actions)
+                {
+                    <button type="button" 
+                            class="btn btn-sm @action.CssClass" 
+                            @onclick="async () => await action.OnClick.InvokeAsync()"
+                            @onclick:stopPropagation="true">
+                        <i class="@action.Icon"></i> @action.Label
+                    </button>
+                }
+            </div>
+        }
+        
+        <!-- Custom Content Slot -->
+        @if (CustomContent != null)
+        {
+            <div class="fabos-custom-content">
+                @CustomContent(Item!)
+            </div>
+        }
+
+        <!-- Child Content -->
+        @if (ChildContent != null)
+        {
+            <div class="fabos-child-content">
+                @ChildContent
+            </div>
+        }
+    </div>
+</div>
