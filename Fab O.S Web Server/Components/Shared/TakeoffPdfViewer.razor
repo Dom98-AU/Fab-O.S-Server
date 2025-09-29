@@ -119,13 +119,7 @@
                                   marker-end="url(#arrowhead)" />
 
                             <!-- Distance label -->
-                            <text x="@((currentMeasurement.Points[0].X + currentMeasurement.Points[1].X) / 2)"
-                                  y="@((currentMeasurement.Points[0].Y + currentMeasurement.Points[1].Y) / 2 - 10)"
-                                  fill="@currentColor"
-                                  font-size="14"
-                                  font-weight="bold">
-                                @FormatMeasurement(currentMeasurement.Value, currentMeasurement.Unit)
-                            </text>
+                            <text x="@((currentMeasurement.Points[0].X + currentMeasurement.Points[1].X) / 2)" y="@((currentMeasurement.Points[0].Y + currentMeasurement.Points[1].Y) / 2 - 10)" fill="@currentColor" font-size="14" font-weight="bold">@FormatMeasurement(currentMeasurement.Value, currentMeasurement.Unit)</text>
                         }
                         else if (currentTool == "area" && currentMeasurement.Points.Count > 2)
                         {

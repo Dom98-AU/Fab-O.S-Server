@@ -82,7 +82,7 @@ namespace FabOS.WebServer.Services.Implementations
             throw new NotImplementedException("Text block extraction will be implemented in next phase");
         }
 
-        public async Task<List<TextBlock>> ExtractTextInRegionAsync(Stream pdfStream, int pageNumber, Rectangle region)
+        public async Task<List<TextBlock>> ExtractTextInRegionAsync(Stream pdfStream, int pageNumber, FabOS.WebServer.Services.Interfaces.Rectangle region)
         {
             throw new NotImplementedException("Regional text extraction will be implemented in next phase");
         }

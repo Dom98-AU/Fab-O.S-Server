@@ -68,13 +68,3 @@ public class FilterDefinition
         };
     }
 }
-
-public class FilterFieldDefinition
-{
-    public string PropertyName { get; set; } = string.Empty;
-    public string DisplayName { get; set; } = string.Empty;
-    public string DataType { get; set; } = "string";
-    public Type? PropertyType { get; set; }
-    public bool IsFilterable { get; set; } = true;
-    public List<FilterOperator> AllowedOperators { get; set; } = new();
-}
