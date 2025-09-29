@@ -12,10 +12,17 @@
     <link rel="stylesheet" href="css/pdf-takeoff-viewer.css" />
     <link rel="stylesheet" href="css/modal-infrastructure.css" />
     <link rel="stylesheet" href="css/sharepoint-modal.css" />
+    <link rel="stylesheet" href="css/sharepoint-file-browser.css" />
     <link rel="stylesheet" href="css/table-column-management.css" />
     <link rel="stylesheet" href="css/table-filter-system.css" />
     <link rel="stylesheet" href="css/table-view-preferences.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- PDF.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Set PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
     <HeadOutlet />
 </head>
 
@@ -25,6 +32,7 @@
     <script src="js/pdf-takeoff-viewer.js"></script>
     <script src="js/modal-helpers.js"></script>
     <script src="js/table-column-freeze.js"></script>
+    <script src="js/pdf-viewer-interop.js"></script>
 </body>
 
 </html>

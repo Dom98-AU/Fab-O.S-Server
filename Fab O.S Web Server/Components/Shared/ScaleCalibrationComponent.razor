@@ -1,0 +1,687 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Models.Calibration
+@using FabOS.WebServer.Services.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using Microsoft.EntityFrameworkCore
+@inject IScaleCalibrationService CalibrationService
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JS
+@inject ILogger<ScaleCalibrationComponent> Logger
+
+<div class="scale-calibration-component">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner-border"></div>
+            <p>Loading calibration data...</p>
+        </div>
+    }
+    else
+    {
+        <div class="calibration-content">
+            <!-- Calibration Method Selection -->
+            <div class="method-selection">
+                <h4>Calibration Method</h4>
+                <div class="method-options">
+                    <label class="method-option">
+                        <input type="radio" name="calibrationMethod" value="two-point"
+                               @onchange="() => SetCalibrationMethod(\"two-point\")"
+                               checked="@(calibrationMethod == "two-point")" />
+                        <span>Two-Point Calibration</span>
+                        <small>Click two points with known distance</small>
+                    </label>
+                    <label class="method-option">
+                        <input type="radio" name="calibrationMethod" value="preset"
+                               @onchange="() => SetCalibrationMethod(\"preset\")"
+                               checked="@(calibrationMethod == "preset")" />
+                        <span>Scale Preset</span>
+                        <small>Select from common architectural scales</small>
+                    </label>
+                </div>
+            </div>
+
+            @if (calibrationMethod == "two-point")
+            {
+                <!-- Two-Point Calibration -->
+                <div class="two-point-calibration">
+                    <h4>Two-Point Calibration</h4>
+
+                    <div class="calibration-steps">
+                        <div class="step @(calibrationStep >= 1 ? "active" : "")">
+                            <div class="step-number">1</div>
+                            <div class="step-content">
+                                <h5>Enter Known Distance</h5>
+                                <div class="distance-input">
+                                    <input type="number" @bind="knownDistance"
+                                           @oninput="ValidateInput"
+                                           placeholder="Enter distance"
+                                           class="form-control" />
+                                    <select @bind="selectedUnit" class="form-select">
+                                        <option value="mm">mm</option>
+                                        <option value="cm">cm</option>
+                                        <option value="m">m</option>
+                                        <option value="in">in</option>
+                                        <option value="ft">ft</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="step @(calibrationStep >= 2 ? "active" : "")">
+                            <div class="step-number">2</div>
+                            <div class="step-content">
+                                <h5>Click Two Points</h5>
+                                <p>Click on the PDF to mark the start and end of the known distance.</p>
+                                @if (point1 != null)
+                                {
+                                    <div class="point-info">
+                                        <i class="fas fa-check-circle text-success"></i>
+                                        Point 1: (@point1.X.ToString("F0"), @point1.Y.ToString("F0"))
+                                    </div>
+                                }
+                                @if (point2 != null)
+                                {
+                                    <div class="point-info">
+                                        <i class="fas fa-check-circle text-success"></i>
+                                        Point 2: (@point2.X.ToString("F0"), @point2.Y.ToString("F0"))
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="step @(calibrationStep >= 3 ? "active" : "")">
+                            <div class="step-number">3</div>
+                            <div class="step-content">
+                                <h5>Review & Apply</h5>
+                                @if (calibrationResult != null)
+                                {
+                                    <div class="calibration-preview">
+                                        <div class="preview-item">
+                                            <label>Calculated Scale:</label>
+                                            <span>1:@calibrationResult.ScaleRatio</span>
+                                        </div>
+                                        <div class="preview-item">
+                                            <label>Pixels per Unit:</label>
+                                            <span>@calibrationResult.PixelsPerUnit.ToString("F3")</span>
+                                        </div>
+                                        <div class="preview-item">
+                                            <label>Accuracy Score:</label>
+                                            <span class="@GetAccuracyClass(calibrationResult.AccuracyScore)">
+                                                @calibrationResult.AccuracyScore.ToString("F1")%
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    @if (calibrationResult.AccuracyScore < 70)
+                                    {
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                            The calculated scale may not be accurate. Please verify your measurements.
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="notes-section">
+                        <label for="calibrationNotes">Notes (optional)</label>
+                        <textarea id="calibrationNotes" @bind="calibrationNotes"
+                                 class="form-control" rows="3"
+                                 placeholder="Add any notes about this calibration..."></textarea>
+                    </div>
+                </div>
+            }
+            else if (calibrationMethod == "preset")
+            {
+                <!-- Preset Scale Selection -->
+                <div class="preset-calibration">
+                    <h4>Select Scale Preset</h4>
+
+                    <div class="scale-presets">
+                        @if (scalePresets != null)
+                        {
+                            @foreach (var preset in scalePresets)
+                            {
+                                <div class="scale-preset @(selectedPreset?.ScaleRatio == preset.ScaleRatio ? "selected" : "")"
+                                     @onclick="() => SelectPreset(preset)">
+                                    <div class="preset-header">
+                                        <span class="preset-scale">@preset.DisplayName</span>
+                                        @if (preset.IsCommon)
+                                        {
+                                            <span class="badge badge-primary">Common</span>
+                                        }
+                                    </div>
+                                    <div class="preset-description">@preset.Description</div>
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    @if (selectedPreset != null)
+                    {
+                        <div class="preset-preview">
+                            <h5>Selected Scale: @selectedPreset.DisplayName</h5>
+                            <p>@selectedPreset.Description</p>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- Current Calibration Info -->
+            @if (activeCalibration != null)
+            {
+                <div class="current-calibration">
+                    <h4>Current Calibration</h4>
+                    <div class="calibration-info">
+                        <div class="info-item">
+                            <label>Scale:</label>
+                            <span>1:@activeCalibration.ScaleRatio</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Created:</label>
+                            <span>@activeCalibration.CreatedDate.ToString("MMM dd, yyyy HH:mm")</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(activeCalibration.Notes))
+                        {
+                            <div class="info-item">
+                                <label>Notes:</label>
+                                <span>@activeCalibration.Notes</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button class="btn btn-secondary" @onclick="HandleClose">
+                Cancel
+            </button>
+            <button class="btn btn-primary" @onclick="ApplyCalibration"
+                    disabled="@(!CanApplyCalibration())">
+                <i class="fas fa-check"></i>
+                Apply Calibration
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int PackageDrawingId { get; set; }
+    [Parameter] public EventCallback OnCalibrationComplete { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool isLoading = true;
+    private string calibrationMethod = "two-point";
+    private int calibrationStep = 1;
+
+    // Two-point calibration
+    private double knownDistance = 0;
+    private string selectedUnit = "mm";
+    private CalibrationPoint? point1;
+    private CalibrationPoint? point2;
+    private CalibrationResult? calibrationResult;
+    private string calibrationNotes = "";
+
+    // Preset calibration
+    private List<ScalePreset>? scalePresets;
+    private ScalePreset? selectedPreset;
+
+    // Current calibration
+    private CalibrationData? activeCalibration;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        isLoading = false;
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            // Load current active calibration
+            activeCalibration = await CalibrationService.GetActiveCalibrationAsync(PackageDrawingId);
+
+            // Load scale presets
+            scalePresets = await CalibrationService.GetScalePresetsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading calibration data");
+        }
+    }
+
+    private void SetCalibrationMethod(string method)
+    {
+        calibrationMethod = method;
+        ResetCalibrationState();
+    }
+
+    private void ResetCalibrationState()
+    {
+        calibrationStep = 1;
+        point1 = null;
+        point2 = null;
+        calibrationResult = null;
+        selectedPreset = null;
+    }
+
+    private async Task ValidateInput(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), out var distance) && distance > 0)
+        {
+            knownDistance = distance;
+            calibrationStep = Math.Max(calibrationStep, 2);
+
+            // If we have both points, calculate the result
+            if (point1 != null && point2 != null)
+            {
+                await CalculateCalibration();
+            }
+        }
+        else
+        {
+            calibrationStep = 1;
+        }
+    }
+
+    private async Task OnPointSelected(double x, double y)
+    {
+        if (calibrationMethod != "two-point" || knownDistance <= 0) return;
+
+        if (point1 == null)
+        {
+            point1 = new CalibrationPoint { X = x, Y = y };
+            StateHasChanged();
+        }
+        else if (point2 == null)
+        {
+            point2 = new CalibrationPoint { X = x, Y = y };
+            await CalculateCalibration();
+            StateHasChanged();
+        }
+        else
+        {
+            // Reset and start over
+            point1 = new CalibrationPoint { X = x, Y = y };
+            point2 = null;
+            calibrationResult = null;
+            calibrationStep = 2;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CalculateCalibration()
+    {
+        if (point1 == null || point2 == null || knownDistance <= 0) return;
+
+        try
+        {
+            var dx = point2.X - point1.X;
+            var dy = point2.Y - point1.Y;
+            var measuredPixels = Math.Sqrt(dx * dx + dy * dy);
+
+            calibrationResult = await CalibrationService.CalculateScaleFactorAsync(
+                knownDistance, measuredPixels, selectedUnit);
+
+            if (calibrationResult.IsValid)
+            {
+                calibrationStep = 3;
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", calibrationResult.ErrorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error calculating calibration");
+            await JS.InvokeVoidAsync("alert", "Error calculating calibration. Please try again.");
+        }
+    }
+
+    private void SelectPreset(ScalePreset preset)
+    {
+        selectedPreset = preset;
+    }
+
+    private bool CanApplyCalibration()
+    {
+        if (calibrationMethod == "two-point")
+        {
+            return calibrationResult != null && calibrationResult.IsValid;
+        }
+        else if (calibrationMethod == "preset")
+        {
+            return selectedPreset != null;
+        }
+        return false;
+    }
+
+    private async Task ApplyCalibration()
+    {
+        try
+        {
+            CalibrationResult result;
+
+            if (calibrationMethod == "two-point" && calibrationResult != null)
+            {
+                // Apply two-point calibration
+                var request = new CreateCalibrationRequest
+                {
+                    PackageDrawingId = PackageDrawingId,
+                    KnownDistance = knownDistance,
+                    Units = selectedUnit,
+                    Point1 = point1!,
+                    Point2 = point2!,
+                    Notes = calibrationNotes
+                };
+
+                result = await CalibrationService.CreateCalibrationAsync(request, 1); // TODO: Get current user ID
+            }
+            else if (calibrationMethod == "preset" && selectedPreset != null)
+            {
+                // Apply preset calibration
+                result = await CalibrationService.ApplyPresetScaleAsync(
+                    PackageDrawingId, selectedPreset.ScaleRatio, 1); // TODO: Get current user ID
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", "Invalid calibration configuration");
+                return;
+            }
+
+            if (result.IsValid)
+            {
+                await JS.InvokeVoidAsync("alert", "Calibration applied successfully!");
+                await OnCalibrationComplete.InvokeAsync();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", result.ErrorMessage ?? "Failed to apply calibration");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error applying calibration");
+            await JS.InvokeVoidAsync("alert", "Error applying calibration. Please try again.");
+        }
+    }
+
+    private async Task HandleClose()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private string GetAccuracyClass(double score)
+    {
+        return score switch
+        {
+            >= 90 => "text-success",
+            >= 70 => "text-warning",
+            _ => "text-danger"
+        };
+    }
+}
+
+<style>
+    .scale-calibration-component {
+        padding: 1.5rem;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem;
+    }
+
+    .method-selection {
+        margin-bottom: 2rem;
+    }
+
+    .method-options {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .method-option {
+        display: flex;
+        flex-direction: column;
+        padding: 1rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        flex: 1;
+    }
+
+    .method-option:hover {
+        border-color: var(--primary-color);
+        background: #f8f9fa;
+    }
+
+    .method-option input[type="radio"] {
+        margin-bottom: 0.5rem;
+    }
+
+    .method-option span {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .method-option small {
+        color: var(--text-secondary);
+    }
+
+    .calibration-steps {
+        margin: 2rem 0;
+    }
+
+    .step {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        opacity: 0.5;
+        transition: opacity 0.3s;
+    }
+
+    .step.active {
+        opacity: 1;
+    }
+
+    .step-number {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #e0e0e0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+
+    .step.active .step-number {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .step-content {
+        flex: 1;
+    }
+
+    .step-content h5 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.1rem;
+    }
+
+    .distance-input {
+        display: flex;
+        gap: 0.5rem;
+        max-width: 300px;
+    }
+
+    .distance-input input {
+        flex: 2;
+    }
+
+    .distance-input select {
+        flex: 1;
+    }
+
+    .point-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0.5rem 0;
+        font-family: monospace;
+    }
+
+    .calibration-preview {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
+    .preview-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+
+    .preview-item label {
+        font-weight: 600;
+    }
+
+    .scale-presets {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+
+    .scale-preset {
+        padding: 1rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .scale-preset:hover {
+        border-color: var(--primary-color);
+        background: #f8f9fa;
+    }
+
+    .scale-preset.selected {
+        border-color: var(--primary-color);
+        background: var(--primary-color-light);
+    }
+
+    .preset-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .preset-scale {
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+
+    .badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-primary {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .preset-description {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .preset-preview {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-top: 1rem;
+    }
+
+    .current-calibration {
+        background: #e8f4fd;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid var(--primary-color);
+        margin: 2rem 0;
+    }
+
+    .calibration-info {
+        margin-top: 1rem;
+    }
+
+    .info-item {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .info-item label {
+        font-weight: 600;
+        min-width: 80px;
+    }
+
+    .notes-section {
+        margin: 2rem 0;
+    }
+
+    .notes-section label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+        padding-top: 1rem;
+        border-top: 1px solid #e0e0e0;
+        margin-top: 2rem;
+    }
+
+    .alert {
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .alert-warning {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        color: #856404;
+    }
+
+    .text-success { color: #28a745; }
+    .text-warning { color: #ffc107; }
+    .text-danger { color: #dc3545; }
+</style>

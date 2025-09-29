@@ -5,10 +5,11 @@ namespace FabOS.WebServer.Components.Shared;
 
 public enum PageType
 {
-    List,      // List pages with search bar
-    Card,      // Detail pages without search bar
-    Document,  // Document pages without search bar
-    Worksheet  // Worksheet pages without search bar
+    List,           // List pages with search bar
+    Card,           // Detail pages without search bar
+    Document,       // Document pages without search bar
+    Worksheet,      // Worksheet pages without search bar
+    SharePointFiles // SharePoint file browser pages with folder navigation
 }
 
 public partial class StandardToolbar : ComponentBase

@@ -176,7 +176,8 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
 
     private void HandleRowClick(Package package)
     {
-        // Single click - could be used for selection
+        // Single click navigates to package card
+        Navigation.NavigateTo($"/packages/{package.Id}");
     }
 
     private void HandleRowDoubleClick(Package package)

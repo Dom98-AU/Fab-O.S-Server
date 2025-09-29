@@ -1,0 +1,342 @@
+@using FabOS.WebServer.Services.Interfaces
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using Microsoft.AspNetCore.Components.Forms
+@typeparam TPage where TPage : ISharePointFilesPage<SharePointFileInfo>
+
+<div class="sharepoint-file-browser">
+    <!-- Breadcrumb Navigation -->
+    @if (Page.GetBreadcrumbs().Any())
+    {
+        <div class="breadcrumb-nav">
+            <nav class="breadcrumb">
+                @foreach (var crumb in Page.GetBreadcrumbs())
+                {
+                    @if (crumb.IsCurrent)
+                    {
+                        <span class="breadcrumb-item active">@crumb.Name</span>
+                    }
+                    else
+                    {
+                        <button class="breadcrumb-item" @onclick="() => NavigateToBreadcrumb(crumb.Path)">
+                            @if (crumb.IsRoot)
+                            {
+                                <i class="fas fa-home"></i>
+                            }
+                            @crumb.Name
+                        </button>
+                    }
+                    @if (!crumb.IsCurrent)
+                    {
+                        <span class="breadcrumb-separator">/</span>
+                    }
+                }
+            </nav>
+        </div>
+    }
+
+    <!-- Loading State -->
+    @if (FolderState.IsLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner-border"></div>
+            <p>Loading folder contents...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(FolderState.ErrorMessage))
+    {
+        <!-- Error State -->
+        <div class="error-container">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h4>Error Loading Folder</h4>
+            <p>@FolderState.ErrorMessage</p>
+            <button class="btn btn-primary" @onclick="RetryLoad">
+                <i class="fas fa-refresh"></i>
+                Retry
+            </button>
+        </div>
+    }
+    else
+    {
+        <!-- File/Folder Browser Views -->
+        <div class="file-browser-content">
+            @switch (CurrentView)
+            {
+                case SharePointViewType.Explorer:
+                    @RenderExplorerView()
+                    break;
+                case SharePointViewType.Grid:
+                    @RenderGridView()
+                    break;
+                case SharePointViewType.List:
+                    @RenderListView()
+                    break;
+                case SharePointViewType.Tiles:
+                    @RenderTilesView()
+                    break;
+            }
+        </div>
+
+        <!-- Empty State -->
+        @if (!FolderState.Folders.Any() && !FolderState.Files.Any())
+        {
+            <div class="empty-folder">
+                <i class="fas fa-folder-open"></i>
+                <h4>Empty Folder</h4>
+                <p>No files or folders in this location.</p>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public TPage Page { get; set; } = default!;
+    [Parameter] public SharePointFolderState FolderState { get; set; } = new();
+    [Parameter] public SharePointViewType CurrentView { get; set; } = SharePointViewType.Grid;
+    [Parameter] public EventCallback<SharePointFileInfo> OnFileDoubleClick { get; set; }
+    [Parameter] public EventCallback<SharePointFolderInfo> OnFolderDoubleClick { get; set; }
+    [Parameter] public EventCallback OnRefreshRequested { get; set; }
+
+    private async Task NavigateToBreadcrumb(string path)
+    {
+        await Page.NavigateToFolderAsync(path);
+    }
+
+    private async Task RetryLoad()
+    {
+        await OnRefreshRequested.InvokeAsync();
+    }
+
+    private RenderFragment RenderExplorerView() => __builder =>
+    {
+        <div class="explorer-view">
+            <!-- Folders First -->
+            @foreach (var folder in FolderState.Folders.OrderBy(f => f.Name))
+            {
+                <div class="file-item folder-item" @ondblclick="() => OnFolderDoubleClick.InvokeAsync(folder)">
+                    <div class="file-icon">
+                        <i class="fas fa-folder"></i>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">@folder.Name</div>
+                        <div class="file-meta">Folder</div>
+                    </div>
+                </div>
+            }
+
+            <!-- Files -->
+            @foreach (var file in FolderState.Files.OrderBy(f => f.Name))
+            {
+                <div class="file-item @(Page.SelectedFiles.Contains(file) ? "selected" : "")"
+                     @onclick="() => Page.ToggleFileSelection(file)"
+                     @ondblclick="() => OnFileDoubleClick.InvokeAsync(file)">
+                    <div class="file-icon">
+                        @GetFileIcon(file)
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">@file.Name</div>
+                        <div class="file-meta">@FormatFileSize(file.Size)</div>
+                    </div>
+                    @if (Page.SelectedFiles.Contains(file))
+                    {
+                        <div class="selection-indicator">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    };
+
+    private RenderFragment RenderGridView() => __builder =>
+    {
+        <div class="grid-view">
+            <!-- Folders First -->
+            @foreach (var folder in FolderState.Folders.OrderBy(f => f.Name))
+            {
+                <div class="grid-item folder-item" @ondblclick="() => OnFolderDoubleClick.InvokeAsync(folder)">
+                    <div class="grid-icon">
+                        <i class="fas fa-folder fa-3x"></i>
+                    </div>
+                    <div class="grid-name">@folder.Name</div>
+                    <div class="grid-meta">Folder</div>
+                </div>
+            }
+
+            <!-- Files -->
+            @foreach (var file in FolderState.Files.OrderBy(f => f.Name))
+            {
+                <div class="grid-item @(Page.SelectedFiles.Contains(file) ? "selected" : "")"
+                     @onclick="() => Page.ToggleFileSelection(file)"
+                     @ondblclick="() => OnFileDoubleClick.InvokeAsync(file)">
+                    <div class="grid-icon">
+                        @GetFileIcon(file, "fa-3x")
+                    </div>
+                    <div class="grid-name">@file.Name</div>
+                    <div class="grid-meta">@FormatFileSize(file.Size)</div>
+                    @if (Page.SelectedFiles.Contains(file))
+                    {
+                        <div class="selection-indicator">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    };
+
+    private RenderFragment RenderListView() => __builder =>
+    {
+        <div class="list-view">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th width="30px"></th>
+                        <th>Name</th>
+                        <th width="100px">Type</th>
+                        <th width="100px">Size</th>
+                        <th width="150px">Modified</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Folders First -->
+                    @foreach (var folder in FolderState.Folders.OrderBy(f => f.Name))
+                    {
+                        <tr class="folder-row" @ondblclick="() => OnFolderDoubleClick.InvokeAsync(folder)">
+                            <td><i class="fas fa-folder text-warning"></i></td>
+                            <td>@folder.Name</td>
+                            <td>Folder</td>
+                            <td>—</td>
+                            <td>@folder.CreatedDateTime.ToString("MMM dd, yyyy")</td>
+                        </tr>
+                    }
+
+                    <!-- Files -->
+                    @foreach (var file in FolderState.Files.OrderBy(f => f.Name))
+                    {
+                        <tr class="file-row @(Page.SelectedFiles.Contains(file) ? "selected" : "")"
+                           @onclick="() => Page.ToggleFileSelection(file)"
+                           @ondblclick="() => OnFileDoubleClick.InvokeAsync(file)">
+                            <td>
+                                @if (Page.SelectedFiles.Contains(file))
+                                {
+                                    <i class="fas fa-check-circle text-primary"></i>
+                                }
+                                else
+                                {
+                                    @GetFileIcon(file)
+                                }
+                            </td>
+                            <td>@file.Name</td>
+                            <td>@GetFileType(file)</td>
+                            <td>@FormatFileSize(file.Size)</td>
+                            <td>@file.LastModifiedDateTime.ToString("MMM dd, yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    };
+
+    private RenderFragment RenderTilesView() => __builder =>
+    {
+        <div class="tiles-view">
+            <!-- Folders First -->
+            @foreach (var folder in FolderState.Folders.OrderBy(f => f.Name))
+            {
+                <div class="tile-item folder-tile" @ondblclick="() => OnFolderDoubleClick.InvokeAsync(folder)">
+                    <div class="tile-preview">
+                        <i class="fas fa-folder fa-4x"></i>
+                    </div>
+                    <div class="tile-info">
+                        <div class="tile-name">@folder.Name</div>
+                        <div class="tile-meta">Folder</div>
+                    </div>
+                </div>
+            }
+
+            <!-- Files -->
+            @foreach (var file in FolderState.Files.OrderBy(f => f.Name))
+            {
+                <div class="tile-item @(Page.SelectedFiles.Contains(file) ? "selected" : "")"
+                     @onclick="() => Page.ToggleFileSelection(file)"
+                     @ondblclick="() => OnFileDoubleClick.InvokeAsync(file)">
+                    <div class="tile-preview">
+                        @if (IsPdfFile(file))
+                        {
+                            <div class="pdf-preview">
+                                <i class="fas fa-file-pdf fa-4x text-danger"></i>
+                            </div>
+                        }
+                        else
+                        {
+                            @GetFileIcon(file, "fa-4x")
+                        }
+                    </div>
+                    <div class="tile-info">
+                        <div class="tile-name">@file.Name</div>
+                        <div class="tile-meta">@FormatFileSize(file.Size)</div>
+                    </div>
+                    @if (Page.SelectedFiles.Contains(file))
+                    {
+                        <div class="selection-indicator">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    };
+
+    private RenderFragment GetFileIcon(SharePointFileInfo file, string sizeClass = "")
+    {
+        var iconClass = GetFileIconClass(file);
+        var fullClass = string.IsNullOrEmpty(sizeClass) ? iconClass : $"{iconClass} {sizeClass}";
+
+        return __builder =>
+        {
+            <i class="@fullClass"></i>
+        };
+    }
+
+    private string GetFileIconClass(SharePointFileInfo file)
+    {
+        var extension = Path.GetExtension(file.Name).ToLower();
+        return extension switch
+        {
+            ".pdf" => "fas fa-file-pdf text-danger",
+            ".doc" or ".docx" => "fas fa-file-word text-primary",
+            ".xls" or ".xlsx" => "fas fa-file-excel text-success",
+            ".ppt" or ".pptx" => "fas fa-file-powerpoint text-warning",
+            ".jpg" or ".jpeg" or ".png" or ".gif" or ".bmp" => "fas fa-file-image text-info",
+            ".zip" or ".rar" or ".7z" => "fas fa-file-archive text-secondary",
+            ".txt" => "fas fa-file-alt text-muted",
+            _ => "fas fa-file text-muted"
+        };
+    }
+
+    private string GetFileType(SharePointFileInfo file)
+    {
+        var extension = Path.GetExtension(file.Name).ToUpper();
+        return string.IsNullOrEmpty(extension) ? "File" : extension.TrimStart('.');
+    }
+
+    private bool IsPdfFile(SharePointFileInfo file)
+    {
+        return Path.GetExtension(file.Name).ToLower() == ".pdf";
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        var sizes = new[] { "B", "KB", "MB", "GB" };
+        var order = 0;
+        var size = (double)bytes;
+
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+
+        return $"{size:0.##} {sizes[order]}";
+    }
+}

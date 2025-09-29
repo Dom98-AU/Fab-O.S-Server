@@ -1,4 +1,5 @@
 using FabOS.WebServer.Data.Contexts;
+using FabOS.WebServer.Data.Seeders;
 using FabOS.WebServer.Services.Interfaces;
 using FabOS.WebServer.Services.Implementations;
 using FabOS.WebServer.Services;
@@ -137,6 +138,9 @@ builder.Services.AddScoped<IDatabaseService, DatabaseService>();
 builder.Services.AddScoped<FabOS.WebServer.Services.BreadcrumbService>();
 builder.Services.AddScoped<IViewPreferencesService, ViewPreferencesService>();
 
+// Add Tenant Service for multi-tenancy
+builder.Services.AddScoped<ITenantService, TenantService>();
+
 // Register OCR service with all dependencies for multi-tenant support
 builder.Services.AddHttpClient<AzureOcrService>();
 builder.Services.AddScoped<IAzureOcrService, AzureOcrService>();
@@ -151,8 +155,64 @@ builder.Services.Configure<FabOS.WebServer.Models.Configuration.SharePointSettin
     builder.Configuration.GetSection("SharePoint"));
 builder.Services.AddScoped<ISharePointService, SharePointService>();
 
+// Register Trace and Takeoff services
+builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
+builder.Services.AddScoped<ITraceService, TraceService>();
+builder.Services.AddScoped<IPdfProcessingService, PdfProcessingService>();
+builder.Services.AddScoped<ITakeoffService, TakeoffService>();
+builder.Services.AddScoped<IPackageDrawingService, PackageDrawingService>();
+builder.Services.AddScoped<IScaleCalibrationService, ScaleCalibrationService>();
+
 // Add MVC services (includes controllers, views, and all necessary services)
 builder.Services.AddMvc();
+
+// Add AutoMapper
+builder.Services.AddAutoMapper(typeof(Program));
+
+// Add Swagger/OpenAPI documentation
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "Fab.OS Trace & Takeoff API",
+        Version = "v1",
+        Description = "API for material traceability and PDF takeoff operations",
+        Contact = new Microsoft.OpenApi.Models.OpenApiContact
+        {
+            Name = "Fab.OS Support",
+            Email = "support@fabos.com"
+        }
+    });
+
+    // Add JWT Bearer authentication to Swagger
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token",
+        Name = "Authorization",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+
+    // Enable annotations
+    c.EnableAnnotations();
+});
 
 // Add logging
 builder.Services.AddLogging();
@@ -166,6 +226,14 @@ if (!app.Environment.IsDevelopment())
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
+
+// Enable Swagger in all environments for API documentation
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Fab.OS Trace & Takeoff API v1");
+    c.RoutePrefix = "api-docs"; // Access at /api-docs
+});
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();

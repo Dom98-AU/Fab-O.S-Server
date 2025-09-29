@@ -100,7 +100,10 @@ public class Package
 
     public virtual ICollection<TraceDrawing> TraceDrawings { get; set; } = new List<TraceDrawing>();
     public virtual ICollection<WeldingConnection> WeldingConnections { get; set; } = new List<WeldingConnection>();
-    
+
     // NEW: Work orders collection (production management)
     public virtual ICollection<WorkOrder> WorkOrders { get; set; } = new List<WorkOrder>();
+
+    // Package drawings stored in SharePoint
+    public virtual ICollection<PackageDrawing> PackageDrawings { get; set; } = new List<PackageDrawing>();
 }

@@ -1,0 +1,404 @@
+/* SharePoint File Browser Styles */
+
+.sharepoint-file-browser {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Breadcrumb Navigation */
+.breadcrumb-nav {
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    padding: 12px 20px;
+}
+
+.breadcrumb {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.breadcrumb-item {
+    background: none;
+    border: none;
+    color: #667eea;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.breadcrumb-item:hover {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.breadcrumb-item.active {
+    color: #495057;
+    font-weight: 600;
+    cursor: default;
+}
+
+.breadcrumb-separator {
+    color: #6c757d;
+    margin: 0 4px;
+}
+
+/* Loading and Error States */
+.loading-container, .error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+}
+
+.loading-container .spinner-border {
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 1rem;
+    color: #667eea;
+}
+
+.error-container i {
+    font-size: 3rem;
+    color: #dc3545;
+    margin-bottom: 1rem;
+}
+
+.error-container h4 {
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.error-container p {
+    color: #6c757d;
+    margin-bottom: 1.5rem;
+}
+
+/* File Browser Content */
+.file-browser-content {
+    padding: 20px;
+    min-height: 400px;
+}
+
+/* Explorer View */
+.explorer-view {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.file-item:hover {
+    background: #f8f9fa;
+}
+
+.file-item.selected {
+    background: rgba(102, 126, 234, 0.1);
+    border: 1px solid #667eea;
+}
+
+.file-item.folder-item:hover {
+    background: rgba(255, 193, 7, 0.1);
+}
+
+.file-icon {
+    width: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    font-size: 1.5rem;
+}
+
+.file-info {
+    flex: 1;
+}
+
+.file-name {
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 2px;
+}
+
+.file-meta {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.selection-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    color: #667eea;
+    font-size: 1.2rem;
+}
+
+/* Grid View */
+.grid-view {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+}
+
+.grid-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    position: relative;
+    border: 1px solid transparent;
+}
+
+.grid-item:hover {
+    background: #f8f9fa;
+    border-color: #dee2e6;
+}
+
+.grid-item.selected {
+    background: rgba(102, 126, 234, 0.1);
+    border-color: #667eea;
+}
+
+.grid-item.folder-item:hover {
+    background: rgba(255, 193, 7, 0.1);
+    border-color: #ffc107;
+}
+
+.grid-icon {
+    margin-bottom: 8px;
+    color: #6c757d;
+}
+
+.grid-icon .fa-folder {
+    color: #ffc107;
+}
+
+.grid-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 4px;
+    word-break: break-word;
+    line-height: 1.3;
+}
+
+.grid-meta {
+    font-size: 11px;
+    color: #6c757d;
+}
+
+/* List View */
+.list-view {
+    background: white;
+}
+
+.list-view .table {
+    margin-bottom: 0;
+}
+
+.list-view th {
+    border-top: none;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+    font-size: 13px;
+    padding: 12px 8px;
+}
+
+.list-view td {
+    padding: 12px 8px;
+    vertical-align: middle;
+    border-top: 1px solid #f1f3f4;
+}
+
+.file-row:hover {
+    background: #f8f9fa;
+}
+
+.file-row.selected {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.folder-row:hover {
+    background: rgba(255, 193, 7, 0.1);
+}
+
+.folder-row {
+    cursor: pointer;
+}
+
+.file-row {
+    cursor: pointer;
+}
+
+/* Tiles View */
+.tiles-view {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.tile-item {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.tile-item:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.tile-item.selected {
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+}
+
+.tile-item.folder-tile:hover {
+    border-color: #ffc107;
+    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
+}
+
+.tile-preview {
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    color: #6c757d;
+}
+
+.tile-preview .fa-folder {
+    color: #ffc107;
+}
+
+.pdf-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.tile-info {
+    padding: 12px;
+    border-top: 1px solid #f1f3f4;
+}
+
+.tile-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 4px;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.tile-meta {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+/* Empty State */
+.empty-folder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+    color: #6c757d;
+}
+
+.empty-folder i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-folder h4 {
+    margin-bottom: 0.5rem;
+    color: #495057;
+}
+
+.empty-folder p {
+    margin-bottom: 0;
+    font-size: 14px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .grid-view {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 12px;
+    }
+
+    .tiles-view {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 16px;
+    }
+
+    .file-browser-content {
+        padding: 12px;
+    }
+
+    .breadcrumb-nav {
+        padding: 8px 12px;
+    }
+
+    .breadcrumb {
+        font-size: 12px;
+    }
+
+    .list-view {
+        font-size: 13px;
+    }
+
+    .list-view th,
+    .list-view td {
+        padding: 8px 6px;
+    }
+}
+
+/* Selection Animations */
+.file-item, .grid-item, .tile-item {
+    transition: all 0.2s ease;
+}
+
+.selection-indicator {
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
