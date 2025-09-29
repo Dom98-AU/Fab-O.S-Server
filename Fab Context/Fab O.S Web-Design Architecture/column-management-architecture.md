@@ -1,124 +1,152 @@
-# Column Management Architecture
+# Column Management Architecture - Fab.OS Implementation
 
 ## Executive Summary
-The Column Management System provides comprehensive control over table column display, ordering, visibility, and freezing. It integrates seamlessly with the Generic View System and Save View Preferences to deliver a powerful, user-customizable data viewing experience.
+The Column Management System provides comprehensive control over table column display, ordering, visibility, and freezing within Fab.OS. It integrates seamlessly with the unified view management system to deliver a powerful, user-customizable data viewing experience with robust frozen column support and state persistence.
 
 ## System Overview
 
 ### Architecture Diagram
 ```
 ┌────────────────────────────────────────────────────────────┐
-│                        Page Level                           │
-│            (List/Worksheet Pages with Tables)               │
+│                    StandardToolbar                          │
 │                                                             │
-│  • Defines List<ColumnDefinition<T>>                       │
-│  • Implements OnColumnsChanged handler                     │
-│  • Manages deep copy for state isolation                   │
-└──────────────────────┬─────────────────────────────────────┘
-                       │
-┌──────────────────────▼─────────────────────────────────────┐
-│               ColumnReorderManager                          │
+│  [Search] [Actions]      [ViewSwitcher][Columns][Filter][Views]
+│                                           ↓                 │
+└────────────────────────────┬───────────────────────────────┘
+                             │
+┌────────────────────────────▼───────────────────────────────┐
+│               ColumnManagerDropdown                        │
 │                                                             │
-│  • Drag-and-drop reordering UI                            │
 │  • Visibility toggle controls                              │
-│  • Freeze/unfreeze management                             │
-│  • Bulk operations (show all, hide all, unfreeze all)     │
-│  • Reset to default functionality                          │
-└──────────────────────┬─────────────────────────────────────┘
-                       │
-         ┌─────────────┼─────────────┐
-         │             │             │
-┌────────▼──────┐ ┌───▼────┐ ┌─────▼──────┐
-│   DataTable   │ │ViewState│ │JavaScript │
-│               │ │         │ │  Interop   │
-│ • Renders     │ │ • Saves │ │            │
-│   columns    │ │   config│ │ • Measures │
-│ • Applies    │ │ • Loads │ │   widths   │
-│   frozen     │ │   state │ │ • Sets     │
-│   styles     │ │         │ │   positions│
-└───────────────┘ └─────────┘ └────────────┘
+│  • Up/down reordering buttons                             │
+│  • Freeze position management (Left/Right/None)           │
+│  • Bulk operations (reset to defaults)                    │
+│  • Real-time column state sync                            │
+└────────────────────────────┬───────────────────────────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         │                   │                   │
+┌────────▼────────┐ ┌────────▼────────┐ ┌───────▼──────┐
+│  PackagesList   │ │  GenericTable   │ │ JavaScript   │
+│      Page       │ │      View       │ │   Interop    │
+│                 │ │                 │ │              │
+│ • UpdateTable   │ │ • Renders with  │ │ • Calculates │
+│   Columns()     │ │   frozen styles │ │   positions  │
+│ • OnColumns     │ │ • Data attribs  │ │ • Applies    │
+│   Changed()     │ │ • CSS classes   │ │   sticky CSS │
+│ • ApplyFrozen   │ │ • Error safe    │ │ • Error      │
+│   Columns()     │ │   rendering     │ │   handling   │
+└─────────────────┘ └─────────────────┘ └──────────────┘
 ```
 
 ## Core Components
 
-### ColumnDefinition<T> Model
-
-Complete model definition with all properties:
+### ColumnDefinition Model
+Complete model definition with all properties used in Fab.OS:
 
 ```csharp
-namespace SteelEstimation.Core.Models
+namespace FabOS.WebServer.Models.Columns
 {
-    public class ColumnDefinition<T>
+    public class ColumnDefinition : ICloneable
     {
         // Core Identity
-        public string Key { get; set; } = "";              // Unique identifier
-        public string Header { get; set; } = "";           // Display name
-        public string? Description { get; set; }           // Tooltip/accessibility
-        
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public string PropertyName { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+
         // Visibility & Display
-        public bool IsVisible { get; set; } = true;        // Show/hide state
-        public bool IsRequired { get; set; } = false;      // Cannot be hidden
-        public int Order { get; set; } = 0;                // Display sequence
-        public int Width { get; set; } = 150;              // Column width (px)
-        
-        // Freezing
-        public bool IsFrozen { get; set; } = false;        // Frozen state
-        public FreezePosition FreezePosition { get; set; } // Freeze position
-        
+        public bool IsVisible { get; set; } = true;
+        public bool IsRequired { get; set; } = false;
+        public int Order { get; set; } = 0;
+        public int? Width { get; set; } = 150;
+        public int MinWidth { get; set; } = 50;
+        public int MaxWidth { get; set; } = 500;
+
+        // Freezing Support
+        public bool IsFrozen { get; set; } = false;
+        public FreezePosition FreezePosition { get; set; } = FreezePosition.None;
+
         // Functionality
-        public bool IsSortable { get; set; } = true;       // Can be sorted
-        public bool IsResizable { get; set; } = true;      // Can be resized
-        public ColumnType Type { get; set; } = ColumnType.Text; // Data type
-        
-        // Rendering
-        public string? CssClass { get; set; }              // Custom styling
-        public string? Format { get; set; }                // Value format
-        public Func<T, object?>? ValueSelector { get; set; } // Value extraction
-        public RenderFragment<T>? Template { get; set; }   // Custom template
+        public bool IsSortable { get; set; } = true;
+        public bool IsResizable { get; set; } = true;
+        public ColumnType Type { get; set; } = ColumnType.Text;
+
+        // Styling
+        public string? CssClass { get; set; }
+        public string? HeaderCssClass { get; set; }
+        public string? Format { get; set; }
+        public string? Tooltip { get; set; }
+
+        // Deep Copy Implementation
+        public object Clone()
+        {
+            return new ColumnDefinition
+            {
+                Id = this.Id,
+                PropertyName = this.PropertyName,
+                DisplayName = this.DisplayName,
+                // ... all properties copied
+            };
+        }
     }
-    
+
     public enum FreezePosition
     {
         None,   // Not frozen (default)
         Left,   // Frozen to left side
-        Right   // Frozen to right side (future)
-    }
-    
-    public enum ColumnType
-    {
-        Text, Number, Currency, Date, DateTime,
-        Boolean, Status, Actions, Custom,
-        Tag, Badge, Percentage
+        Right   // Frozen to right side
     }
 }
 ```
 
-### ColumnReorderManager Component
+### ColumnManagerDropdown Component
 
 #### Component Structure
 ```razor
-@namespace SteelEstimation.Web.Shared.Components
-@typeparam TItem
-@implements IAsyncDisposable
+@namespace FabOS.WebServer.Components.Shared
 
-<div class="column-reorder-manager">
-    <!-- Trigger Button -->
-    <button class="btn-column-reorder" @onclick="TogglePanel">
-        <i class="fas fa-columns"></i> Columns
-        @if (HasCustomizations)
-        {
-            <span class="custom-indicator"></span>
-        }
+<div class="column-manager-dropdown @(isOpen ? "open" : "")">
+    <button class="dropdown-toggle" @onclick="ToggleDropdown">
+        <i class="fas fa-columns"></i>
+        <span>Columns</span>
+        <i class="fas fa-chevron-down"></i>
     </button>
-    
-    <!-- Management Panel -->
-    @if (ShowingPanel)
+
+    @if (isOpen)
     {
-        <div class="column-reorder-panel">
-            <!-- Drag-and-drop column list -->
-            <!-- Visibility toggles -->
-            <!-- Freeze controls -->
-            <!-- Bulk operations -->
+        <div class="dropdown-panel">
+            <div class="dropdown-header">
+                <span>Manage Columns</span>
+                <button class="close-btn" @onclick="CloseDropdown">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="dropdown-body">
+                @foreach (var column in workingColumns.OrderBy(c => c.Order))
+                {
+                    <div class="column-item @(column.IsFrozen ? "frozen" : "")">
+                        <div class="column-controls">
+                            <input type="checkbox" @bind="column.IsVisible" />
+                            <label>
+                                @column.DisplayName
+                                @if (column.IsFrozen)
+                                {
+                                    <span class="freeze-indicator">
+                                        <i class="fas fa-thumbtack"></i>
+                                        @column.FreezePosition.ToString()
+                                    </span>
+                                }
+                            </label>
+                        </div>
+
+                        <div class="column-actions">
+                            <!-- Up/Down reorder buttons -->
+                            <!-- Freeze position dropdown -->
+                        </div>
+                    </div>
+                }
+            </div>
         </div>
     }
 </div>
@@ -126,324 +154,371 @@ namespace SteelEstimation.Core.Models
 
 #### Key Features
 
-1. **Drag-and-Drop Reordering**
-   - HTML5 drag-and-drop API
-   - Visual feedback during drag
-   - Maintains frozen column constraints
+1. **Up/Down Reordering**
+   - Simple button-based reordering instead of drag-and-drop
+   - Maintains order consistency
+   - Updates Order property automatically
 
 2. **Visibility Management**
-   - Individual column toggles
-   - Bulk show/hide operations
-   - Required columns protection
+   - Individual column checkboxes
+   - Required columns protected from hiding
+   - Real-time visual feedback
 
 3. **Freeze Management**
-   - Single-click freeze toggle
-   - Visual freeze indicators
-   - Consecutive column enforcement
+   - Dropdown menu for freeze positions (None/Left/Right)
+   - Visual indicators for frozen state
+   - Integration with JavaScript positioning
 
-4. **State Persistence**
-   - Integrates with ViewState system
-   - Saves user preferences
-   - Restores on page load
+4. **Working Copy Pattern**
+   - Changes made to workingColumns copy
+   - Applied only when user clicks "Apply"
+   - Cancel functionality restores original state
 
-### DataTable Integration
+## Page Integration Pattern
 
-The DataTable component reads ColumnDefinition properties to render appropriately:
-
+### PackagesList Implementation
 ```csharp
-@foreach (var column in Columns)
+public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisposable
 {
-    // Check frozen state from ColumnDefinitions
-    var colDef = ColumnDefinitions?.FirstOrDefault(c => c.Key == column.Field);
-    var isFrozen = colDef?.IsFrozen == true && 
-                   colDef.FreezePosition == FreezePosition.Left;
-    
-    <th class="@(isFrozen ? "frozen-column" : "")"
-        data-column-key="@column.Field"
-        data-is-frozen="@(isFrozen ? "true" : "false")"
-        style="@(isFrozen ? GetFrozenStyle() : "")">
-        @column.Title
-    </th>
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+    private List<ColumnDefinition> columnDefinitions = new();
+    private List<GenericTableView<Package>.TableColumn<Package>> tableColumns = new();
+
+    private async Task OnColumnsChanged(List<ColumnDefinition> columns)
+    {
+        columnDefinitions = columns;
+        await UpdateTableColumns();
+        hasUnsavedChanges = true;
+        StateHasChanged();
+    }
+
+    private async Task UpdateTableColumns()
+    {
+        // Build table columns based on visible column definitions
+        tableColumns = columnDefinitions
+            .Where(c => c.IsVisible)
+            .OrderBy(c => c.Order)
+            .Select(c => CreateTableColumn(c))
+            .Where(col => col != null)
+            .ToList()!;
+
+        // Apply frozen column states after table update
+        await ApplyFrozenColumns();
+    }
+
+    private GenericTableView<Package>.TableColumn<Package>? CreateTableColumn(ColumnDefinition columnDef)
+    {
+        var baseColumn = columnDef.PropertyName switch
+        {
+            "PackageNumber" => new GenericTableView<Package>.TableColumn<Package>
+            {
+                Header = columnDef.DisplayName,
+                ValueSelector = item => item.PackageNumber,
+                CssClass = "text-start"
+            },
+            // ... other column mappings
+            _ => null
+        };
+
+        if (baseColumn != null)
+        {
+            // Add frozen column CSS classes
+            if (columnDef.IsFrozen)
+            {
+                var frozenClass = columnDef.FreezePosition switch
+                {
+                    FreezePosition.Left => "frozen-column frozen-left",
+                    FreezePosition.Right => "frozen-column frozen-right",
+                    _ => "frozen-column"
+                };
+                baseColumn.CssClass += $" {frozenClass}";
+            }
+
+            // Add data attribute for JavaScript targeting
+            baseColumn.PropertyName = columnDef.PropertyName;
+        }
+
+        return baseColumn;
+    }
 }
 ```
 
 ## Frozen Column Implementation
 
-### CSS Architecture
-
-#### Sticky Positioning
-```css
-.frozen-column {
-    position: -webkit-sticky !important;
-    position: sticky !important;
-    background: white !important;
-    z-index: 10 !important;
-    
-    /* Visual indicators */
-    border-right: 2px solid #10b981 !important;
-    box-shadow: 2px 0 4px rgba(16, 185, 129, 0.1) !important;
-}
-
-/* Header cells have higher z-index */
-thead .frozen-column {
-    z-index: 200 !important;
-    background: linear-gradient(135deg, #3144CD 0%, #0D1A80 100%) !important;
-}
-
-/* Body cells */
-tbody .frozen-column {
-    z-index: 190 !important;
-}
-```
-
-### JavaScript Dynamic Positioning
-
-The system uses JavaScript to measure actual column widths and calculate positions:
-
-```javascript
-function updateFrozenColumnPositions(tableElement) {
-    if (!tableElement) return;
-    
-    const headers = tableElement.querySelectorAll('thead th[data-column-key]');
-    const bodyRows = tableElement.querySelectorAll('tbody tr');
-    
-    let cumulativeLeft = 0;
-    let frozenCount = 0;
-    
-    headers.forEach((th) => {
-        const isFrozen = th.dataset.isFrozen === 'true';
-        const columnKey = th.dataset.columnKey;
-        
-        if (isFrozen && columnKey) {
-            // Get actual rendered width
-            const rect = th.getBoundingClientRect();
-            const width = rect.width;
-            
-            // Set left position for header
-            th.style.setProperty('left', cumulativeLeft + 'px', 'important');
-            
-            // Update all body cells with same column key
-            bodyRows.forEach(row => {
-                const td = row.querySelector(`td[data-column-key="${columnKey}"]`);
-                if (td && td.dataset.isFrozen === 'true') {
-                    td.style.setProperty('left', cumulativeLeft + 'px', 'important');
-                }
-            });
-            
-            // Add width to cumulative offset
-            cumulativeLeft += width;
-            frozenCount++;
-        }
-    });
-    
-    console.log(`Updated ${frozenCount} frozen columns, total width: ${cumulativeLeft}px`);
-}
-```
-
-### Blazor JavaScript Interop
-
+### JavaScript Integration
 ```csharp
-protected override async Task OnAfterRenderAsync(bool firstRender)
+private async Task ApplyFrozenColumns()
 {
-    if (firstRender)
+    try
     {
-        // Initialize JavaScript module
-        jsModule = await JS.InvokeAsync<IJSObjectReference>("eval", JS_CODE);
-    }
-    
-    // Update positions after each render
-    await UpdateFrozenColumnPositions();
-}
+        if (JSRuntime == null)
+        {
+            return;
+        }
 
-private async Task UpdateFrozenColumnPositions()
-{
-    if (jsModule != null && tableElement.Id != null)
+        var frozenColumns = columnDefinitions
+            .Where(c => c.IsVisible && c.IsFrozen && !string.IsNullOrEmpty(c.PropertyName))
+            .OrderBy(c => c.Order)
+            .Select(c => new
+            {
+                PropertyName = c.PropertyName,
+                FreezePosition = c.FreezePosition.ToString(),
+                Order = c.Order
+            })
+            .ToArray();
+
+        if (frozenColumns.Any())
+        {
+            await JSRuntime.InvokeVoidAsync("applyFrozenColumns", frozenColumns);
+        }
+        else
+        {
+            await JSRuntime.InvokeVoidAsync("clearFrozenColumns");
+        }
+    }
+    catch (InvalidOperationException)
     {
-        await jsModule.InvokeVoidAsync("updateFrozenColumnPositions", tableElement);
+        // JSRuntime not available during prerendering - ignore
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error applying frozen columns: {ex.Message}");
     }
 }
 ```
 
-## State Management
+### Enhanced JavaScript Implementation
+```javascript
+// Table Column Freeze Management - Enhanced Version
+window.applyFrozenColumns = function(frozenColumns) {
+    const table = document.querySelector('.fabos-table');
+    if (!table) return;
+
+    // Clear any existing frozen states
+    clearFrozenColumns();
+
+    if (!frozenColumns || frozenColumns.length === 0) {
+        return;
+    }
+
+    // Group frozen columns by position
+    const leftFrozen = frozenColumns.filter(col => col.FreezePosition === 'Left')
+        .sort((a, b) => a.Order - b.Order);
+    const rightFrozen = frozenColumns.filter(col => col.FreezePosition === 'Right')
+        .sort((a, b) => a.Order - b.Order);
+
+    // Apply left frozen columns
+    applyLeftFrozenColumns(table, leftFrozen);
+
+    // Apply right frozen columns
+    applyRightFrozenColumns(table, rightFrozen);
+};
+
+function applyLeftFrozenColumns(table, leftFrozen) {
+    let cumulativeWidth = 0;
+
+    leftFrozen.forEach((column, index) => {
+        const columnElements = getColumnElementsByProperty(table, column.PropertyName);
+        if (columnElements.length === 0) return;
+
+        const headerCell = columnElements.header;
+        const bodyCells = columnElements.bodyCells;
+        const width = headerCell ? headerCell.offsetWidth : 0;
+
+        // Apply frozen styles with calculated positions
+        if (headerCell) {
+            headerCell.classList.add('frozen-column', 'frozen-left');
+            headerCell.style.left = `${cumulativeWidth}px`;
+            headerCell.style.position = 'sticky';
+            headerCell.style.zIndex = `${10 + index}`;
+        }
+
+        bodyCells.forEach(cell => {
+            cell.classList.add('frozen-column', 'frozen-left');
+            cell.style.left = `${cumulativeWidth}px`;
+            cell.style.position = 'sticky';
+            cell.style.zIndex = `${10 + index}`;
+        });
+
+        cumulativeWidth += width;
+    });
+}
+
+function getColumnElementsByProperty(table, propertyName) {
+    const headerCell = table.querySelector(`thead th[data-column="${propertyName}"]`);
+    if (!headerCell) {
+        return { header: null, bodyCells: [] };
+    }
+
+    const headerCells = Array.from(table.querySelectorAll('thead th'));
+    const columnIndex = headerCells.indexOf(headerCell);
+    const bodyCells = Array.from(table.querySelectorAll(`tbody td:nth-child(${columnIndex + 1})`));
+
+    return {
+        header: headerCell,
+        bodyCells: bodyCells
+    };
+}
+```
+
+### CSS Styling Architecture
+```css
+/* Fab.OS Blue Theme for Frozen Columns */
+.frozen-column {
+    position: sticky !important;
+    background: var(--bs-body-bg, white);
+    z-index: 10;
+    transition: box-shadow 0.2s ease;
+}
+
+.frozen-column.frozen-left {
+    left: 0;
+    border-right: 1px solid var(--fabos-border, #E5E7EB);
+    box-shadow: 2px 0 8px rgba(13, 26, 128, 0.1);
+}
+
+.frozen-column.frozen-right {
+    right: 0;
+    border-left: 1px solid var(--fabos-border, #E5E7EB);
+    box-shadow: -2px 0 8px rgba(13, 26, 128, 0.1);
+}
+
+/* Header cells for frozen columns */
+.fabos-table-header-cell.frozen-column {
+    background: linear-gradient(135deg, #0066cc 0%, #004499 100%);
+    color: white;
+    z-index: 11;
+}
+
+/* Visual indicator for frozen state */
+.frozen-column::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(135deg, var(--fabos-secondary, #3144CD), var(--fabos-primary, #0D1A80));
+    opacity: 0.6;
+    z-index: 1;
+}
+
+.frozen-column.frozen-left::after {
+    right: 0;
+}
+
+.frozen-column.frozen-right::after {
+    left: 0;
+}
+```
+
+## State Management Patterns
 
 ### Deep Copy Pattern
-
-Prevents reference pollution when column state changes:
+Critical for preventing reference pollution:
 
 ```csharp
-private async Task OnColumnsChanged(List<ColumnDefinition<TItem>> columns)
+private async Task OnColumnsChanged(List<ColumnDefinition> columns)
 {
-    // Create deep copy - NEVER assign by reference
-    columnDefinitions = columns.Select(c => new ColumnDefinition<TItem>
-    {
-        Key = c.Key,
-        Header = c.Header,
-        Description = c.Description,
-        IsVisible = c.IsVisible,
-        IsSortable = c.IsSortable,
-        IsResizable = c.IsResizable,
-        IsRequired = c.IsRequired,
-        IsFrozen = c.IsFrozen,
-        FreezePosition = c.FreezePosition,
-        Type = c.Type,
-        Width = c.Width,
-        Order = c.Order,
-        CssClass = c.CssClass,
-        ValueSelector = c.ValueSelector,
-        Template = c.Template,
-        Format = c.Format
-    }).ToList();
-    
-    // Notify view state system
-    TriggerViewStateChanged();
+    // NEVER assign by reference - always create new instances
+    columnDefinitions = columns.Select(c => (ColumnDefinition)c.Clone()).ToList();
+
+    await UpdateTableColumns();
+    hasUnsavedChanges = true;
     StateHasChanged();
 }
 ```
 
-### State Reset Pattern
-
-Ensures clean transitions when loading saved views:
-
+### Error Handling Pattern
 ```csharp
-public async Task ApplyViewState(string viewState)
+private async Task ApplyFrozenColumns()
 {
-    var state = ViewStateExtensions.DeserializeViewState(viewState);
-    if (state != null)
+    try
     {
-        // ALWAYS reset frozen states first
-        foreach (var column in columnDefinitions)
-        {
-            column.IsFrozen = false;
-            column.FreezePosition = FreezePosition.None;
-        }
-        
-        // Then apply saved configuration
-        state.ApplyColumnConfiguration(columnDefinitions);
-        
-        // Refresh visual state
-        if (viewSwitcher != null)
-        {
-            await viewSwitcher.RefreshFrozenColumns();
-        }
-        
-        StateHasChanged();
+        if (JSRuntime == null) return;
+
+        // Safe JavaScript interop with validation
+        var frozenColumns = columnDefinitions
+            .Where(c => c.IsVisible && c.IsFrozen && !string.IsNullOrEmpty(c.PropertyName))
+            .Select(/* mapping */)
+            .ToArray();
+
+        await JSRuntime.InvokeVoidAsync("applyFrozenColumns", frozenColumns);
+    }
+    catch (InvalidOperationException)
+    {
+        // JSRuntime not available during prerendering - ignore
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error applying frozen columns: {ex.Message}");
     }
 }
 ```
 
-## Event Flow
+## Integration with StandardToolbar
 
-### User Interaction to State Persistence
-
+### Toolbar Section Usage
+```razor
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged">
+    <ColumnManager>
+        <ColumnManagerDropdown Columns="@columnDefinitions"
+                             OnColumnsChanged="@(async (columns) => await OnColumnsChanged(columns))" />
+    </ColumnManager>
+</StandardToolbar>
 ```
-1. User Action
-   └─> Clicks freeze toggle in ColumnReorderManager
-   
-2. Component Update
-   └─> ToggleColumnFreeze(column)
-       ├─> column.IsFrozen = !column.IsFrozen
-       └─> column.FreezePosition = IsFrozen ? Left : None
-       
-3. Event Propagation
-   └─> ColumnsChanged.InvokeAsync(OrderedColumns)
-   
-4. Page Handler
-   └─> OnColumnsChanged(columns)
-       ├─> Deep copy columns to columnDefinitions
-       └─> TriggerViewStateChanged()
-       
-5. View State System
-   └─> SaveViewPreferences detects change
-       └─> Shows unsaved indicator
-       
-6. Visual Update
-   └─> DataTable re-renders with frozen classes
-       └─> JavaScript measures and positions columns
+
+## Column Definition Initialization
+
+### Best Practice Pattern
+```csharp
+private void InitializeColumnDefinitions()
+{
+    columnDefinitions = new List<ColumnDefinition>
+    {
+        new ColumnDefinition
+        {
+            Id = "pkg-number",
+            PropertyName = "PackageNumber",
+            DisplayName = "Package Number",
+            Order = 0,
+            IsVisible = true,
+            IsRequired = true  // Cannot be hidden
+        },
+        new ColumnDefinition
+        {
+            Id = "pkg-name",
+            PropertyName = "PackageName",
+            DisplayName = "Package Name",
+            Order = 1,
+            IsVisible = true,
+            IsRequired = true
+        }
+        // ... additional columns
+    };
+}
 ```
 
 ## ViewState Integration
 
-### Column Configuration Structure
-
+### Column Configuration Persistence
 ```json
 {
     "ViewMode": "table",
-    "ActiveFilters": { ... },
-    "ColumnConfig": {
-        "ColumnOrder": ["id", "name", "status", "date"],
-        "ColumnVisibility": {
-            "id": true,
-            "name": true,
-            "status": true,
-            "date": false
-        },
-        "ColumnFreeze": {
-            "id": "Left",
-            "name": "Left",
-            "status": "None",
-            "date": "None"
-        },
-        "ColumnWidths": {
-            "id": 100,
-            "name": 200,
-            "status": 150,
-            "date": 120
-        }
-    }
-}
-```
-
-### Persistence Methods
-
-```csharp
-// Extract configuration from columns
-public static ColumnConfiguration ExtractConfiguration<T>(
-    this List<ColumnDefinition<T>> columns)
-{
-    return new ColumnConfiguration
-    {
-        ColumnOrder = columns.OrderBy(c => c.Order).Select(c => c.Key).ToList(),
-        ColumnVisibility = columns.ToDictionary(c => c.Key, c => c.IsVisible),
-        ColumnFreeze = columns
-            .Where(c => c.FreezePosition != FreezePosition.None)
-            .ToDictionary(c => c.Key, c => c.FreezePosition),
-        ColumnWidths = columns.ToDictionary(c => c.Key, c => c.Width)
-    };
-}
-
-// Apply configuration to columns
-public static void ApplyConfiguration<T>(
-    this List<ColumnDefinition<T>> columns,
-    ColumnConfiguration config)
-{
-    // Apply order
-    if (config.ColumnOrder?.Any() == true)
-    {
-        for (int i = 0; i < config.ColumnOrder.Count; i++)
+    "Columns": [
         {
-            var column = columns.FirstOrDefault(c => c.Key == config.ColumnOrder[i]);
-            if (column != null) column.Order = i;
+            "Id": "pkg-number",
+            "PropertyName": "PackageNumber",
+            "DisplayName": "Package Number",
+            "IsVisible": true,
+            "IsFrozen": true,
+            "FreezePosition": "Left",
+            "Order": 0,
+            "Width": 120
         }
-    }
-    
-    // Apply visibility
-    foreach (var vis in config.ColumnVisibility ?? new())
-    {
-        var column = columns.FirstOrDefault(c => c.Key == vis.Key);
-        if (column != null && !column.IsRequired)
-            column.IsVisible = vis.Value;
-    }
-    
-    // Apply freeze positions
-    foreach (var freeze in config.ColumnFreeze ?? new())
-    {
-        var column = columns.FirstOrDefault(c => c.Key == freeze.Key);
-        if (column != null)
-        {
-            column.FreezePosition = freeze.Value;
-            column.IsFrozen = freeze.Value != FreezePosition.None;
-        }
-    }
+    ],
+    "Filters": [...],
+    "ActiveFilters": [...]
 }
 ```
 
@@ -451,195 +526,74 @@ public static void ApplyConfiguration<T>(
 
 ### JavaScript Optimization
 - Cache DOM element references
-- Batch position updates
-- Debounce scroll events (10ms)
-- Throttle resize events (100ms)
+- Use `data-column` attributes for reliable targeting
+- Debounce position recalculations
+- Efficient z-index management
 
 ### Blazor Optimization
 - Minimize StateHasChanged() calls
-- Use @key for list items
-- Implement IAsyncDisposable for cleanup
+- Use deep copy pattern correctly
 - Cache JavaScript module references
+- Proper disposal of event handlers
 
-### CSS Optimization
-- Use CSS containment for frozen columns
-- Minimize repaints with transform instead of left
-- Use will-change for animated properties
+## Error Handling and Resilience
 
-## Accessibility
+### Common Error Scenarios
+1. **JSRuntime unavailable during prerendering**
+   - Solution: Catch `InvalidOperationException` and ignore
 
-### Keyboard Navigation
-- Tab through column controls
-- Space to toggle visibility/freeze
-- Arrow keys for reordering
-- Escape to close panel
+2. **Column property not found during reflection**
+   - Solution: Validate property names before reflection
 
-### Screen Reader Support
-- ARIA labels for all controls
-- Live regions for state changes
-- Descriptive button titles
-- Role attributes for drag handles
+3. **Frozen column calculation failures**
+   - Solution: Graceful degradation, log errors
 
-### Focus Management
-- Trap focus in panel when open
-- Return focus on close
-- Visual focus indicators
-- Skip links for navigation
-
-## Browser Compatibility
-
-### Supported Browsers
-- Chrome 90+ (Full support)
-- Edge 90+ (Full support)
-- Firefox 88+ (Full support)
-- Safari 14+ (Requires -webkit-sticky prefix)
-
-### Polyfills Required
-- ResizeObserver for older browsers
-- IntersectionObserver for performance
+4. **State synchronization issues**
+   - Solution: Always use deep copy, explicit state resets
 
 ## Troubleshooting Guide
 
-### Common Issues
+### Frozen Columns Not Positioning Correctly
+- **Check**: Data attributes are present on table cells
+- **Verify**: JavaScript console for errors
+- **Ensure**: Column visibility changes trigger recalculation
 
-#### Frozen Columns Not Sticking
-**Cause**: Parent container has overflow hidden
-**Solution**: Ensure table container allows overflow-x: auto
+### Column Changes Not Persisting
+- **Check**: Deep copy pattern implementation
+- **Verify**: ViewState serialization includes column data
+- **Ensure**: OnColumnsChanged triggers view state updates
 
-#### Gap Between Frozen Columns
-**Cause**: Fixed width assumptions
-**Solution**: Use dynamic width calculation
-
-#### Frozen State Not Persisting
-**Cause**: Reference pollution in state management
-**Solution**: Implement deep copy pattern
-
-#### Scrollbar Glitching
-**Cause**: Shadow indicators overlapping
-**Solution**: Adjust shadow positioning, debounce events
-
-### Debugging Tips
-
-1. **Check Console**: Look for JavaScript errors
-2. **Inspect Elements**: Verify data-* attributes
-3. **Check State**: Log columnDefinitions changes
-4. **Verify Events**: Ensure handlers are called
-5. **Test Isolation**: Try with minimal columns
+### Performance Issues with Large Tables
+- **Solution**: Implement virtual scrolling
+- **Optimize**: Debounce JavaScript positioning calls
+- **Cache**: Column element references
 
 ## Migration Guide
 
-### From Legacy Implementation
+### From Legacy Column Management
+1. Replace old ColumnReorderManager with ColumnManagerDropdown
+2. Update ColumnDefinition model to include new properties
+3. Implement deep copy pattern in event handlers
+4. Add JavaScript integration for frozen columns
+5. Update CSS to use Fab.OS blue theme
 
-#### Step 1: Update Page Components
-```csharp
-// OLD: Direct column assignment
-columnDefinitions = columns;
-
-// NEW: Deep copy pattern
-columnDefinitions = columns.Select(c => new ColumnDefinition<T> { ... }).ToList();
-```
-
-#### Step 2: Add State Reset
-```csharp
-// Add to ApplyViewState
-foreach (var column in columnDefinitions)
-{
-    column.IsFrozen = false;
-    column.FreezePosition = FreezePosition.None;
-}
-```
-
-#### Step 3: Update DataTable Usage
-```razor
-<!-- OLD -->
-<DataTable Columns="@tableColumns" />
-
-<!-- NEW -->
-<DataTable Columns="@tableColumns" 
-           ColumnDefinitions="@columnDefinitions" />
-```
-
-#### Step 4: Test Thoroughly
-- Create saved views with frozen columns
-- Switch between views rapidly
-- Test with varying content widths
-- Verify horizontal scroll behavior
-
-## API Reference
-
-### ColumnReorderManager
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| Columns | List<ColumnDefinition<TItem>> | Yes | Column definitions |
-| DefaultColumnOrder | List<string>? | No | Original order for reset |
-| OnColumnsChanged | EventCallback<List<ColumnDefinition<TItem>>> | No | Change handler |
-| OnColumnOrderChanged | EventCallback<ColumnOrderChangedArgs> | No | Order change event |
-| OnColumnVisibilityChanged | EventCallback<ColumnVisibilityChangedArgs> | No | Visibility event |
-| OnColumnFreezeChanged | EventCallback<ColumnFreezeChangedArgs> | No | Freeze event |
-
-### Event Arguments
-
-```csharp
-public class ColumnOrderChangedArgs
-{
-    public List<string> NewOrder { get; set; }
-    public int FromIndex { get; set; }
-    public int ToIndex { get; set; }
-}
-
-public class ColumnVisibilityChangedArgs
-{
-    public string ColumnKey { get; set; }
-    public bool IsVisible { get; set; }
-    public List<string> VisibleColumns { get; set; }
-}
-
-public class ColumnFreezeChangedArgs
-{
-    public string ColumnKey { get; set; }
-    public FreezePosition FreezePosition { get; set; }
-    public List<string> LeftFrozenColumns { get; set; }
-    public List<string> RightFrozenColumns { get; set; }
-}
-```
-
-## Best Practices
-
-### Do's
-- ✅ Always use deep copy for column lists
-- ✅ Reset state before applying saved configuration
-- ✅ Use ColumnDefinitions as single source of truth
-- ✅ Measure widths dynamically
-- ✅ Debounce/throttle events
-- ✅ Test with various content widths
-- ✅ Provide visual feedback for frozen columns
-
-### Don'ts
-- ❌ Don't assign column lists by reference
-- ❌ Don't hardcode column widths for frozen columns
-- ❌ Don't skip state reset when loading views
-- ❌ Don't ignore browser compatibility
-- ❌ Don't forget accessibility features
-- ❌ Don't mix CSS classes with ColumnDefinition state
+### Integration Checklist
+- [ ] ColumnDefinition model matches implementation
+- [ ] Deep copy pattern used for state changes
+- [ ] JavaScript integration with error handling
+- [ ] CSS styling uses blue theme
+- [ ] ViewState persistence includes column data
+- [ ] Toolbar integration follows pattern
 
 ## Future Enhancements
 
 ### Planned Features
-- Right-side column freezing
-- Column width persistence
-- Resize handle for frozen columns
-- Multi-column selection for bulk freeze
-- Column grouping with freeze support
-- Export view configurations
-- Column templates library
-
-### Performance Improvements
-- Virtual scrolling for large tables
-- Lazy loading for column content
-- Web Worker for position calculations
-- RequestAnimationFrame for smooth updates
+- Column width persistence and resizing
+- Advanced freeze constraints (grouping)
+- Column templates for custom rendering
+- Export/import column configurations
+- Performance optimizations for large datasets
 
 ## Conclusion
 
-The Column Management System provides a robust, performant, and accessible solution for table column customization. By following the patterns and practices outlined in this document, developers can implement powerful data viewing experiences that adapt to user preferences while maintaining application performance and stability.
+The enhanced Column Management System provides a robust, performant, and user-friendly solution for table customization in Fab.OS. By following the established patterns for state management, error handling, and component integration, developers can implement powerful data viewing experiences that adapt to user preferences while maintaining application stability and performance.

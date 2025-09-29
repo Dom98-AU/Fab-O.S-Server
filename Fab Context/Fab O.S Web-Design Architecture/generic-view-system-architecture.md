@@ -1,52 +1,46 @@
-# Generic View System Architecture
+# Generic View System Architecture - Fab.OS
 
 ## Executive Summary
-The Generic View System provides a consistent, reusable framework for displaying collections of data across List and Worksheet pages in the SteelEstimation application. It allows pages to switch between table, card, and list views while maintaining consistent visual design and behavior.
+The Generic View System provides a comprehensive, reusable framework for displaying collections of data across all list and worksheet pages in Fab.OS. It delivers seamless view switching between table, card, and list views with advanced features including frozen columns, dynamic filtering, persistent view preferences, and integrated column management - all while maintaining the Fab.OS visual identity.
 
 ## Architecture Overview
 
 ### System Components
 ```
-┌─────────────────────────────────────────────────────┐
-│                    Page Level                        │
-│  (ListPageSample.razor, WorksheetPageSample.razor)   │
-│  (StandardListPage.razor - Template Component)       │
-│                                                       │
-│  • Implements IFilterProvider<T>                     │
-│  • Defines GenericDisplayConfig                      │
-│  • Defines ColumnDefinition<T> instances             │
-│  • Provides RenderFragment templates                 │
-└───────────────────────┬─────────────────────────────┘
-                        │
-        ┌───────────────┼───────────────┐
-        │               │               │
-┌───────▼──────┐ ┌─────▼──────┐ ┌─────▼──────┐
-│Column Reorder│ │GenericView │ │FilterSystem│
-│   Manager    │ │  Switcher  │ │            │
-│              │ │            │ │            │
-│ • Reorder    │ │ • View     │ │ • Search   │
-│ • Freeze     │ │   modes    │ │ • Filters  │
-│ • Visibility │ │ • Templates│ │ • Dynamic  │
-└──────────────┘ └──────┬──────┘ └────────────┘
-                        │
-        ┌───────────────┼───────────────┐
-        │               │               │
-┌───────▼──────┐ ┌─────▼──────┐ ┌─────▼──────┐
-│GenericTable  │ │GenericCard │ │GenericList │
-│    View      │ │    View    │ │    View    │
-│              │ │            │ │            │
-│ • DataTable  │ │ • Grid     │ │ • Compact  │
-│   wrapper    │ │   layout   │ │   items    │
-│ • Columns    │ │ • Cards    │ │ • Horizontal│
-│ • Freeze     │ │ • Stats    │ │   layout   │
-└──────────────┘ └─────┬──────┘ └────────────┘
-                       │
-                ┌──────▼──────┐
-                │ GenericCard │
-                │             │
-                │ • Reflection│
-                │ • Rendering │
-                └─────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                           Page Level                                 │
+│         (PackagesList.razor, other list pages)                       │
+│                                                                       │
+│  • StandardToolbar integration with RenderFragment sections          │
+│  • Unified view state management with ViewState model                │
+│  • Async column management with IJSRuntime injection                 │
+│  • Combined search and filter logic integration                      │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────────────────────────┐
+│                     StandardToolbar                                  │
+│                                                                       │
+│  ┌─────────────┐  ┌───────────────┐  ┌────────────┐  ┌─────────────┐ │
+│  │ViewSwitcher │  │ColumnManager  │  │FilterButton│  │ ViewSaving  │ │
+│  │             │  │               │  │            │  │             │ │
+│  │ • Table     │  │ • Visibility  │  │ • Dialog   │  │ • Load      │ │
+│  │ • Card      │  │ • Reordering  │  │ • Operators│  │ • Save      │ │
+│  │ • List      │  │ • Freezing    │  │ • Reflection│  │ • Default   │ │
+│  └─────────────┘  └───────────────┘  └────────────┘  └─────────────┘ │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+┌───────▼──────┐     ┌─────▼──────┐     ┌─────▼──────┐
+│GenericTable  │     │GenericCard │     │GenericList │
+│    View      │     │    View    │     │    View    │
+│              │     │            │     │            │
+│ • Advanced   │     │ • Grid     │     │ • Compact  │
+│   features   │     │   layout   │     │   items    │
+│ • Frozen     │     │ • Custom   │     │ • Custom   │
+│   columns    │     │   content  │     │   content  │
+│ • JS Interop │     │ • Selection│     │ • Selection│
+└──────────────┘     └────────────┘     └────────────┘
 ```
 
 ## Core Concepts
@@ -65,133 +59,148 @@ public class GenericDisplayConfig
 }
 ```
 
-### 2. Enhanced ColumnDefinition<T>
-Comprehensive column configuration with freeze support:
+### 2. Enhanced ColumnDefinition Model
+Comprehensive column configuration with freeze support and proper state management:
 ```csharp
-public class ColumnDefinition<T>
+namespace FabOS.WebServer.Models.Columns
 {
-    public string Key { get; set; }                   // Unique identifier
-    public string Header { get; set; }                // Display name
-    public bool IsVisible { get; set; } = true;       // Visibility state
-    public bool IsFrozen { get; set; } = false;       // Frozen state
-    public FreezePosition FreezePosition { get; set; } // None, Left, Right
-    public int Order { get; set; }                    // Display order
-    public int Width { get; set; } = 150;             // Column width
-    public bool IsSortable { get; set; } = true;      // Sort capability
-    public bool IsRequired { get; set; } = false;     // Cannot be hidden
-    public RenderFragment<T>? Template { get; set; }  // Custom template
-}
+    public class ColumnDefinition
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public string PropertyName { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public bool IsVisible { get; set; } = true;
+        public bool IsFrozen { get; set; } = false;
+        public FreezePosition FreezePosition { get; set; } = FreezePosition.None;
+        public int Order { get; set; } = 0;
+        public int? Width { get; set; }
+        public bool IsRequired { get; set; } = false;
+        public string DataType { get; set; } = "string";
+    }
 
-public enum FreezePosition
-{
-    None,   // Not frozen
-    Left,   // Freeze to left side
-    Right   // Freeze to right side (future)
+    public enum FreezePosition
+    {
+        None,   // Not frozen
+        Left,   // Freeze to left side
+        Right   // Freeze to right side
+    }
 }
 ```
 
-### 2. View Modes
-Three consistent view modes across all applicable pages:
-- **Table View**: Traditional grid with sortable columns
-- **Card View**: Visual cards in responsive grid layout
-- **List View**: Compact horizontal items with key information
+### 3. TableColumn Model for Table View
+Bridge between ColumnDefinition and table rendering:
+```csharp
+public class TableColumn<T>
+{
+    public string Title { get; set; } = "";
+    public string Header { get; set; } = "";
+    public Func<T, object?>? ValueSelector { get; set; }
+    public string PropertyName { get; set; } = "";
+    public string CssClass { get; set; } = "";
+    public bool IsSortable { get; set; } = true;
+    public bool IsFilterable { get; set; } = false;
+    public RenderFragment<T>? Template { get; set; }
+}
+```
 
-### 3. Reflection-Based Rendering
-Components use reflection to extract data from any entity type:
+### 4. View Modes
+Three consistent view modes with advanced feature support:
+- **Table View**: Advanced grid with frozen columns, sorting, filtering, and selection
+- **Card View**: Responsive grid layout with custom content and selection support
+- **List View**: Compact horizontal items with custom content templates
+
+### 5. Async State Management
+Advanced asynchronous patterns for JavaScript interop and state persistence:
+```csharp
+// Async column management with IJSRuntime
+private async Task OnColumnsChanged(List<ColumnDefinition>? columns)
+{
+    if (columns != null)
+    {
+        columnDefinitions = columns;
+        await UpdateTableColumns();
+        hasUnsavedChanges = true;
+    }
+    StateHasChanged();
+}
+
+// Safe JavaScript interop with error handling
+private async Task ApplyFrozenColumns()
+{
+    try
+    {
+        if (JSRuntime != null)
+        {
+            var frozenColumns = columnDefinitions
+                .Where(c => c.IsVisible && c.IsFrozen)
+                .OrderBy(c => c.Order)
+                .Select(c => new { PropertyName = c.PropertyName, FreezePosition = c.FreezePosition.ToString() })
+                .ToArray();
+
+            await JSRuntime.InvokeVoidAsync("applyFrozenColumns", frozenColumns);
+        }
+    }
+    catch (InvalidOperationException)
+    {
+        // JSRuntime not available during prerendering - ignore
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error applying frozen columns: {ex.Message}");
+    }
+}
+```
+
+### 6. Reflection-Based Rendering with Error Handling
+Components use reflection to extract data with robust error handling:
 ```csharp
 private object? GetPropertyValue(string propertyName)
 {
-    var property = typeof(TItem).GetProperty(propertyName);
-    return property?.GetValue(Item);
+    try
+    {
+        var property = typeof(TItem).GetProperty(propertyName);
+        return property?.GetValue(Item);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error getting property value for {propertyName}: {ex.Message}");
+        return null;
+    }
 }
 ```
 
 ## Component Details
 
-### DataTable Component
-**Purpose**: Core table rendering component with advanced features
-**Location**: `/SteelEstimation.Web/Shared/Components/DataTable.razor`
+### GenericTableView Component
+**Purpose**: Advanced table rendering with frozen columns and integrated features
+**Location**: `/Components/Shared/GenericTableView.razor`
 
 **Key Features**:
-- Generic type support for any entity
-- Column-based rendering with ColumnDefinition<T>
-- Built-in sorting, filtering, and pagination
-- Row selection with checkbox support
-- Frozen column support for horizontal scrolling
-- Responsive design with mobile optimization
+- Generic type support with `TItem` parameter
+- Advanced column management integration with ColumnDefinition model
+- Frozen column support with JavaScript positioning
+- Built-in filtering through FilterDialog integration
+- Row selection with multi-select support
+- Responsive design with horizontal scrolling
 - Custom cell templates via RenderFragment
+- Async state management patterns
 
-**Integration with Column Management**:
-DataTable works seamlessly with ColumnReorderManager to provide:
-- Dynamic column visibility
-- Drag-and-drop column reordering
-- Column freeze positioning
-- Persistent column preferences
-
-### ColumnReorderManager
-**Purpose**: Provides comprehensive column management UI
-**Location**: `/SteelEstimation.Web/Shared/Components/ColumnReorderManager.razor`
-
-**Features**:
-- **Visual Column List**: Drag-and-drop interface for reordering
-- **Visibility Controls**: Toggle columns on/off with checkboxes
-- **Freeze Management**: Set columns to freeze left or right
-- **Bulk Operations**: Show all, hide all, unfreeze all
-- **Reset to Default**: Restore original column configuration
-- **JavaScript Integration**: Dynamic positioning calculations for frozen columns
-
-**Z-Index Management**:
-Proper layering for dropdowns in modals:
-```css
---z-frozen-columns: 10-15;
---z-column-panel: 100;
---z-dropdown-menu: 1060;
---z-modal: 1050;
---z-tooltip: 1070;
-```
-
-For complete details, see [Column Management Architecture](../documentation/column-management-architecture.md).
-
-### GenericViewSwitcher
-**Purpose**: Orchestrates view switching and template rendering
-**Location**: `/SteelEstimation.Web/Shared/Components/GenericViewSwitcher.razor`
-
-**Key Features**:
-- Manages current view state
-- Renders appropriate template based on selection
-- Provides visual controls following Fab.OS design
-- Maintains view preference (can be extended for persistence)
-
-**Parameters**:
+**Advanced Features Integration**:
 ```csharp
-[Parameter] public string CurrentView { get; set; } = "table";
-[Parameter] public EventCallback<string> CurrentViewChanged { get; set; }
-[Parameter] public RenderFragment? TableTemplate { get; set; }
-[Parameter] public RenderFragment? CardTemplate { get; set; }
-[Parameter] public RenderFragment? ListTemplate { get; set; }
-[Parameter] public int ItemCount { get; set; }
+[Parameter] public bool EnableAdvancedFeatures { get; set; } = false;
+[Parameter] public bool EnableColumnManagement { get; set; } = false;
+[Parameter] public bool EnableFiltering { get; set; } = false;
+[Parameter] public bool EnableViewPreferences { get; set; } = false;
+[Parameter] public string EntityType { get; set; } = "";
 ```
 
-### GenericTableView
-**Purpose**: Wrapper for DataTable with generic type support and column management
-**Location**: `/SteelEstimation.Web/Shared/Components/GenericTableView.razor`
-
-**Features**:
-- Configurable columns via `ColumnDefinition<T>` (enhanced from `TableColumn<T>`)
-- Column freezing support (left/right sticky positioning)
-- Selection support with checkboxes
-- Row click handling
-- Action buttons per row
-- Empty state messaging
-- Integration with ColumnReorderManager for dynamic column control
-
-**Column Freezing Architecture**:
-The table view implements advanced frozen column support with dynamic positioning:
+**Frozen Column Implementation**:
+The table view implements advanced frozen column support with dynamic JavaScript positioning:
 
 1. **CSS Sticky Positioning**: Uses `position: sticky` with calculated left positions
 2. **Dynamic Width Calculation**: JavaScript measures actual rendered column widths
 3. **Multi-Column Support**: Consecutive frozen columns stack correctly
-4. **Visual Indicators**: Green border and shadow for frozen columns
+4. **Fab.OS Visual Identity**: Blue borders and shadows for frozen columns
 
 ```css
 .frozen-column {
@@ -199,247 +208,613 @@ The table view implements advanced frozen column support with dynamic positionin
     left: [dynamically-calculated]px !important;
     z-index: 10-15;
     background: white;
-    border-right: 2px solid #10b981;
-    box-shadow: 2px 0 4px rgba(16, 185, 129, 0.1);
+    border-right: 2px solid var(--fabos-secondary);
+    box-shadow: 2px 0 4px rgba(49, 68, 205, 0.1);
 }
 ```
 
 **JavaScript Width Calculation**:
 ```javascript
-// Measure and position frozen columns dynamically
-const headers = tableElement.querySelectorAll('thead th[data-column-key]');
-let cumulativeLeft = 0;
+// Enhanced frozen column positioning - table-column-freeze.js
+window.applyFrozenColumns = function(frozenColumns) {
+    const table = document.querySelector('.fabos-table');
+    if (!table) return;
 
-headers.forEach((th) => {
-    if (th.dataset.isFrozen === 'true') {
-        const width = th.getBoundingClientRect().width;
-        th.style.left = `${cumulativeLeft}px`;
-        cumulativeLeft += width;
-    }
-});
-```
+    clearFrozenColumns();
 
-This ensures proper positioning regardless of content width or column resizing.
+    const leftFrozen = frozenColumns.filter(col => col.FreezePosition === 'Left')
+                                   .sort((a, b) => a.Order - b.Order);
+    const rightFrozen = frozenColumns.filter(col => col.FreezePosition === 'Right')
+                                    .sort((a, b) => a.Order - b.Order);
 
-### GenericCardView
-**Purpose**: Grid layout with card components
-**Location**: `/SteelEstimation.Web/Shared/Components/GenericCardView.razor`
+    let leftOffset = 0;
+    leftFrozen.forEach(column => {
+        applyFrozenColumnStyles(table, column.PropertyName, leftOffset, 'left');
+        leftOffset += getColumnWidth(table, column.PropertyName);
+    });
 
-**Features**:
-- Responsive grid (configurable columns)
-- Uses GenericCard for individual items
-- Selection support
-- Click handling
-- Statistical displays
-
-### GenericListView
-**Purpose**: Compact list items in horizontal layout
-**Location**: `/SteelEstimation.Web/Shared/Components/GenericListView.razor`
-
-**Features**:
-- Space-efficient design
-- Shows primary/secondary properties
-- Optional selection
-- Action buttons
-- Status indicators
-
-### GenericCard
-**Purpose**: Individual card component with reflection-based rendering
-**Location**: `/SteelEstimation.Web/Shared/Components/GenericCard.razor`
-
-**Features**:
-- Dynamic property extraction
-- Formatted statistics display
-- Icon management
-- Selection state
-- Click handling
-
-## Integration Pattern
-
-### 1. Page Setup
-Pages define their display configuration and column mappings:
-```csharp
-@implements IFilterProvider<Product>
-
-private static readonly GenericDisplayConfig ProductDisplayConfig = new()
-{
-    PrimaryProperty = nameof(Product.Name),
-    SecondaryProperty = nameof(Product.Description),
-    StatusProperty = nameof(Product.Status),
-    DefaultIcon = "fas fa-cube",
-    Stats = new List<StatMapping>
-    {
-        new() { PropertyName = nameof(Product.Price), Label = "Price", Format = "C" },
-        new() { PropertyName = nameof(Product.StockLevel), Label = "Stock" }
-    }
+    let rightOffset = 0;
+    rightFrozen.reverse().forEach(column => {
+        applyFrozenColumnStyles(table, column.PropertyName, rightOffset, 'right');
+        rightOffset += getColumnWidth(table, column.PropertyName);
+    });
 };
 ```
 
-### 2. Template Definition
-Pages provide RenderFragments for each view mode with correct parameter usage:
+### ColumnManagerDropdown Component
+**Purpose**: Unified column management with visibility, reordering, and freeze options
+**Location**: `/Components/Shared/ColumnManagerDropdown.razor`
 
-**Table Template**:
-```csharp
-private RenderFragment tableTemplate => @<GenericTableView TItem="Product" 
-                                           Items="@filteredProducts"
-                                           Columns="@tableColumns"
-                                           ShowSelection="true"
-                                           SelectedItems="@selectedRows"
-                                           OnSelectionChanged="@HandleSelectionChanged" />;
-```
+**Features**:
+- **Unified Interface**: Single dropdown for all column management needs
+- **Visibility Controls**: Toggle columns on/off with checkboxes
+- **Reordering**: Up/down buttons for changing column order
+- **Freeze Management**: Freeze left/right options for each column
+- **Bulk Operations**: Show all, hide all, reset to defaults
+- **Fab.OS Styling**: Consistent blue theme with gradients
 
-**Card Template**:
-```csharp
-private RenderFragment cardTemplate => @<GenericCardView TItem="Product"
-                                         Items="@filteredProducts"
-                                         DisplayConfig="@ProductDisplayConfig"
-                                         OnItemClick="@ViewProduct" />;
-```
-
-**List Template**:
-```csharp
-private RenderFragment listTemplate => @<GenericListView TItem="Product"
-                                         Items="@filteredProducts"
-                                         DisplayConfig="@ProductDisplayConfig"
-                                         ShowSelection="true"
-                                         SelectedItems="@selectedRows"
-                                         OnSelectionChanged="@HandleSelectionChanged" />;
-```
-
-**⚠️ Parameter Validation**: Ensure only valid parameters are used. Invalid parameters like `ShowActions`, `OnEdit`, or `OnView` will cause Blazor circuit crashes.
-
-### 3. View Switcher Usage
-**Standardized @bind-CurrentView Pattern**:
+**Integration Pattern**:
 ```razor
-<GenericViewSwitcher 
-    @bind-CurrentView="viewMode"
-    ItemCount="@filteredProducts.Count()"
-    TableTemplate="@tableTemplate"
-    CardTemplate="@cardTemplate"
-    ListTemplate="@listTemplate" />
+<ColumnManagerDropdown Columns="@columnDefinitions"
+                     OnColumnsChanged="@(async (columns) => await OnColumnsChanged(columns))" />
 ```
 
-**Important**: Always use `@bind-CurrentView` for two-way binding. Do not use separate `CurrentView` and `CurrentViewChanged` parameters as this can cause binding issues.
+For complete details, see [Column Management Architecture](column-management-architecture.md).
+
+### GenericViewSwitcher Component
+**Purpose**: Orchestrates view switching with integrated toolbar placement
+**Location**: `/Components/Shared/GenericViewSwitcher.razor`
+
+**Key Features**:
+- Manages current view state with ViewType enum
+- Renders appropriate view component based on selection
+- Integrates with StandardToolbar for consistent layout
+- Maintains view preferences through ViewState system
+- Supports custom content templates for each view type
+
+**Enhanced Parameters**:
+```csharp
+[Parameter] public ViewType CurrentView { get; set; } = ViewType.Table;
+[Parameter] public EventCallback<ViewType> CurrentViewChanged { get; set; }
+[Parameter] public bool ShowViewPreferences { get; set; } = true;
+[Parameter] public string CssClass { get; set; } = "";
+
+public enum ViewType
+{
+    Table,
+    Card,
+    List
+}
+```
+
+**Toolbar Integration Pattern**:
+```razor
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged">
+    <ViewSwitcher>
+        <GenericViewSwitcher TItem="Package"
+                           CurrentView="@currentView"
+                           CurrentViewChanged="@OnViewChanged"
+                           ShowViewPreferences="false" />
+    </ViewSwitcher>
+</StandardToolbar>
+```
+
+### Enhanced GenericTableView Implementation
+**Current Implementation**: Already covered above with advanced features integration
+See the GenericTableView Component section for complete implementation details including:
+- Advanced features parameters
+- Frozen column support with JavaScript positioning
+- Integration with ColumnManagerDropdown
+- Async state management patterns
+- Error handling for JavaScript interop
+
+### GenericCardView Component
+**Purpose**: Responsive grid layout with custom card content
+**Location**: `/Components/Shared/GenericCardView.razor`
+
+**Enhanced Features**:
+- Responsive grid layout (1-4 columns based on viewport)
+- Custom content templates via `CustomCardContent` RenderFragment
+- Selection support with multi-select capabilities
+- Item click and double-click handling
+- Integration with view state management
+- Consistent Fab.OS styling
+
+**Custom Content Integration**:
+```razor
+<GenericCardView TItem="Package"
+                Items="@filteredPackages"
+                OnItemClick="@HandleRowClick"
+                OnItemDoubleClick="@HandleRowDoubleClick"
+                AllowSelection="true"
+                SelectedItems="@selectedCardItems"
+                SelectedItemsChanged="@HandleCardSelectionChanged">
+    <CustomCardContent Context="package">
+        <div class="package-card">
+            <div class="package-card-header">
+                <h4>@package.PackageName</h4>
+                <span class="badge">@package.PackageNumber</span>
+            </div>
+            <p class="package-card-description">@(package.Description ?? "No description")</p>
+            <div class="package-card-footer">
+                <span class="package-status">@(package.Status ?? "Active")</span>
+                <span class="package-cost">$@package.EstimatedCost.ToString("N2")</span>
+            </div>
+        </div>
+    </CustomCardContent>
+</GenericCardView>
+```
+
+### GenericListView Component
+**Purpose**: Compact list items with custom content templates
+**Location**: `/Components/Shared/GenericListView.razor`
+
+**Enhanced Features**:
+- Space-efficient horizontal layout design
+- Custom list item templates via `CustomListItemContent` RenderFragment
+- Selection support with checkboxes
+- Item click and double-click handling
+- Mobile-responsive design
+
+**Custom Content Integration**:
+```razor
+<GenericListView TItem="Package"
+                Items="@filteredPackages"
+                OnItemClick="@HandleRowClick"
+                OnItemDoubleClick="@HandleRowDoubleClick"
+                AllowSelection="true"
+                SelectedItems="@selectedListItems"
+                SelectedItemsChanged="@HandleListSelectionChanged">
+    <CustomListItemContent Context="package">
+        <div class="package-list-item">
+            <div class="package-header">
+                <h3 class="package-title">@package.PackageName</h3>
+                <span class="package-number">@package.PackageNumber</span>
+            </div>
+            <p class="package-description">@(package.Description ?? "No description available")</p>
+            <div class="package-meta">
+                <span class="package-status">@(package.Status ?? "Active")</span>
+                <span class="package-hours">@package.EstimatedHours.ToString("N2") hours</span>
+                <span class="package-cost">$@package.EstimatedCost.ToString("N2")</span>
+            </div>
+        </div>
+    </CustomListItemContent>
+</GenericListView>
+```
+
+## Integration Pattern
+
+### 1. Enhanced Page Setup with StandardToolbar
+Pages integrate with the unified toolbar system for consistent layout:
+```razor
+@page "/packages"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models.Columns
+@using FabOS.WebServer.Models.Filtering
+@using FabOS.WebServer.Models.ViewState
+
+<!-- Standard Toolbar with View Controls -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged"
+                SearchPlaceholder="Search packages..." PageType="PageType.List">
+    <ViewSwitcher>
+        <GenericViewSwitcher TItem="Package"
+                           CurrentView="@currentView"
+                           CurrentViewChanged="@OnViewChanged"
+                           ShowViewPreferences="false" />
+    </ViewSwitcher>
+    <ColumnManager>
+        <ColumnManagerDropdown Columns="@columnDefinitions"
+                             OnColumnsChanged="@(async (columns) => await OnColumnsChanged(columns))" />
+    </ColumnManager>
+    <FilterButton>
+        <FilterDialog TItem="Package"
+                    OnFiltersChanged="@OnFiltersChanged" />
+    </FilterButton>
+    <ViewSaving>
+        <ViewSavingDropdown EntityType="Packages"
+                          CurrentState="@currentViewState"
+                          OnViewLoaded="@(async (state) => await OnViewLoaded(state))"
+                          HasUnsavedChanges="@hasUnsavedChanges" />
+    </ViewSaving>
+</StandardToolbar>
+```
+
+### 2. Async State Management Implementation
+Pages implement comprehensive async patterns for state management:
+```csharp
+[Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+private List<ColumnDefinition> columnDefinitions = new();
+private List<FilterRule> activeFilters = new();
+private ViewState currentViewState = new();
+private bool hasUnsavedChanges = false;
+
+// Async column management
+private async Task OnColumnsChanged(List<ColumnDefinition>? columns)
+{
+    if (columns != null)
+    {
+        columnDefinitions = columns;
+        await UpdateTableColumns();
+        hasUnsavedChanges = true;
+    }
+    StateHasChanged();
+}
+
+// Combined search and filter logic
+private void FilterPackages()
+{
+    var result = packages.AsEnumerable();
+
+    // Apply search filter
+    if (!string.IsNullOrEmpty(searchTerm))
+    {
+        var searchLower = searchTerm.ToLower();
+        result = result.Where(p =>
+            (p.PackageNumber?.ToLower().Contains(searchLower) ?? false) ||
+            (p.PackageName?.ToLower().Contains(searchLower) ?? false) ||
+            (p.Description?.ToLower().Contains(searchLower) ?? false) ||
+            (p.Status?.ToLower().Contains(searchLower) ?? false)
+        );
+    }
+
+    // Apply active filters with error handling
+    if (activeFilters.Any())
+    {
+        result = result.Where(package =>
+        {
+            try
+            {
+                foreach (var filter in activeFilters)
+                {
+                    var fieldName = filter.Field ?? filter.FieldName;
+                    if (string.IsNullOrEmpty(fieldName))
+                        continue;
+
+                    var propertyInfo = typeof(Package).GetProperty(fieldName);
+                    if (propertyInfo != null && propertyInfo.CanRead)
+                    {
+                        var value = propertyInfo.GetValue(package);
+                        if (!MatchesFilter(value, filter))
+                            return false;
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error filtering package {package?.Id}: {ex.Message}");
+                return true; // Include item if filtering fails
+            }
+        });
+    }
+
+    filteredPackages = result.ToList();
+}
+```
+
+### 3. View Implementation with Custom Content
+Views are implemented directly in the page markup with custom content templates:
+
+**Table View**:
+```razor
+@if (currentView == GenericViewSwitcher<Package>.ViewType.Table)
+{
+    <GenericTableView TItem="Package"
+                     Items="@filteredPackages"
+                     Columns="@tableColumns"
+                     AllowSelection="true"
+                     ShowCheckboxes="true"
+                     SelectedItems="@selectedTableItems"
+                     SelectedItemsChanged="@HandleTableSelectionChanged"
+                     OnRowClick="@HandleRowClick"
+                     OnRowDoubleClick="@HandleRowDoubleClick" />
+}
+```
+
+**Card View with Custom Content**:
+```razor
+@if (currentView == GenericViewSwitcher<Package>.ViewType.Card)
+{
+    <GenericCardView TItem="Package"
+                    Items="@filteredPackages"
+                    OnItemClick="@HandleRowClick"
+                    OnItemDoubleClick="@HandleRowDoubleClick"
+                    AllowSelection="true"
+                    SelectedItems="@selectedCardItems"
+                    SelectedItemsChanged="@HandleCardSelectionChanged">
+        <CustomCardContent Context="package">
+            <div class="package-card">
+                <div class="package-card-header">
+                    <h4>@package.PackageName</h4>
+                    <span class="badge">@package.PackageNumber</span>
+                </div>
+                <p class="package-card-description">@(package.Description ?? "No description")</p>
+                <div class="package-card-footer">
+                    <span class="package-status">@(package.Status ?? "Active")</span>
+                    <span class="package-cost">$@package.EstimatedCost.ToString("N2")</span>
+                </div>
+            </div>
+        </CustomCardContent>
+    </GenericCardView>
+}
+```
+
+**List View with Custom Content**:
+```razor
+@if (currentView == GenericViewSwitcher<Package>.ViewType.List)
+{
+    <GenericListView TItem="Package"
+                    Items="@filteredPackages"
+                    OnItemClick="@HandleRowClick"
+                    OnItemDoubleClick="@HandleRowDoubleClick"
+                    AllowSelection="true"
+                    SelectedItems="@selectedListItems"
+                    SelectedItemsChanged="@HandleListSelectionChanged">
+        <CustomListItemContent Context="package">
+            <div class="package-list-item">
+                <div class="package-header">
+                    <h3 class="package-title">@package.PackageName</h3>
+                    <span class="package-number">@package.PackageNumber</span>
+                </div>
+                <p class="package-description">@(package.Description ?? "No description available")</p>
+                <div class="package-meta">
+                    <span class="package-status">@(package.Status ?? "Active")</span>
+                    <span class="package-hours">@package.EstimatedHours.ToString("N2") hours</span>
+                    <span class="package-cost">$@package.EstimatedCost.ToString("N2")</span>
+                </div>
+            </div>
+        </CustomListItemContent>
+    </GenericListView>
+}
+```
 
 ## Data Flow
 
-### Property Extraction Flow
+### Unified Toolbar Integration Flow
 ```
-1. Page defines: DisplayConfig.PrimaryProperty = "ProductName"
-2. GenericCard receives: Item = productInstance, Config = DisplayConfig
-3. Reflection extracts: GetPropertyValue("ProductName") → "Steel Beam"
-4. Rendered as: <h5 class="item-title">Steel Beam</h5>
-```
-
-### Selection Flow
-```
-1. User clicks checkbox in card/list/table
-2. Component updates: SelectedItems.Add(item)
-3. Event callback: OnSelectionChanged.InvokeAsync(SelectedItems)
-4. Page updates: Toolbar actions refresh with selection count
+1. Page loads with StandardToolbar containing RenderFragment sections
+2. ViewSwitcher renders GenericViewSwitcher component
+3. ColumnManager renders ColumnManagerDropdown component
+4. FilterButton renders FilterDialog component
+5. ViewSaving renders ViewSavingDropdown component
+6. All components communicate through async EventCallbacks
 ```
 
-### Frozen Column State Flow
+### Enhanced Selection Flow
 ```
-1. User toggles freeze in ColumnReorderManager
-2. ColumnDefinition.IsFrozen = true, FreezePosition = Left
-3. ColumnsChanged.InvokeAsync(columns) triggered
-4. Page.OnColumnsChanged creates deep copy (prevents reference pollution)
-5. TriggerViewStateChanged() notifies SaveViewPreferences
-6. DataTable applies CSS and calculates positions
-7. JavaScript measures widths and sets left positions
+1. User clicks checkbox/selects item in any view (table/card/list)
+2. View component updates: SelectedItems collection
+3. Async callback: SelectedItemsChanged.InvokeAsync(SelectedItems)
+4. Page handles selection across all view types consistently
+5. Selection state maintained during view switching
+```
+
+### Advanced Frozen Column State Flow
+```
+1. User toggles freeze in ColumnManagerDropdown
+2. Working columns updated: ColumnDefinition.IsFrozen = true, FreezePosition = Left
+3. Async callback: OnColumnsChanged.InvokeAsync(columns) triggered
+4. Page.OnColumnsChanged updates columnDefinitions
+5. UpdateTableColumns() creates TableColumn instances from ColumnDefinitions
+6. ApplyFrozenColumns() called with JSRuntime interop
+7. JavaScript measures widths and applies dynamic positioning
+8. hasUnsavedChanges = true triggers ViewSavingDropdown indicator
+```
+
+### Integrated Filter and Search Flow
+```
+1. User enters search term in StandardToolbar search
+2. OnSearchChanged callback updates searchTerm
+3. FilterPackages() applies combined search and filter logic
+4. User adds filter rules in FilterDialog
+5. OnFiltersChanged callback updates activeFilters
+6. FilterPackages() re-applies with new filter criteria
+7. All views (table/card/list) show filtered results
+8. hasUnsavedChanges = true for view state persistence
 ```
 
 ## State Management Patterns
 
-### Deep Copy Pattern for Column Definitions
-Prevents reference pollution between view switches:
+### Async State Management Pattern
+Comprehensive async patterns with error handling for JavaScript interop:
 ```csharp
-private async Task OnColumnsChanged(List<ColumnDefinition<T>> columns)
+private async Task OnColumnsChanged(List<ColumnDefinition>? columns)
 {
-    // Create new instances to avoid reference sharing
-    columnDefinitions = columns.Select(c => new ColumnDefinition<T>
+    if (columns != null)
     {
-        Key = c.Key,
-        Header = c.Header,
-        IsVisible = c.IsVisible,
-        IsFrozen = c.IsFrozen,
-        FreezePosition = c.FreezePosition,
-        Order = c.Order,
-        // ... copy all properties
-    }).ToList();
-    
-    TriggerViewStateChanged();
+        columnDefinitions = columns;
+        await UpdateTableColumns();
+        hasUnsavedChanges = true;
+    }
+    StateHasChanged();
+}
+
+private async Task UpdateTableColumns()
+{
+    tableColumns = columnDefinitions
+        .Where(c => c.IsVisible)
+        .OrderBy(c => c.Order)
+        .Select(c => CreateTableColumn(c))
+        .ToList();
+
+    await ApplyFrozenColumns();
+}
+
+private async Task ApplyFrozenColumns()
+{
+    try
+    {
+        if (JSRuntime != null)
+        {
+            var frozenColumns = columnDefinitions
+                .Where(c => c.IsVisible && c.IsFrozen)
+                .OrderBy(c => c.Order)
+                .Select(c => new
+                {
+                    PropertyName = c.PropertyName,
+                    FreezePosition = c.FreezePosition.ToString()
+                })
+                .ToArray();
+
+            await JSRuntime.InvokeVoidAsync("applyFrozenColumns", frozenColumns);
+        }
+    }
+    catch (InvalidOperationException)
+    {
+        // JSRuntime not available during prerendering - ignore
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error applying frozen columns: {ex.Message}");
+    }
+}
+```
+
+### Enhanced View State Loading Pattern
+Handles complete state restoration with async operations:
+```csharp
+private async Task OnViewLoaded(ViewState? state)
+{
+    if (state == null)
+    {
+        // Reset to defaults
+        InitializeDefaultColumns();
+        activeFilters.Clear();
+        FilterPackages();
+    }
+    else
+    {
+        currentViewState = state;
+        if (state.Columns.Any())
+        {
+            columnDefinitions = state.Columns;
+            await UpdateTableColumns();
+        }
+        if (state.Filters.Any())
+        {
+            activeFilters = state.Filters;
+            FilterPackages();
+        }
+        if (state.CurrentView != null)
+        {
+            currentView = state.CurrentView.Value;
+        }
+    }
+
+    hasUnsavedChanges = false;
     StateHasChanged();
 }
 ```
 
-### Explicit State Reset Pattern
-Ensures clean transitions when loading saved views:
+### Error-Safe Reflection Pattern
+Robust property access with comprehensive error handling:
 ```csharp
-public async Task ApplyViewState(string viewState)
+private bool MatchesFilter(object? value, FilterRule filter)
 {
-    var state = DeserializeViewState(viewState);
-    
-    // Reset frozen states before applying saved configuration
-    foreach (var column in columnDefinitions)
+    try
     {
-        column.IsFrozen = false;
-        column.FreezePosition = FreezePosition.None;
+        var stringValue = value?.ToString() ?? "";
+        var filterValue = filter.Value?.ToString() ?? "";
+
+        return filter.Operator switch
+        {
+            FilterOperator.Equals => stringValue.Equals(filterValue, StringComparison.OrdinalIgnoreCase),
+            FilterOperator.NotEquals => !stringValue.Equals(filterValue, StringComparison.OrdinalIgnoreCase),
+            FilterOperator.Contains => stringValue.Contains(filterValue, StringComparison.OrdinalIgnoreCase),
+            FilterOperator.StartsWith => stringValue.StartsWith(filterValue, StringComparison.OrdinalIgnoreCase),
+            FilterOperator.EndsWith => stringValue.EndsWith(filterValue, StringComparison.OrdinalIgnoreCase),
+            FilterOperator.GreaterThan => CompareNumeric(value, filter.Value, (a, b) => a > b),
+            FilterOperator.LessThan => CompareNumeric(value, filter.Value, (a, b) => a < b),
+            FilterOperator.Between => CompareBetween(value, filter.Value, filter.SecondValue),
+            _ => true
+        };
     }
-    
-    // Apply saved configuration
-    state.ApplyColumnConfiguration(columnDefinitions);
-    
-    // Refresh visual state
-    await viewSwitcher.RefreshFrozenColumns();
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error applying filter: {ex.Message}");
+        return true; // If filter fails, include the item
+    }
 }
 ```
 
 ## Styling Architecture
 
 ### CSS Organization
-Each component has its own scoped CSS file:
-- `GenericViewSwitcher.razor.css` - View controls and container
-- `GenericTableView.razor.css` - Table-specific styles
-- `GenericCardView.razor.css` - Grid layout styles
-- `GenericListView.razor.css` - List item styles
-- `GenericCard.razor.css` - Card component styles
+Comprehensive styling system with unified Fab.OS theme:
+- `/wwwroot/css/view-controls.css` - Unified styling for all view control components
+- `/wwwroot/css/frozen-columns.css` - Frozen column positioning and visual effects
+- `GenericViewSwitcher.razor.css` - View switcher controls
+- `GenericTableView.razor.css` - Table-specific styles with frozen column support
+- `GenericCardView.razor.css` - Responsive grid layout styles
+- `GenericListView.razor.css` - Compact list item styles
 
 ### Fab.OS Visual Identity
-Components follow the Fab.OS design system:
-- **Primary Blue**: #3144CD (active states, selections)
+All components follow the consistent Fab.OS design system:
+- **Primary Blue**: #3144CD (var(--fabos-primary) - active states, selections)
+- **Secondary Blue**: #4F6AF7 (var(--fabos-secondary) - buttons, accents)
 - **Deep Blue**: #0D1A80 (gradients, hover states)
+- **Success Green**: #10B981 (var(--fabos-success) - indicators, badges)
 - **Neutral Gray**: #777777 (text, borders)
 - **Light Gray**: #B1B1B1 (inactive elements)
 
-### Responsive Design
-- Cards: 1-4 columns based on viewport
-- Lists: Stack on mobile
-- Tables: Horizontal scroll on small screens
-- View switcher: Adapts button layout
+### Enhanced Responsive Design
+- **Cards**: 1-4 columns based on viewport with gap consistency
+- **Lists**: Horizontal layout with mobile stacking
+- **Tables**: Horizontal scroll with frozen column positioning
+- **Toolbar**: Responsive layout with collapsing sections
+- **Dropdowns**: Position-aware with proper z-indexing
+
+### Frozen Column Visual Treatment
+```css
+.frozen-column {
+    position: sticky !important;
+    left: var(--frozen-left-position) !important;
+    z-index: 10;
+    background: white;
+    border-right: 2px solid var(--fabos-secondary);
+    box-shadow: 2px 0 4px rgba(49, 68, 205, 0.1);
+}
+
+.frozen-column.frozen-right {
+    left: auto !important;
+    right: var(--frozen-right-position) !important;
+    border-right: none;
+    border-left: 2px solid var(--fabos-secondary);
+    box-shadow: -2px 0 4px rgba(49, 68, 205, 0.1);
+}
+```
 
 ## Benefits
 
-### Consistency
-- Uniform appearance across all list/worksheet pages
-- Standardized interaction patterns
-- Predictable user experience
+### Enhanced Consistency
+- Uniform appearance across all list pages with Fab.OS design system
+- Standardized interaction patterns with unified toolbar integration
+- Predictable user experience with consistent view switching
+- Cohesive styling with blue theme throughout all components
 
-### Maintainability
-- Single source of truth for view rendering
-- Centralized styling updates
-- Reduced code duplication
+### Advanced Maintainability
+- Single source of truth for view rendering with generic components
+- Centralized styling through unified CSS architecture
+- Reduced code duplication with reusable components
+- Async patterns ensure robust state management
+- Error handling prevents component crashes
 
-### Extensibility
-- Easy to add new view modes
-- Simple property mapping for new entities
-- Pluggable formatting and rendering
+### Superior Extensibility
+- Easy integration of new pages through StandardToolbar pattern
+- Custom content templates for flexible data presentation
+- Pluggable filtering with reflection-based field detection
+- Modular component architecture supports feature additions
+- Frozen column system adapts to any entity type
 
-### Performance
-- Efficient reflection with caching
-- Lazy loading support ready
-- Optimized re-rendering
+### Optimized Performance
+- Efficient JavaScript interop with error handling
+- Async state management prevents UI blocking
+- Frozen column positioning with dynamic width calculations
+- Optimized re-rendering with StateHasChanged() controls
+- Memory-efficient reflection patterns
 
 ## Usage Guidelines
 
@@ -596,4 +971,13 @@ To ensure correct implementation:
 
 ## Conclusion
 
-The Generic View System provides a robust, maintainable solution for displaying data collections consistently across the application. By separating view logic from data presentation and using reflection-based rendering, it achieves both flexibility and standardization while maintaining the Fab.OS visual identity.
+The enhanced Generic View System provides a comprehensive, enterprise-grade solution for displaying data collections across Fab.OS. Through the integration of StandardToolbar, advanced frozen columns, unified filtering, and persistent view preferences, it delivers a powerful and consistent user experience.
+
+Key achievements include:
+- **Unified Architecture**: All list pages follow the same patterns with StandardToolbar integration
+- **Advanced Features**: Frozen columns, filtering, and view preferences work seamlessly together
+- **Robust Implementation**: Async patterns and error handling ensure reliable operation
+- **Fab.OS Consistency**: Blue theme and design patterns maintained throughout
+- **Future-Ready**: Modular architecture supports easy extension and maintenance
+
+This system serves as the foundation for all data collection interfaces in Fab.OS, providing users with powerful, consistent tools for managing and viewing their data while maintaining the application's visual identity and performance standards.
