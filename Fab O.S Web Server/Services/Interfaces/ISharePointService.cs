@@ -61,6 +61,31 @@ public interface ISharePointService
     /// Gets SharePoint web URL for a file (for preview)
     /// </summary>
     Task<string> GetFileWebUrlAsync(string driveItemId);
+
+    /// <summary>
+    /// Gets mixed folder and file contents for a given path
+    /// </summary>
+    Task<SharePointFolderContents> GetFolderContentsAsync(string folderPath);
+
+    /// <summary>
+    /// Creates a new folder at the specified path
+    /// </summary>
+    Task<SharePointFolderInfo> CreateFolderAsync(string parentPath, string folderName);
+
+    /// <summary>
+    /// Gets the full folder path hierarchy for breadcrumb navigation
+    /// </summary>
+    Task<List<SharePointBreadcrumbItem>> GetFolderBreadcrumbsAsync(string folderPath);
+
+    /// <summary>
+    /// Uploads multiple files to a specific folder path
+    /// </summary>
+    Task<List<SharePointFileInfo>> UploadMultipleFilesAsync(string folderPath, List<(Stream stream, string fileName, string contentType)> files);
+
+    /// <summary>
+    /// Deletes multiple files by their drive item IDs
+    /// </summary>
+    Task<bool> DeleteMultipleFilesAsync(List<string> driveItemIds);
 }
 
 /// <summary>
@@ -104,4 +129,27 @@ public class SharePointFileInfo
     public string ModifiedBy { get; set; } = string.Empty;
     public string? ETag { get; set; }
     public string? DownloadUrl { get; set; }
+}
+
+/// <summary>
+/// Mixed folder and file contents for folder browsing
+/// </summary>
+public class SharePointFolderContents
+{
+    public List<SharePointFolderInfo> Folders { get; set; } = new();
+    public List<SharePointFileInfo> Files { get; set; } = new();
+    public string CurrentPath { get; set; } = string.Empty;
+    public string? ParentPath { get; set; }
+    public bool IsRoot { get; set; }
+}
+
+/// <summary>
+/// Breadcrumb item for folder navigation
+/// </summary>
+public class SharePointBreadcrumbItem
+{
+    public string Name { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty;
+    public bool IsRoot { get; set; }
+    public bool IsCurrent { get; set; }
 }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models.ViewState;
+using FabOS.WebServer.Models.Calibration;
 
 namespace FabOS.WebServer.Data.Contexts;
 
@@ -15,6 +16,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<Project> Projects { get; set; }
     public DbSet<Package> Packages { get; set; }
+    public DbSet<PackageDrawing> PackageDrawings { get; set; }
     public DbSet<Customer> Customers { get; set; }
     public DbSet<CustomerContact> CustomerContacts { get; set; }
     public DbSet<CustomerAddress> CustomerAddresses { get; set; }
@@ -28,6 +30,22 @@ public class ApplicationDbContext : DbContext
     public DbSet<TraceBeamDetection> TraceBeamDetections { get; set; }
     public DbSet<TraceTakeoffItem> TraceTakeoffItems { get; set; }
     public DbSet<WeldingConnection> WeldingConnections { get; set; }
+
+    // Trace Module Entities
+    public DbSet<TraceRecord> TraceRecords { get; set; }
+    public DbSet<TraceMaterial> TraceMaterials { get; set; }
+    public DbSet<TraceProcess> TraceProcesses { get; set; }
+    public DbSet<TraceParameter> TraceParameters { get; set; }
+    public DbSet<TraceAssembly> TraceAssemblies { get; set; }
+    public DbSet<TraceComponent> TraceComponents { get; set; }
+    public DbSet<TraceDocument> TraceDocuments { get; set; }
+    public DbSet<TraceTakeoff> TraceTakeoffs { get; set; }
+    public DbSet<TraceTakeoffMeasurement> TraceTakeoffMeasurements { get; set; }
+    public DbSet<TraceMaterialCatalogueLink> TraceMaterialCatalogueLinks { get; set; }
+    public DbSet<TraceTakeoffAnnotation> TraceTakeoffAnnotations { get; set; }
+
+    // Calibration entities
+    public DbSet<CalibrationData> Calibrations { get; set; }
 
     // NEW: Workflow entities (Quote → Order → WorkOrder system)
     public DbSet<Quote> Quotes { get; set; }
@@ -90,6 +108,13 @@ public class ApplicationDbContext : DbContext
             .WithMany(u => u.ModifiedPackages)
             .HasForeignKey(p => p.LastModifiedBy)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Configure CalibrationData relationships
+        modelBuilder.Entity<CalibrationData>()
+            .HasOne(c => c.PackageDrawing)
+            .WithMany(pd => pd.Calibrations)
+            .HasForeignKey(c => c.PackageDrawingId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<MachineCenter>()
             .HasOne(mc => mc.CreatedByUser)

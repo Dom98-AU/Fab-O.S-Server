@@ -468,3 +468,51 @@ public class ComponentCostDto
     public decimal UnitCost { get; set; }
     public decimal TotalCost { get; set; }
 }
+
+// Takeoff Calculation DTOs
+public class TakeoffCalculationRequest
+{
+    public int TakeoffId { get; set; }
+    public List<int> MeasurementIds { get; set; } = new List<int>();
+    public bool IncludeWeights { get; set; } = true;
+    public bool GroupByMaterial { get; set; } = false;
+}
+
+public class TakeoffCalculationResult
+{
+    public int TakeoffId { get; set; }
+    public List<MeasurementCalculation> Measurements { get; set; } = new List<MeasurementCalculation>();
+    public decimal TotalQuantity { get; set; }
+    public decimal TotalWeight { get; set; }
+    public string WeightUnit { get; set; } = "kg";
+    public Dictionary<string, decimal>? MaterialTotals { get; set; }
+}
+
+public class MeasurementCalculation
+{
+    public int MeasurementId { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public decimal Value { get; set; }
+    public string Unit { get; set; } = string.Empty;
+    public WeightCalculationDto? Weight { get; set; }
+    public string? ItemCode { get; set; }
+    public string? Description { get; set; }
+}
+
+public class WeightCalculationDto
+{
+    public decimal Weight { get; set; }
+    public string Unit { get; set; } = "kg";
+    public decimal? UnitWeight { get; set; }
+    public string? CalculationMethod { get; set; }
+}
+
+public class TakeoffProjectSummary
+{
+    public int ProjectId { get; set; }
+    public int TotalTakeoffs { get; set; }
+    public int TotalMeasurements { get; set; }
+    public decimal TotalWeight { get; set; }
+    public Dictionary<string, int> Categories { get; set; } = new Dictionary<string, int>();
+    public Dictionary<string, decimal> MaterialBreakdown { get; set; } = new Dictionary<string, decimal>();
+}

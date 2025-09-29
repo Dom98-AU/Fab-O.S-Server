@@ -1,0 +1,91 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Services.Interfaces
+@inject IScaleCalibrationService ScaleCalibrationService
+
+<ModalTemplate @bind-IsVisible="IsVisible"
+               Title="@Title"
+               ModalType="ModalTemplate.ModalDisplayType.Fullscreen"
+               ShowCloseButton="true"
+               CloseOnBackdrop="false"
+               OnClose="HandleClose">
+    <ChildContent>
+        @if (IsVisible && PackageDrawingId > 0)
+        {
+            <TakeoffPdfViewer PackageDrawingId="@PackageDrawingId"
+                             OnClose="HandleClose"
+                             OnScaleCalibrationRequest="OpenScaleCalibration"
+                             @ref="takeoffViewer" />
+        }
+    </ChildContent>
+</ModalTemplate>
+
+<!-- Scale Calibration Modal -->
+<ModalTemplate @bind-IsVisible="showScaleCalibrationModal"
+               Title="Scale Calibration"
+               ModalType="ModalTemplate.ModalDisplayType.Standard"
+               Size="ModalTemplate.ModalSize.Large"
+               ShowCloseButton="true"
+               CloseOnBackdrop="false"
+               OnClose="CloseScaleCalibration">
+    <ChildContent>
+        <ScaleCalibrationComponent PackageDrawingId="@PackageDrawingId"
+                                  OnCalibrationComplete="HandleCalibrationComplete"
+                                  OnClose="CloseScaleCalibration" />
+    </ChildContent>
+</ModalTemplate>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public int PackageDrawingId { get; set; }
+    [Parameter] public string Title { get; set; } = "PDF Takeoff";
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool showScaleCalibrationModal = false;
+    private TakeoffPdfViewer? takeoffViewer;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Update title based on drawing info if needed
+        if (PackageDrawingId > 0 && string.IsNullOrEmpty(Title))
+        {
+            Title = "PDF Takeoff";
+        }
+    }
+
+    private async Task HandleClose()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(false);
+        await OnClose.InvokeAsync();
+    }
+
+    private void OpenScaleCalibration()
+    {
+        showScaleCalibrationModal = true;
+    }
+
+    private void CloseScaleCalibration()
+    {
+        showScaleCalibrationModal = false;
+    }
+
+    private async Task HandleCalibrationComplete()
+    {
+        showScaleCalibrationModal = false;
+
+        // Refresh the takeoff viewer to reflect new calibration
+        if (takeoffViewer != null)
+        {
+            await takeoffViewer.RefreshData();
+        }
+    }
+
+    public async Task RefreshData()
+    {
+        if (takeoffViewer != null)
+        {
+            await takeoffViewer.RefreshData();
+        }
+    }
+}

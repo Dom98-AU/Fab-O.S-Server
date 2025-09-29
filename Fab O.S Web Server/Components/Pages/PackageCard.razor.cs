@@ -18,6 +18,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
     private Package? package = null;
     private bool isLoading = true;
     private string errorMessage = "";
+    private int fileCount = 0;
 
     // Default to edit mode as requested
     private bool isEditMode = true;
@@ -64,8 +65,9 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
             }
             else
             {
-                // Load existing package
+                // Load existing package with related data
                 package = await DbContext.Packages
+                    .Include(p => p.PackageDrawings)
                     .FirstOrDefaultAsync(p => p.Id == Id);
 
                 if (package == null)
@@ -74,6 +76,9 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 }
                 else
                 {
+                    // Count SharePoint files
+                    fileCount = package.PackageDrawings?.Count(d => d.IsActive) ?? 0;
+
                     // Set edit mode as default for existing packages too
                     isEditMode = true;
                 }
@@ -247,6 +252,11 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 }
             }
         };
+    }
+
+    private void NavigateToSharePointFiles()
+    {
+        Navigation.NavigateTo($"/packages/{Id}/sharepoint-files");
     }
 
     public void Dispose()

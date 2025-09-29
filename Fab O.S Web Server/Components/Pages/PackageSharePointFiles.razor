@@ -1,0 +1,913 @@
+@page "/packages/{PackageId:int}/sharepoint-files"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Services.Interfaces
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+@inject ApplicationDbContext DbContext
+@inject ISharePointService SharePointService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ILogger<PackageSharePointFiles> Logger
+
+<PageTitle>Package SharePoint Files - @package?.PackageNumber - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" PageType="PageType.SharePointFiles" />
+
+<div class="sharepoint-files-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner-border"></div>
+            <p>Loading package files...</p>
+        </div>
+    }
+    else if (package == null)
+    {
+        <div class="error-container">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Package not found</h3>
+            <button class="btn btn-primary" @onclick="NavigateBack">
+                <i class="fas fa-arrow-left"></i>
+                Back to Package
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="files-content">
+            <div class="files-header">
+                <div class="header-info">
+                    <h1>SharePoint Files - Package @package.PackageNumber</h1>
+                    <p>@package.PackageName</p>
+                </div>
+            </div>
+
+            @if (!sharePointConfigured)
+            {
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div class="alert-content">
+                        <h4>SharePoint Not Configured</h4>
+                        <p>SharePoint integration needs to be configured before you can upload or view files.</p>
+                        <button class="btn btn-primary" @onclick="NavigateToSharePointSetup">
+                            <i class="fas fa-cog"></i>
+                            Configure SharePoint
+                        </button>
+                    </div>
+                </div>
+            }
+            else if (!sharePointConnected)
+            {
+                <div class="alert alert-danger">
+                    <i class="fas fa-times-circle"></i>
+                    <div class="alert-content">
+                        <h4>SharePoint Connection Failed</h4>
+                        <p>@sharePointError</p>
+                        <button class="btn btn-secondary" @onclick="RetryConnection">
+                            <i class="fas fa-sync"></i>
+                            Retry Connection
+                        </button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- Upload Section -->
+                <div class="upload-section">
+                    <h3>Upload New Drawing</h3>
+                    <div class="upload-form">
+                        <div class="form-group">
+                            <label>Drawing Number</label>
+                            <input type="text" class="form-control" @bind="newDrawingNumber"
+                                   placeholder="e.g., DWG-001" />
+                        </div>
+                        <div class="form-group">
+                            <label>Drawing Title</label>
+                            <input type="text" class="form-control" @bind="newDrawingTitle"
+                                   placeholder="e.g., Ground Floor Plan" />
+                        </div>
+                        <div class="form-group">
+                            <label>Select PDF File</label>
+                            <InputFile OnChange="HandleFileSelected" accept=".pdf" class="form-control" />
+                            @if (selectedFile != null)
+                            {
+                                <small class="text-muted">
+                                    Selected: @selectedFile.Name (@FormatFileSize(selectedFile.Size))
+                                </small>
+                            }
+                        </div>
+                        <button class="btn btn-primary" @onclick="UploadToSharePoint"
+                                disabled="@(!CanUpload() || isUploading)">
+                            @if (isUploading)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>Uploading...</span>
+                            }
+                            else
+                            {
+                                <i class="fas fa-upload"></i>
+                                <span>Upload to SharePoint</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SharePoint File Browser -->
+                <SharePointFileBrowser TPage="PackageSharePointFiles"
+                                     Page="@this"
+                                     FolderState="@folderState"
+                                     CurrentView="@currentView"
+                                     OnFileDoubleClick="@HandleFileDoubleClick"
+                                     OnFolderDoubleClick="@HandleFolderDoubleClick"
+                                     OnRefreshRequested="@RefreshFolderContents" />
+            }
+        </div>
+    }
+</div>
+
+<!-- Takeoff PDF Modal -->
+<TakeoffPdfModal @bind-IsVisible="showTakeoffModal"
+                 PackageDrawingId="@selectedDrawingId"
+                 Title="@GetTakeoffModalTitle()"
+                 OnClose="CloseTakeoffModal" />
+
+@code {
+    [Parameter] public int PackageId { get; set; }
+
+    private Package? package;
+    private List<PackageDrawing> packageDrawings = new();
+    private bool isLoading = true;
+    private bool sharePointConfigured = false;
+    private bool sharePointConnected = false;
+    private string sharePointError = "";
+
+    // Upload form
+    private string newDrawingNumber = "";
+    private string newDrawingTitle = "";
+    private IBrowserFile? selectedFile;
+    private bool isUploading = false;
+
+    // SharePoint file browser state
+    private SharePointFolderState folderState = new();
+    private SharePointViewType currentView = SharePointViewType.Grid;
+    private List<SharePointFileInfo> selectedFiles = new();
+    private string currentFolderPath = "";
+
+    // Takeoff modal state
+    private bool showTakeoffModal = false;
+    private int selectedDrawingId = 0;
+
+    // ISharePointFilesPage implementation
+    public string CurrentFolderPath => currentFolderPath;
+    public List<SharePointFileInfo> SelectedFiles => selectedFiles;
+    public bool HasSelectedFiles => selectedFiles.Any();
+    public bool IsAtRoot => string.IsNullOrEmpty(currentFolderPath) || currentFolderPath == $"PKG-{package?.PackageNumber}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPackage();
+        await CheckSharePointStatus();
+        await LoadPackageDrawings();
+
+        // Initialize folder browsing to package root
+        if (package != null)
+        {
+            currentFolderPath = $"PKG-{package.PackageNumber}";
+            if (sharePointConnected)
+            {
+                await RefreshFolderContents();
+            }
+        }
+    }
+
+    private async Task LoadPackage()
+    {
+        try
+        {
+            package = await DbContext.Packages
+                .FirstOrDefaultAsync(p => p.Id == PackageId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading package");
+        }
+    }
+
+    private async Task CheckSharePointStatus()
+    {
+        try
+        {
+            var status = await SharePointService.GetConnectionStatusAsync();
+            sharePointConfigured = status.IsConfigured;
+            sharePointConnected = status.IsConnected;
+
+            if (!status.IsConnected && !string.IsNullOrEmpty(status.ErrorMessage))
+            {
+                sharePointError = status.ErrorMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            sharePointConfigured = false;
+            sharePointConnected = false;
+            sharePointError = ex.Message;
+        }
+    }
+
+    private async Task LoadPackageDrawings()
+    {
+        try
+        {
+            if (package != null)
+            {
+                packageDrawings = await DbContext.PackageDrawings
+                    .Where(pd => pd.PackageId == PackageId && pd.IsActive)
+                    .OrderByDescending(pd => pd.UploadedDate)
+                    .ToListAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading package drawings");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+    }
+
+    private bool CanUpload()
+    {
+        return !string.IsNullOrWhiteSpace(newDrawingNumber) &&
+               !string.IsNullOrWhiteSpace(newDrawingTitle) &&
+               selectedFile != null &&
+               sharePointConnected;
+    }
+
+    private async Task UploadToSharePoint()
+    {
+        if (!CanUpload() || package == null)
+            return;
+
+        isUploading = true;
+
+        try
+        {
+            // Read file content
+            using var stream = selectedFile!.OpenReadStream(maxAllowedSize: 250 * 1024 * 1024); // 250MB max
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            // Create folder path for package if not exists
+            var folderPath = $"PKG-{package.PackageNumber}";
+
+            // Upload to SharePoint
+            var fileName = $"{newDrawingNumber}_{selectedFile.Name}";
+            var sharePointFile = await SharePointService.UploadFileAsync(
+                folderPath,
+                memoryStream,
+                fileName,
+                "application/pdf"
+            );
+
+            // Save reference in database
+            var drawing = new PackageDrawing
+            {
+                PackageId = PackageId,
+                DrawingNumber = newDrawingNumber,
+                DrawingTitle = newDrawingTitle,
+                SharePointItemId = sharePointFile.Id,
+                SharePointUrl = sharePointFile.WebUrl,
+                FileType = "PDF",
+                FileSize = selectedFile.Size,
+                UploadedDate = DateTime.UtcNow,
+                UploadedBy = 1, // TODO: Get from current user context
+                IsActive = true
+            };
+
+            DbContext.PackageDrawings.Add(drawing);
+            await DbContext.SaveChangesAsync();
+
+            // Add to local list
+            packageDrawings.Insert(0, drawing);
+
+            // Reset form
+            newDrawingNumber = "";
+            newDrawingTitle = "";
+            selectedFile = null;
+
+            // Show success message
+            await JS.InvokeVoidAsync("alert", "File uploaded successfully!");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error uploading file to SharePoint");
+            await JS.InvokeVoidAsync("alert", $"Upload failed: {ex.Message}");
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private void OpenInTakeoffViewer(int drawingId)
+    {
+        selectedDrawingId = drawingId;
+        showTakeoffModal = true;
+    }
+
+    private async Task DownloadFile(PackageDrawing drawing)
+    {
+        try
+        {
+            var stream = await SharePointService.DownloadFileAsync(drawing.SharePointItemId);
+            // TODO: Implement file download to browser
+            await JS.InvokeVoidAsync("alert", "Download functionality coming soon!");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error downloading file");
+            await JS.InvokeVoidAsync("alert", $"Download failed: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteFile(PackageDrawing drawing)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete {drawing.DrawingNumber}?"))
+            return;
+
+        try
+        {
+            // Mark as inactive in database (soft delete)
+            drawing.IsActive = false;
+            await DbContext.SaveChangesAsync();
+
+            // Remove from local list
+            packageDrawings.Remove(drawing);
+
+            // Optionally delete from SharePoint
+            // await SharePointService.DeleteFileAsync(drawing.SharePointItemId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting file");
+            await JS.InvokeVoidAsync("alert", $"Delete failed: {ex.Message}");
+        }
+    }
+
+    private async Task RetryConnection()
+    {
+        await CheckSharePointStatus();
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo($"/packages/{PackageId}");
+    }
+
+    private void NavigateToSharePointSetup()
+    {
+        Navigation.NavigateTo("/admin/sharepoint-setup");
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        var sizes = new[] { "B", "KB", "MB", "GB" };
+        var order = 0;
+        var size = (double)bytes;
+
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+
+        return $"{size:0.##} {sizes[order]}";
+    }
+
+    // ISharePointFilesPage implementation
+    public async Task NavigateToFolderAsync(string folderPath)
+    {
+        currentFolderPath = folderPath;
+        await RefreshFolderContents();
+    }
+
+    public async Task NavigateUpAsync()
+    {
+        if (!IsAtRoot && !string.IsNullOrEmpty(currentFolderPath))
+        {
+            var parentPath = Path.GetDirectoryName(currentFolderPath)?.Replace("\\", "/") ?? "";
+            await NavigateToFolderAsync(parentPath);
+        }
+    }
+
+    public async Task NavigateToRootAsync()
+    {
+        await NavigateToFolderAsync($"PKG-{package?.PackageNumber}");
+    }
+
+    public async Task RefreshAsync()
+    {
+        await RefreshFolderContents();
+    }
+
+    public async Task CreateFolderAsync(string folderName)
+    {
+        try
+        {
+            await SharePointService.CreateFolderAsync(currentFolderPath, folderName);
+            await RefreshFolderContents();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating folder");
+            await JS.InvokeVoidAsync("alert", $"Failed to create folder: {ex.Message}");
+        }
+    }
+
+    public async Task UploadFilesAsync()
+    {
+        // Trigger file upload UI - could open modal or use existing upload form
+        await JS.InvokeVoidAsync("alert", "Upload functionality to be implemented");
+    }
+
+    public async Task DeleteSelectedFilesAsync()
+    {
+        if (!HasSelectedFiles) return;
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"Delete {selectedFiles.Count} selected file(s)?");
+
+        if (!confirmed) return;
+
+        try
+        {
+            var itemIds = selectedFiles.Select(f => f.Id).ToList();
+            await SharePointService.DeleteMultipleFilesAsync(itemIds);
+
+            ClearSelection();
+            await RefreshFolderContents();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting files");
+            await JS.InvokeVoidAsync("alert", $"Failed to delete files: {ex.Message}");
+        }
+    }
+
+    public void ClearSelection()
+    {
+        selectedFiles.Clear();
+        StateHasChanged();
+    }
+
+    public void ToggleFileSelection(SharePointFileInfo file)
+    {
+        if (selectedFiles.Contains(file))
+        {
+            selectedFiles.Remove(file);
+        }
+        else
+        {
+            selectedFiles.Add(file);
+        }
+        StateHasChanged();
+    }
+
+    public List<SharePointBreadcrumb> GetBreadcrumbs()
+    {
+        var breadcrumbs = new List<SharePointBreadcrumb>();
+
+        if (package != null)
+        {
+            breadcrumbs.Add(new SharePointBreadcrumb
+            {
+                Name = $"PKG-{package.PackageNumber}",
+                Path = $"PKG-{package.PackageNumber}",
+                IsRoot = true,
+                IsCurrent = IsAtRoot
+            });
+
+            if (!IsAtRoot && !string.IsNullOrEmpty(currentFolderPath))
+            {
+                var parts = currentFolderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var path = "";
+
+                for (int i = 1; i < parts.Length; i++) // Skip the PKG- part
+                {
+                    path = path == "" ? $"PKG-{package.PackageNumber}/{parts[i]}" : $"{path}/{parts[i]}";
+                    breadcrumbs.Add(new SharePointBreadcrumb
+                    {
+                        Name = parts[i],
+                        Path = path,
+                        IsRoot = false,
+                        IsCurrent = i == parts.Length - 1
+                    });
+                }
+            }
+        }
+
+        return breadcrumbs;
+    }
+
+    // Event handlers for file browser
+    private async Task HandleFileDoubleClick(SharePointFileInfo file)
+    {
+        // For now, find the corresponding PackageDrawing and open in viewer
+        var drawing = packageDrawings.FirstOrDefault(d => d.SharePointItemId == file.Id);
+        if (drawing != null)
+        {
+            OpenInTakeoffViewer(drawing.Id);
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("alert", "File not found in database. Please refresh and try again.");
+        }
+    }
+
+    private async Task HandleFolderDoubleClick(SharePointFolderInfo folder)
+    {
+        var folderPath = string.IsNullOrEmpty(currentFolderPath)
+            ? folder.Path
+            : $"{currentFolderPath}/{folder.Name}";
+        await NavigateToFolderAsync(folderPath);
+    }
+
+    private async Task RefreshFolderContents()
+    {
+        folderState.IsLoading = true;
+        folderState.ErrorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var folderPath = string.IsNullOrEmpty(currentFolderPath) ? $"PKG-{package?.PackageNumber}" : currentFolderPath;
+            var contents = await SharePointService.GetFolderContentsAsync(folderPath);
+
+            folderState.CurrentPath = contents.CurrentPath;
+            folderState.Folders = contents.Folders;
+            folderState.Files = contents.Files;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading folder contents");
+            folderState.ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            folderState.IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // IToolbarActionProvider implementation
+    public ToolbarActionGroup GetActions()
+    {
+        var actionGroup = new ToolbarActionGroup();
+
+        actionGroup.PrimaryActions.Add(new ToolbarAction
+        {
+            Text = "Back to Package",
+            Icon = "fas fa-arrow-left",
+            Action = EventCallback.Factory.Create(this, NavigateBack),
+            Style = ToolbarActionStyle.Secondary
+        });
+
+        // Actions dropdown
+        if (sharePointConfigured && sharePointConnected)
+        {
+            actionGroup.MenuActions.Add(new ToolbarAction
+            {
+                Text = "Upload Files",
+                Icon = "fas fa-upload",
+                Action = EventCallback.Factory.Create(this, UploadFilesAsync)
+            });
+
+            actionGroup.MenuActions.Add(new ToolbarAction
+            {
+                Text = "Create Folder",
+                Icon = "fas fa-folder-plus",
+                Action = EventCallback.Factory.Create(this, async () => await CreateFolderDialog())
+            });
+
+            actionGroup.MenuActions.Add(new ToolbarAction
+            {
+                Text = "Refresh",
+                Icon = "fas fa-sync",
+                Action = EventCallback.Factory.Create(this, RefreshAsync)
+            });
+
+            if (HasSelectedFiles)
+            {
+                actionGroup.MenuActions.Add(new ToolbarAction
+                {
+                    Text = $"Delete Selected ({selectedFiles.Count})",
+                    Icon = "fas fa-trash",
+                    Action = EventCallback.Factory.Create(this, DeleteSelectedFilesAsync),
+                    Style = ToolbarActionStyle.Danger
+                });
+            }
+        }
+
+        // Related dropdown
+        actionGroup.RelatedActions.Add(new ToolbarAction
+        {
+            Text = "SharePoint Settings",
+            Icon = "fas fa-cog",
+            Action = EventCallback.Factory.Create(this, NavigateToSharePointSetup)
+        });
+
+        if (sharePointConfigured)
+        {
+            actionGroup.RelatedActions.Add(new ToolbarAction
+            {
+                Text = "View in SharePoint",
+                Icon = "fas fa-external-link-alt",
+                Action = EventCallback.Factory.Create(this, async () => await OpenInSharePoint())
+            });
+        }
+
+        return actionGroup;
+    }
+
+    private async Task CreateFolderDialog()
+    {
+        var folderName = await JS.InvokeAsync<string>("prompt", "Enter folder name:");
+        if (!string.IsNullOrWhiteSpace(folderName))
+        {
+            await CreateFolderAsync(folderName);
+        }
+    }
+
+    private async Task OpenInSharePoint()
+    {
+        // Open SharePoint web interface for current folder
+        await JS.InvokeVoidAsync("alert", "Open in SharePoint functionality to be implemented");
+    }
+
+    // Modal methods
+    private string GetTakeoffModalTitle()
+    {
+        var drawing = packageDrawings.FirstOrDefault(d => d.Id == selectedDrawingId);
+        return drawing != null ? $"{drawing.DrawingNumber} - {drawing.DrawingTitle}" : "PDF Takeoff";
+    }
+
+    private void CloseTakeoffModal()
+    {
+        showTakeoffModal = false;
+        selectedDrawingId = 0;
+    }
+}
+
+@implements IToolbarActionProvider
+@implements ISharePointFilesPage<SharePointFileInfo>
+
+<style>
+    .sharepoint-files-container {
+        padding: 1.5rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .loading-container, .error-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 400px;
+        text-align: center;
+    }
+
+    .files-header {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+    }
+
+    .header-info h1 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.75rem;
+        color: var(--text-primary);
+    }
+
+    .header-info p {
+        margin: 0;
+        color: var(--text-secondary);
+    }
+
+    .alert {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+    }
+
+    .alert-warning {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .alert-danger {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .alert-content {
+        flex: 1;
+    }
+
+    .alert-content h4 {
+        margin: 0 0 0.5rem 0;
+    }
+
+    .upload-section {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+    }
+
+    .upload-section h3 {
+        margin: 0 0 1rem 0;
+        font-size: 1.25rem;
+        color: var(--text-primary);
+    }
+
+    .upload-form {
+        display: grid;
+        grid-template-columns: 1fr 1fr 2fr auto;
+        gap: 1rem;
+        align-items: end;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .form-group label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.25rem;
+    }
+
+    .files-list-section {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .files-list-section h3 {
+        margin: 0 0 1.5rem 0;
+        font-size: 1.25rem;
+        color: var(--text-primary);
+    }
+
+    .no-files {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+
+    .no-files i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .files-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 1rem;
+    }
+
+    .file-card {
+        display: flex;
+        align-items: center;
+        padding: 1rem;
+        background: #f8f9fa;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .file-card:hover {
+        background: white;
+        border-color: var(--primary-color);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+
+    .file-card:hover .file-card-overlay {
+        opacity: 1;
+    }
+
+    .file-card-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        background: white;
+        border-radius: 8px;
+        margin-right: 1rem;
+    }
+
+    .file-card-icon i {
+        font-size: 1.5rem;
+        color: #dc3545;
+    }
+
+    .file-card-content {
+        flex: 1;
+    }
+
+    .file-card-content h4 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .file-title {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .file-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .file-card-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-icon {
+        padding: 0.5rem;
+        background: transparent;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-icon:hover {
+        background: rgba(0,0,0,0.05);
+    }
+
+    .file-card-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(33, 150, 243, 0.95);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    .file-card-overlay i {
+        font-size: 2rem;
+    }
+
+    @media (max-width: 768px) {
+        .upload-form {
+            grid-template-columns: 1fr;
+        }
+
+        .files-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>

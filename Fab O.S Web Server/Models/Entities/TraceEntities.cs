@@ -68,6 +68,9 @@ public class TraceRecord
     [StringLength(100)]
     public string? EntityReference { get; set; } // Order#, WO#, etc.
 
+    [StringLength(500)]
+    public string? Description { get; set; }
+
     // Hierarchy
     public Guid? ParentTraceId { get; set; }
     public virtual ICollection<TraceRecord> ChildTraces { get; set; } = new List<TraceRecord>();
@@ -422,4 +425,166 @@ public class TraceDocument
     public virtual User? VerifiedByUser { get; set; }
     public virtual User? UploadedByUser { get; set; }
     public virtual Company Company { get; set; } = null!;
+}
+
+// Trace Takeoff - PDF-based quantity takeoff linked to trace records
+[Table("TraceTakeoffs")]
+public class TraceTakeoff
+{
+    [Key]
+    public int Id { get; set; }
+
+    [Required]
+    public int TraceRecordId { get; set; }
+
+    public int? DrawingId { get; set; }
+
+    [Required]
+    [StringLength(500)]
+    public string PdfUrl { get; set; } = string.Empty;
+
+    [Column(TypeName = "decimal(10,4)")]
+    public decimal? Scale { get; set; }
+
+    [StringLength(20)]
+    public string? ScaleUnit { get; set; } = "mm";
+
+    public string? CalibrationData { get; set; } // JSON data for scale calibration
+
+    [StringLength(50)]
+    public string? Status { get; set; } = "Draft";
+
+    [Required]
+    public DateTime CreatedDate { get; set; }
+
+    public DateTime? ModifiedDate { get; set; }
+
+    [Required]
+    public int CompanyId { get; set; }
+
+    // Navigation properties
+    public virtual TraceRecord TraceRecord { get; set; } = null!;
+    public virtual TraceDrawing? Drawing { get; set; }
+    public virtual Company Company { get; set; } = null!;
+    public virtual ICollection<TraceTakeoffMeasurement> Measurements { get; set; } = new List<TraceTakeoffMeasurement>();
+}
+
+// Individual measurements within a takeoff
+[Table("TraceTakeoffMeasurements")]
+public class TraceTakeoffMeasurement
+{
+    [Key]
+    public int Id { get; set; }
+
+    [Required]
+    public int TraceTakeoffId { get; set; }
+
+    // Link to package drawing for package-based takeoffs
+    public int? PackageDrawingId { get; set; }
+
+    public int? CatalogueItemId { get; set; }
+
+    [Required]
+    [StringLength(50)]
+    public string MeasurementType { get; set; } = string.Empty; // Linear, Area, Count, Volume, Perimeter
+
+    [Required]
+    [Column(TypeName = "decimal(18,4)")]
+    public decimal Value { get; set; }
+
+    [Required]
+    [StringLength(20)]
+    public string Unit { get; set; } = string.Empty;
+
+    public string? Coordinates { get; set; } // JSON array of measurement points
+
+    [StringLength(200)]
+    public string? Label { get; set; }
+
+    [StringLength(500)]
+    public string? Description { get; set; }
+
+    [StringLength(50)]
+    public string? Color { get; set; }
+
+    public int? PageNumber { get; set; }
+
+    [Column(TypeName = "decimal(18,4)")]
+    public decimal? CalculatedWeight { get; set; }
+
+    [Required]
+    public DateTime CreatedDate { get; set; }
+
+    // Navigation properties
+    public virtual TraceTakeoff TraceTakeoff { get; set; } = null!;
+    public virtual CatalogueItem? CatalogueItem { get; set; }
+    public virtual PackageDrawing? PackageDrawing { get; set; }
+}
+
+// Links trace materials directly to catalogue items
+[Table("TraceMaterialCatalogueLinks")]
+public class TraceMaterialCatalogueLink
+{
+    [Key]
+    public int Id { get; set; }
+
+    [Required]
+    public int TraceMaterialId { get; set; }
+
+    [Required]
+    public int CatalogueItemId { get; set; }
+
+    [Required]
+    [Column(TypeName = "decimal(18,4)")]
+    public decimal Quantity { get; set; }
+
+    [Required]
+    [StringLength(20)]
+    public string Unit { get; set; } = string.Empty;
+
+    [Column(TypeName = "decimal(18,4)")]
+    public decimal? CalculatedWeight { get; set; }
+
+    [Required]
+    public DateTime CreatedDate { get; set; }
+
+    // Navigation properties
+    public virtual TraceMaterial TraceMaterial { get; set; } = null!;
+    public virtual CatalogueItem CatalogueItem { get; set; } = null!;
+}
+
+// Takeoff annotations for markup
+[Table("TraceTakeoffAnnotations")]
+public class TraceTakeoffAnnotation
+{
+    [Key]
+    public int Id { get; set; }
+
+    [Required]
+    public int TraceTakeoffId { get; set; }
+
+    [Required]
+    [StringLength(50)]
+    public string AnnotationType { get; set; } = string.Empty; // Text, Arrow, Cloud, Highlight
+
+    public string? AnnotationData { get; set; } // JSON data for annotation properties
+
+    public string? Coordinates { get; set; } // JSON array of points
+
+    [StringLength(500)]
+    public string? Text { get; set; }
+
+    [StringLength(50)]
+    public string? Color { get; set; }
+
+    public int? PageNumber { get; set; }
+
+    [Required]
+    public DateTime CreatedDate { get; set; }
+
+    public int? CreatedBy { get; set; }
+
+    // Navigation properties
+    public virtual TraceTakeoff TraceTakeoff { get; set; } = null!;
+    public virtual User? CreatedByUser { get; set; }
 }

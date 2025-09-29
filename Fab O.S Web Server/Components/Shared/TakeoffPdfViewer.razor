@@ -1,0 +1,995 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Services.Interfaces
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@inject ApplicationDbContext DbContext
+@inject ITakeoffService TakeoffService
+@inject ISharePointService SharePointService
+@inject IJSRuntime JS
+@inject ILogger<TakeoffPdfViewer> Logger
+
+<div class="takeoff-pdf-viewer">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner-border"></div>
+            <p>Loading PDF viewer...</p>
+        </div>
+    }
+    else if (drawing == null)
+    {
+        <div class="error-container">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Drawing not found</h3>
+            @if (OnClose.HasDelegate)
+            {
+                <button class="btn btn-primary" @onclick="() => OnClose.InvokeAsync()">
+                    <i class="fas fa-times"></i>
+                    Close
+                </button>
+            }
+        </div>
+    }
+    else
+    {
+        <!-- Top Toolbar -->
+        <div class="takeoff-toolbar">
+            <div class="toolbar-section">
+                <h3>@drawing.DrawingNumber - @drawing.DrawingTitle</h3>
+            </div>
+
+            <div class="toolbar-section tools">
+                <div class="tool-group">
+                    <label>Measurement Tools</label>
+                    <div class="tool-buttons">
+                        <button class="tool-btn @(currentTool == "select" ? "active" : "")"
+                                @onclick="() => SetTool(\"select\")"
+                                title="Select">
+                            <i class="fas fa-mouse-pointer"></i>
+                        </button>
+                        <button class="tool-btn @(currentTool == "linear" ? "active" : "")"
+                                @onclick="() => SetTool(\"linear\")"
+                                title="Linear Measurement">
+                            <i class="fas fa-ruler"></i>
+                        </button>
+                        <button class="tool-btn @(currentTool == "area" ? "active" : "")"
+                                @onclick="() => SetTool(\"area\")"
+                                title="Area Measurement">
+                            <i class="fas fa-vector-square"></i>
+                        </button>
+                        <button class="tool-btn @(currentTool == "count" ? "active" : "")"
+                                @onclick="() => SetTool(\"count\")"
+                                title="Count Items">
+                            <i class="fas fa-hashtag"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tool-group">
+                    <label>Catalogue</label>
+                    <button class="tool-btn catalogue-btn" @onclick="OpenCatalogueSearch">
+                        <i class="fas fa-search"></i>
+                        <span>@(selectedCatalogueItem != null ? selectedCatalogueItem.ItemCode : "Select Item")</span>
+                    </button>
+                </div>
+
+                <div class="tool-group">
+                    <label>Scale</label>
+                    <div class="scale-display">
+                        <button class="tool-btn" @onclick="OpenScaleCalibration">
+                            <i class="fas fa-balance-scale"></i>
+                            <span>1:@currentScale</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tool-group">
+                    <button class="btn btn-success" @onclick="SaveAllMeasurements">
+                        <i class="fas fa-save"></i>
+                        Save All
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="pdf-content-area">
+            <!-- PDF Viewer -->
+            <div class="pdf-viewer-container" @ref="pdfContainer">
+                <canvas id="pdf-canvas"></canvas>
+                <canvas id="measurement-overlay" class="measurement-overlay"></canvas>
+                @* SVG overlay for Blazor-managed measurements (optional, can coexist) *@
+                <svg id="measurement-svg" class="measurement-svg" style="display: none;"
+                     @onmousedown="OnMouseDown"
+                     @onmousemove="OnMouseMove"
+                     @onmouseup="OnMouseUp">
+                    <!-- Current measurement being drawn -->
+                    @if (currentMeasurement != null && currentMeasurement.Points.Count > 0)
+                    {
+                        @if (currentTool == "linear" && currentMeasurement.Points.Count == 2)
+                        {
+                            <line x1="@currentMeasurement.Points[0].X"
+                                  y1="@currentMeasurement.Points[0].Y"
+                                  x2="@currentMeasurement.Points[1].X"
+                                  y2="@currentMeasurement.Points[1].Y"
+                                  stroke="@currentColor"
+                                  stroke-width="2"
+                                  marker-end="url(#arrowhead)" />
+
+                            <!-- Distance label -->
+                            <text x="@((currentMeasurement.Points[0].X + currentMeasurement.Points[1].X) / 2)"
+                                  y="@((currentMeasurement.Points[0].Y + currentMeasurement.Points[1].Y) / 2 - 10)"
+                                  fill="@currentColor"
+                                  font-size="14"
+                                  font-weight="bold">
+                                @FormatMeasurement(currentMeasurement.Value, currentMeasurement.Unit)
+                            </text>
+                        }
+                        else if (currentTool == "area" && currentMeasurement.Points.Count > 2)
+                        {
+                            <polygon points="@GetPolygonPoints(currentMeasurement.Points)"
+                                     fill="@(currentColor + "33")"
+                                     stroke="@currentColor"
+                                     stroke-width="2" />
+                        }
+                    }
+
+                    <!-- Saved measurements -->
+                    @foreach (var measurement in measurements)
+                    {
+                        @if (measurement.MeasurementType == "Linear" && measurement.Coordinates != null)
+                        {
+                            var points = JsonSerializer.Deserialize<List<Point>>(measurement.Coordinates);
+                            if (points != null && points.Count == 2)
+                            {
+                                <line x1="@points[0].X"
+                                      y1="@points[0].Y"
+                                      x2="@points[1].X"
+                                      y2="@points[1].Y"
+                                      stroke="#2196f3"
+                                      stroke-width="2"
+                                      stroke-dasharray="@(selectedMeasurement?.Id == measurement.Id ? "5,5" : "")"
+                                      @onclick="() => SelectMeasurement(measurement)" />
+                            }
+                        }
+                    }
+
+                    <!-- Arrow marker definition -->
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7"
+                                refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="@currentColor" />
+                        </marker>
+                    </defs>
+                </svg>
+            </div>
+
+            <!-- Right Panel - Measurements List -->
+            <div class="measurements-panel">
+                <h3>Measurements (@measurements.Count)</h3>
+
+                <div class="measurements-list">
+                    @if (!measurements.Any())
+                    {
+                        <div class="no-measurements">
+                            <i class="fas fa-ruler-combined"></i>
+                            <p>No measurements yet</p>
+                            <p class="text-muted">Select a tool and start measuring</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var measurement in measurements.OrderByDescending(m => m.CreatedDate))
+                        {
+                            <div class="measurement-item @(selectedMeasurement?.Id == measurement.Id ? "selected" : "")"
+                                 @onclick="() => SelectMeasurement(measurement)">
+                                <div class="measurement-header">
+                                    <span class="measurement-type">
+                                        @GetMeasurementIcon(measurement.MeasurementType)
+                                        @measurement.MeasurementType
+                                    </span>
+                                    <button class="btn-icon" @onclick:stopPropagation="true"
+                                            @onclick="() => DeleteMeasurement(measurement)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                                <div class="measurement-value">
+                                    <strong>@FormatMeasurement(measurement.Value, measurement.Unit)</strong>
+                                    @if (measurement.Label != null)
+                                    {
+                                        <span class="measurement-label">@measurement.Label</span>
+                                    }
+                                </div>
+                                @if (measurement.CatalogueItem != null)
+                                {
+                                    <div class="measurement-catalogue">
+                                        <i class="fas fa-link"></i>
+                                        <span>@measurement.CatalogueItem.ItemCode - @measurement.CatalogueItem.Description</span>
+                                    </div>
+                                    @if (measurement.CalculatedWeight.HasValue)
+                                    {
+                                        <div class="measurement-weight">
+                                            <i class="fas fa-weight"></i>
+                                            <span>@measurement.CalculatedWeight.Value.ToString("F2") kg</span>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="measurements-summary">
+                    <h4>Summary</h4>
+                    <div class="summary-stats">
+                        <div class="stat">
+                            <label>Total Items</label>
+                            <span>@measurements.Count</span>
+                        </div>
+                        <div class="stat">
+                            <label>Total Weight</label>
+                            <span>@totalWeight.ToString("F2") kg</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary w-100" @onclick="GenerateBOM">
+                        <i class="fas fa-list"></i>
+                        Generate BOM
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Catalogue Search Modal -->
+@if (showCatalogueModal)
+{
+    <div class="modal-backdrop" @onclick="CloseCatalogueSearch">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Search Catalogue Items</h3>
+                <button class="btn-close" @onclick="CloseCatalogueSearch">×</button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control" @bind="catalogueSearchTerm"
+                       @oninput="OnCatalogueSearch"
+                       placeholder="Search by code, description, or material..." />
+
+                <div class="catalogue-results">
+                    @foreach (var item in catalogueSuggestions)
+                    {
+                        <div class="catalogue-result-item" @onclick="() => SelectCatalogueItem(item)">
+                            <div class="item-info">
+                                <strong>@item.ItemCode</strong>
+                                <span>@item.Description</span>
+                            </div>
+                            <div class="item-meta">
+                                <span>@item.Material</span>
+                                <span>@item.Category</span>
+                                @if (item.Weight_kg.HasValue)
+                                {
+                                    <span>@item.Weight_kg.Value kg</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int PackageDrawingId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnScaleCalibrationRequest { get; set; }
+
+    private PackageDrawing? drawing;
+    private ElementReference pdfContainer;
+    private bool isLoading = true;
+
+    // Measurement state
+    private string currentTool = "select";
+    private string currentColor = "#2196f3";
+    private decimal currentScale = 50; // 1:50 default
+    private CurrentMeasurement? currentMeasurement;
+    private TraceTakeoffMeasurement? selectedMeasurement;
+    private List<TraceTakeoffMeasurement> measurements = new();
+    private decimal totalWeight = 0;
+
+    // Catalogue
+    private bool showCatalogueModal = false;
+    private string catalogueSearchTerm = "";
+    private List<CatalogueItem> catalogueSuggestions = new();
+    private CatalogueItem? selectedCatalogueItem;
+
+    // Takeoff reference
+    private TraceTakeoff? currentTakeoff;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDrawing();
+        await LoadOrCreateTakeoff();
+        await LoadMeasurements();
+        isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && drawing != null)
+        {
+            await InitializePdfViewer();
+            await LoadPdfInViewer();
+        }
+    }
+
+    private async Task InitializePdfViewer()
+    {
+        try
+        {
+            // Initialize the PDF viewer JavaScript and helper functions
+            await JS.InvokeVoidAsync("eval", @"
+                // Add getBoundingClientRect helper if not exists
+                if (typeof window.getBoundingClientRect === 'undefined') {
+                    window.getBoundingClientRect = function(element) {
+                        if (!element) return null;
+                        const rect = element.getBoundingClientRect();
+                        return {
+                            Left: rect.left,
+                            Top: rect.top,
+                            Width: rect.width,
+                            Height: rect.height
+                        };
+                    };
+                }
+
+                // Initialize PDF viewer
+                if (typeof window.pdfViewerInterop !== 'undefined') {
+                    window.pdfViewerInterop.initialize('pdf-canvas', 'measurement-overlay', null);
+                } else {
+                    console.error('PDF viewer interop not loaded');
+                }
+            ");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error initializing PDF viewer");
+        }
+    }
+
+    public async Task RefreshData()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        await LoadDrawing();
+        await LoadOrCreateTakeoff();
+        await LoadMeasurements();
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadDrawing()
+    {
+        try
+        {
+            drawing = await DbContext.PackageDrawings
+                .Include(pd => pd.Package)
+                .FirstOrDefaultAsync(pd => pd.Id == PackageDrawingId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading drawing");
+        }
+    }
+
+    private async Task LoadOrCreateTakeoff()
+    {
+        if (drawing == null) return;
+
+        try
+        {
+            // Check if a takeoff exists for this drawing
+            currentTakeoff = await DbContext.TraceTakeoffs
+                .FirstOrDefaultAsync(t => t.DrawingId == PackageDrawingId);
+
+            if (currentTakeoff == null)
+            {
+                // Create new takeoff
+                currentTakeoff = new TraceTakeoff
+                {
+                    TraceRecordId = 1, // TODO: Get or create proper trace record
+                    DrawingId = PackageDrawingId,
+                    PdfUrl = drawing.SharePointUrl,
+                    Scale = currentScale,
+                    ScaleUnit = "mm",
+                    Status = "Draft",
+                    CreatedDate = DateTime.UtcNow,
+                    CompanyId = 1 // TODO: Get from context
+                };
+
+                DbContext.TraceTakeoffs.Add(currentTakeoff);
+                await DbContext.SaveChangesAsync();
+            }
+            else
+            {
+                currentScale = currentTakeoff.Scale ?? 50;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading/creating takeoff");
+        }
+    }
+
+    private async Task LoadMeasurements()
+    {
+        if (currentTakeoff == null) return;
+
+        try
+        {
+            measurements = await DbContext.TraceTakeoffMeasurements
+                .Include(m => m.CatalogueItem)
+                .Where(m => m.TraceTakeoffId == currentTakeoff.Id && m.PackageDrawingId == PackageDrawingId)
+                .ToListAsync();
+
+            CalculateTotalWeight();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading measurements");
+        }
+    }
+
+    private async Task LoadPdfInViewer()
+    {
+        try
+        {
+            // Call JavaScript to load PDF from our API
+            await JS.InvokeVoidAsync("pdfViewerInterop.loadPdfFromUrl",
+                $"/api/packagedrawings/{PackageDrawingId}/content");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading PDF");
+        }
+    }
+
+    private void SetTool(string tool)
+    {
+        currentTool = tool;
+        currentMeasurement = null;
+    }
+
+    private async Task OnMouseDown(MouseEventArgs e)
+    {
+        if (currentTool == "select") return;
+
+        var rect = await JS.InvokeAsync<BoundingClientRect>("getBoundingClientRect", pdfContainer);
+        var x = e.ClientX - rect.Left;
+        var y = e.ClientY - rect.Top;
+
+        if (currentMeasurement == null)
+        {
+            currentMeasurement = new CurrentMeasurement
+            {
+                Type = currentTool,
+                Points = new List<Point> { new Point { X = x, Y = y } }
+            };
+        }
+        else if (currentTool == "area")
+        {
+            currentMeasurement.Points.Add(new Point { X = x, Y = y });
+        }
+    }
+
+    private async Task OnMouseMove(MouseEventArgs e)
+    {
+        if (currentMeasurement == null || currentTool == "select") return;
+
+        var rect = await JS.InvokeAsync<BoundingClientRect>("getBoundingClientRect", pdfContainer);
+        var x = e.ClientX - rect.Left;
+        var y = e.ClientY - rect.Top;
+
+        if (currentTool == "linear" && currentMeasurement.Points.Count == 1)
+        {
+            if (currentMeasurement.Points.Count == 2)
+            {
+                currentMeasurement.Points[1] = new Point { X = x, Y = y };
+            }
+            else
+            {
+                currentMeasurement.Points.Add(new Point { X = x, Y = y });
+            }
+
+            // Calculate distance
+            var dx = currentMeasurement.Points[1].X - currentMeasurement.Points[0].X;
+            var dy = currentMeasurement.Points[1].Y - currentMeasurement.Points[0].Y;
+            var pixelDistance = Math.Sqrt(dx * dx + dy * dy);
+            currentMeasurement.Value = (decimal)(pixelDistance * currentScale); // Convert to real-world mm
+            currentMeasurement.Unit = "mm";
+        }
+    }
+
+    private async Task OnMouseUp(MouseEventArgs e)
+    {
+        if (currentMeasurement == null || currentTool == "select") return;
+
+        if (currentTool == "linear" && currentMeasurement.Points.Count == 2)
+        {
+            await SaveMeasurement();
+        }
+        else if (currentTool == "area" && currentMeasurement.Points.Count >= 3)
+        {
+            // Close polygon on double-click or right-click
+            await SaveMeasurement();
+        }
+    }
+
+    private async Task SaveMeasurement()
+    {
+        if (currentMeasurement == null || currentTakeoff == null) return;
+
+        try
+        {
+            var measurement = new TraceTakeoffMeasurement
+            {
+                TraceTakeoffId = currentTakeoff.Id,
+                PackageDrawingId = PackageDrawingId,
+                MeasurementType = currentTool switch
+                {
+                    "linear" => "Linear",
+                    "area" => "Area",
+                    "count" => "Count",
+                    _ => "Linear"
+                },
+                Value = currentMeasurement.Value,
+                Unit = currentMeasurement.Unit,
+                Coordinates = JsonSerializer.Serialize(currentMeasurement.Points),
+                CatalogueItemId = selectedCatalogueItem?.Id,
+                CreatedDate = DateTime.UtcNow
+            };
+
+            // Calculate weight if catalogue item is linked
+            if (selectedCatalogueItem != null)
+            {
+                var weight = await TakeoffService.CalculateWeightFromCatalogueAsync(
+                    selectedCatalogueItem.Id,
+                    measurement.Value,
+                    measurement.Unit
+                );
+                measurement.CalculatedWeight = weight?.Weight;
+            }
+
+            measurement = await TakeoffService.AddMeasurementAsync(measurement);
+            measurements.Add(measurement);
+            CalculateTotalWeight();
+
+            currentMeasurement = null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving measurement");
+        }
+    }
+
+    private async Task SaveAllMeasurements()
+    {
+        await JS.InvokeVoidAsync("alert", "All measurements saved!");
+    }
+
+    private void SelectMeasurement(TraceTakeoffMeasurement measurement)
+    {
+        selectedMeasurement = selectedMeasurement?.Id == measurement.Id ? null : measurement;
+    }
+
+    private async Task DeleteMeasurement(TraceTakeoffMeasurement measurement)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this measurement?"))
+            return;
+
+        measurements.Remove(measurement);
+        await TakeoffService.DeleteMeasurementAsync(measurement.Id);
+        CalculateTotalWeight();
+    }
+
+    private void OpenCatalogueSearch()
+    {
+        showCatalogueModal = true;
+    }
+
+    private void CloseCatalogueSearch()
+    {
+        showCatalogueModal = false;
+    }
+
+    private async Task OnCatalogueSearch(ChangeEventArgs e)
+    {
+        catalogueSearchTerm = e.Value?.ToString() ?? "";
+
+        if (catalogueSearchTerm.Length >= 2)
+        {
+            catalogueSuggestions = await DbContext.CatalogueItems
+                .Where(c => c.ItemCode.Contains(catalogueSearchTerm) ||
+                           c.Description.Contains(catalogueSearchTerm))
+                .Take(20)
+                .ToListAsync();
+        }
+    }
+
+    private void SelectCatalogueItem(CatalogueItem item)
+    {
+        selectedCatalogueItem = item;
+        showCatalogueModal = false;
+    }
+
+    private async Task OpenScaleCalibration()
+    {
+        await OnScaleCalibrationRequest.InvokeAsync();
+    }
+
+    private void CalculateTotalWeight()
+    {
+        totalWeight = measurements.Sum(m => m.CalculatedWeight ?? 0);
+    }
+
+    private async Task GenerateBOM()
+    {
+        if (currentTakeoff == null) return;
+
+        var bom = await TakeoffService.GenerateBOMAsync(currentTakeoff.Id);
+        await JS.InvokeVoidAsync("alert", $"BOM generated with {bom.Items.Count} items!");
+    }
+
+    private string FormatMeasurement(decimal value, string unit)
+    {
+        return unit switch
+        {
+            "mm" when value >= 1000 => $"{(value / 1000):F2} m",
+            "mm" => $"{value:F0} mm",
+            "m2" => $"{value:F2} m²",
+            _ => $"{value:F2} {unit}"
+        };
+    }
+
+    private string GetMeasurementIcon(string type)
+    {
+        return type switch
+        {
+            "Linear" => "📏",
+            "Area" => "📐",
+            "Count" => "🔢",
+            _ => "📍"
+        };
+    }
+
+    private string GetPolygonPoints(List<Point> points)
+    {
+        return string.Join(" ", points.Select(p => $"{p.X},{p.Y}"));
+    }
+
+    // Helper classes
+    private class CurrentMeasurement
+    {
+        public string Type { get; set; } = "";
+        public List<Point> Points { get; set; } = new();
+        public decimal Value { get; set; }
+        public string Unit { get; set; } = "mm";
+    }
+
+    private class Point
+    {
+        public double X { get; set; }
+        public double Y { get; set; }
+    }
+
+    private class BoundingClientRect
+    {
+        public double Left { get; set; }
+        public double Top { get; set; }
+        public double Width { get; set; }
+        public double Height { get; set; }
+    }
+}
+
+<style>
+    .takeoff-pdf-viewer {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background: #f5f5f5;
+    }
+
+    .loading-container, .error-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+    }
+
+    .takeoff-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: white;
+        padding: 1rem;
+        border-bottom: 1px solid #e0e0e0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .toolbar-section h3 {
+        margin: 0;
+        font-size: 1.25rem;
+    }
+
+    .toolbar-section.tools {
+        display: flex;
+        gap: 2rem;
+        align-items: center;
+    }
+
+    .tool-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .tool-group label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+    }
+
+    .tool-buttons {
+        display: flex;
+        gap: 0.25rem;
+    }
+
+    .tool-btn {
+        padding: 0.5rem 0.75rem;
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .tool-btn:hover {
+        background: #f5f5f5;
+    }
+
+    .tool-btn.active {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .pdf-content-area {
+        flex: 1;
+        display: flex;
+        overflow: hidden;
+    }
+
+    .pdf-viewer-container {
+        flex: 1;
+        position: relative;
+        overflow: auto;
+        background: #333;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #pdf-canvas {
+        background: white;
+        box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    }
+
+    .measurement-overlay, .measurement-svg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: all;
+    }
+
+    #measurement-overlay {
+        z-index: 2;
+    }
+
+    .measurement-svg {
+        z-index: 3;
+    }
+
+    .measurements-panel {
+        width: 350px;
+        background: white;
+        border-left: 1px solid #e0e0e0;
+        display: flex;
+        flex-direction: column;
+        padding: 1rem;
+    }
+
+    .measurements-panel h3 {
+        margin: 0 0 1rem 0;
+        font-size: 1.25rem;
+    }
+
+    .measurements-list {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .no-measurements {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-secondary);
+    }
+
+    .measurement-item {
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .measurement-item:hover {
+        background: #e9ecef;
+    }
+
+    .measurement-item.selected {
+        background: var(--primary-color-light);
+        border: 1px solid var(--primary-color);
+    }
+
+    .measurement-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .measurement-type {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .measurement-value {
+        font-size: 1.25rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .measurement-catalogue {
+        font-size: 0.875rem;
+        color: var(--primary-color);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .measurement-weight {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.25rem;
+    }
+
+    .measurements-summary {
+        padding-top: 1rem;
+        border-top: 1px solid #e0e0e0;
+        margin-top: 1rem;
+    }
+
+    .summary-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+
+    .stat {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .stat label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .stat span {
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+
+    /* Modal Styles */
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        width: 600px;
+        max-height: 80vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .modal-body {
+        padding: 1rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .catalogue-results {
+        margin-top: 1rem;
+    }
+
+    .catalogue-result-item {
+        padding: 1rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .catalogue-result-item:hover {
+        background: #f5f5f5;
+        border-color: var(--primary-color);
+    }
+
+    .item-info {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 0.5rem;
+    }
+
+    .item-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .btn-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+    }
+</style>

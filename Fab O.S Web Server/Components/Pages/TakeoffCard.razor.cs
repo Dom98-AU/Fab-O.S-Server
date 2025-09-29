@@ -481,6 +481,11 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
         StateHasChanged();
     }
 
+    private void NavigateToPackages()
+    {
+        Navigation.NavigateTo($"/takeoffs/{Id}/packages");
+    }
+
     private async Task SaveTakeoff()
     {
         if (takeoff == null) return;

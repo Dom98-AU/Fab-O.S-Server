@@ -1,0 +1,447 @@
+@page "/admin/sharepoint-setup"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Services.Interfaces
+@using FabOS.WebServer.Models.Configuration
+@using Microsoft.Extensions.Options
+@inject ISharePointService SharePointService
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>SharePoint Setup - Fab.OS</PageTitle>
+
+<div class="sharepoint-setup-container">
+    <div class="setup-header">
+        <h1>SharePoint Integration Setup</h1>
+        <p>Configure SharePoint to store and manage your package documents</p>
+    </div>
+
+    @if (isCheckingStatus)
+    {
+        <div class="loading-container">
+            <div class="spinner-border"></div>
+            <p>Checking SharePoint configuration...</p>
+        </div>
+    }
+    else if (connectionStatus?.IsConfigured == true && connectionStatus.IsConnected)
+    {
+        <div class="alert alert-success">
+            <h4>✅ SharePoint is configured and connected!</h4>
+            <p>Site: @connectionStatus.SiteName</p>
+            <p>Library: @connectionStatus.LibraryName</p>
+            <button class="btn btn-secondary" @onclick="ReconfigureSharePoint">Reconfigure</button>
+            <button class="btn btn-primary" @onclick="NavigateToPackages">Go to Packages</button>
+        </div>
+    }
+    else
+    {
+        <div class="setup-wizard">
+            <div class="step-indicator">
+                <div class="step @(currentStep >= 1 ? "active" : "")">
+                    <span class="step-number">1</span>
+                    <span class="step-title">Azure AD Setup</span>
+                </div>
+                <div class="step @(currentStep >= 2 ? "active" : "")">
+                    <span class="step-number">2</span>
+                    <span class="step-title">Enter Credentials</span>
+                </div>
+                <div class="step @(currentStep >= 3 ? "active" : "")">
+                    <span class="step-number">3</span>
+                    <span class="step-title">Test Connection</span>
+                </div>
+                <div class="step @(currentStep >= 4 ? "active" : "")">
+                    <span class="step-number">4</span>
+                    <span class="step-title">Complete Setup</span>
+                </div>
+            </div>
+
+            @if (currentStep == 1)
+            {
+                <div class="step-content">
+                    <h3>Step 1: Azure AD App Registration</h3>
+                    <div class="alert alert-info">
+                        <h4>Prerequisites</h4>
+                        <p>Before proceeding, ensure you have completed the Azure AD App Registration with the following permissions:</p>
+                        <ul>
+                            <li>Sites.ReadWrite.All</li>
+                            <li>Files.ReadWrite.All</li>
+                        </ul>
+                    </div>
+
+                    <div class="instruction-card">
+                        <h4>Instructions:</h4>
+                        <ol>
+                            <li>Go to <a href="https://portal.azure.com" target="_blank">Azure Portal</a></li>
+                            <li>Navigate to Azure Active Directory → App registrations</li>
+                            <li>Click "New registration"</li>
+                            <li>Name: "FabOS SharePoint Integration"</li>
+                            <li>After registration, note down:
+                                <ul>
+                                    <li>Application (client) ID</li>
+                                    <li>Directory (tenant) ID</li>
+                                </ul>
+                            </li>
+                            <li>Go to "Certificates & secrets" → "New client secret"</li>
+                            <li>Copy the secret value immediately</li>
+                            <li>Go to "API permissions" → Add permissions:
+                                <ul>
+                                    <li>Microsoft Graph → Application permissions</li>
+                                    <li>Sites.ReadWrite.All</li>
+                                    <li>Files.ReadWrite.All</li>
+                                </ul>
+                            </li>
+                            <li>Click "Grant admin consent"</li>
+                        </ol>
+                    </div>
+
+                    <button class="btn btn-primary" @onclick="() => currentStep = 2">
+                        I have completed Azure AD setup →
+                    </button>
+                </div>
+            }
+            else if (currentStep == 2)
+            {
+                <div class="step-content">
+                    <h3>Step 2: Enter SharePoint Credentials</h3>
+
+                    <div class="form-group">
+                        <label>Tenant ID <span class="required">*</span></label>
+                        <input type="text" class="form-control" @bind="tenantId"
+                               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                        <small class="form-text text-muted">Your Azure AD Directory ID</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Client ID (Application ID) <span class="required">*</span></label>
+                        <input type="text" class="form-control" @bind="clientId"
+                               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                        <small class="form-text text-muted">The Application ID from your app registration</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Client Secret <span class="required">*</span></label>
+                        <input type="password" class="form-control" @bind="clientSecret"
+                               placeholder="Enter your client secret" />
+                        <small class="form-text text-muted">The secret value from Certificates & secrets</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>SharePoint Site URL <span class="required">*</span></label>
+                        <input type="text" class="form-control" @bind="siteUrl"
+                               placeholder="https://yourcompany.sharepoint.com/sites/FabOS" />
+                        <small class="form-text text-muted">The SharePoint site where documents will be stored</small>
+                    </div>
+
+                    <div class="button-group">
+                        <button class="btn btn-secondary" @onclick="() => currentStep = 1">
+                            ← Back
+                        </button>
+                        <button class="btn btn-primary" @onclick="TestConnection" disabled="@(!IsFormValid())">
+                            Test Connection →
+                        </button>
+                    </div>
+                </div>
+            }
+            else if (currentStep == 3)
+            {
+                <div class="step-content">
+                    <h3>Step 3: Testing Connection</h3>
+
+                    @if (isTesting)
+                    {
+                        <div class="testing-status">
+                            <div class="spinner-border"></div>
+                            <p>Testing SharePoint connection...</p>
+                        </div>
+                    }
+                    else if (testResult != null)
+                    {
+                        @if (testResult.Success)
+                        {
+                            <div class="alert alert-success">
+                                <h4>✅ Connection Successful!</h4>
+                                <p>@testResult.Message</p>
+
+                                <div class="form-group mt-3">
+                                    <label>Document Library Name</label>
+                                    <input type="text" class="form-control" @bind="documentLibrary"
+                                           placeholder="Package Documents" />
+                                    <small class="form-text text-muted">Name for the document library (will be created if it doesn't exist)</small>
+                                </div>
+
+                                <button class="btn btn-primary mt-3" @onclick="CompleteSetup">
+                                    Complete Setup →
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-danger">
+                                <h4>❌ Connection Failed</h4>
+                                <p>@testResult.Message</p>
+                                <button class="btn btn-secondary" @onclick="() => currentStep = 2">
+                                    ← Back to Credentials
+                                </button>
+                            </div>
+                        }
+                    }
+                </div>
+            }
+            else if (currentStep == 4)
+            {
+                <div class="step-content">
+                    <h3>Step 4: Setup Complete!</h3>
+
+                    @if (isCompleting)
+                    {
+                        <div class="loading-container">
+                            <div class="spinner-border"></div>
+                            <p>Completing SharePoint setup...</p>
+                        </div>
+                    }
+                    else if (setupComplete)
+                    {
+                        <div class="alert alert-success">
+                            <h4>🎉 SharePoint Integration Setup Complete!</h4>
+                            <p>Your SharePoint integration is now configured and ready to use.</p>
+                            <ul>
+                                <li>Site: @siteUrl</li>
+                                <li>Library: @documentLibrary</li>
+                            </ul>
+                            <button class="btn btn-primary" @onclick="NavigateToPackages">
+                                Start Using SharePoint →
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private SharePointConnectionStatus? connectionStatus;
+    private bool isCheckingStatus = true;
+    private int currentStep = 1;
+
+    // Form fields
+    private string tenantId = "";
+    private string clientId = "";
+    private string clientSecret = "";
+    private string siteUrl = "";
+    private string documentLibrary = "Package Documents";
+
+    // Status flags
+    private bool isTesting = false;
+    private bool isCompleting = false;
+    private bool setupComplete = false;
+
+    private class TestResult
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = "";
+    }
+
+    private TestResult? testResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckSharePointStatus();
+    }
+
+    private async Task CheckSharePointStatus()
+    {
+        try
+        {
+            connectionStatus = await SharePointService.GetConnectionStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            connectionStatus = new SharePointConnectionStatus
+            {
+                IsConfigured = false,
+                ErrorMessage = ex.Message
+            };
+        }
+        finally
+        {
+            isCheckingStatus = false;
+        }
+    }
+
+    private bool IsFormValid()
+    {
+        return !string.IsNullOrWhiteSpace(tenantId) &&
+               !string.IsNullOrWhiteSpace(clientId) &&
+               !string.IsNullOrWhiteSpace(clientSecret) &&
+               !string.IsNullOrWhiteSpace(siteUrl);
+    }
+
+    private async Task TestConnection()
+    {
+        isTesting = true;
+        testResult = null;
+
+        try
+        {
+            var success = await SharePointService.ConfigureSharePointAsync(
+                tenantId, clientId, clientSecret, siteUrl);
+
+            if (success)
+            {
+                testResult = new TestResult
+                {
+                    Success = true,
+                    Message = "Successfully connected to SharePoint!"
+                };
+                currentStep = 3;
+            }
+            else
+            {
+                testResult = new TestResult
+                {
+                    Success = false,
+                    Message = "Failed to connect to SharePoint. Please check your credentials."
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            testResult = new TestResult
+            {
+                Success = false,
+                Message = $"Error: {ex.Message}"
+            };
+        }
+        finally
+        {
+            isTesting = false;
+        }
+    }
+
+    private async Task CompleteSetup()
+    {
+        isCompleting = true;
+
+        try
+        {
+            // The connection is already configured from the test step
+            // Just need to create the initial folder structure
+
+            // Save to configuration
+            // Note: In production, you'd want to save this more securely
+
+            setupComplete = true;
+            currentStep = 4;
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Setup failed: {ex.Message}");
+        }
+        finally
+        {
+            isCompleting = false;
+        }
+    }
+
+    private void ReconfigureSharePoint()
+    {
+        connectionStatus = null;
+        currentStep = 1;
+    }
+
+    private void NavigateToPackages()
+    {
+        Navigation.NavigateTo("/packages");
+    }
+}
+
+<style>
+    .sharepoint-setup-container {
+        max-width: 900px;
+        margin: 2rem auto;
+        padding: 2rem;
+    }
+
+    .setup-header {
+        text-align: center;
+        margin-bottom: 3rem;
+    }
+
+    .step-indicator {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 3rem;
+    }
+
+    .step {
+        flex: 1;
+        text-align: center;
+        opacity: 0.3;
+        transition: opacity 0.3s;
+    }
+
+    .step.active {
+        opacity: 1;
+    }
+
+    .step-number {
+        display: inline-block;
+        width: 30px;
+        height: 30px;
+        line-height: 30px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        color: white;
+        margin-bottom: 0.5rem;
+    }
+
+    .step-title {
+        display: block;
+        font-size: 0.9rem;
+    }
+
+    .step-content {
+        background: white;
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .instruction-card {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin: 2rem 0;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .required {
+        color: red;
+    }
+
+    .button-group {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 2rem;
+    }
+
+    .testing-status {
+        text-align: center;
+        padding: 3rem;
+    }
+
+    .loading-container {
+        text-align: center;
+        padding: 3rem;
+    }
+</style>

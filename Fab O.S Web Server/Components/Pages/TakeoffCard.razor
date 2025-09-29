@@ -267,6 +267,37 @@
                     </div> <!-- End of General section content -->
                 </div> <!-- End of General section -->
 
+                <!-- Related Section -->
+                <div class="takeoff-section">
+                    <div class="takeoff-section-header @(IsSectionExpanded("related") ? "expanded" : "")" @onclick="@(() => ToggleSection("related"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-link section-icon"></i>
+                            <span class="section-title">Related</span>
+                        </div>
+                        <i class="fas @(IsSectionExpanded("related") ? "fa-chevron-up" : "fa-chevron-down") toggle-icon"></i>
+                    </div>
+
+                    @if (IsSectionExpanded("related"))
+                    {
+                        <div class="takeoff-section-content">
+                            <div class="related-links">
+                                <button class="related-link-button" @onclick="NavigateToPackages">
+                                    <div class="link-icon">
+                                        <i class="fas fa-box"></i>
+                                    </div>
+                                    <div class="link-content">
+                                        <span class="link-title">Takeoff Packages</span>
+                                        <span class="link-description">View and manage packages for this takeoff</span>
+                                    </div>
+                                    <div class="link-arrow">
+                                        <i class="fas fa-arrow-right"></i>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div> <!-- End of Related section -->
+
             </div> <!-- End of takeoff-sections -->
         </div> <!-- End of takeoff-container -->
 
