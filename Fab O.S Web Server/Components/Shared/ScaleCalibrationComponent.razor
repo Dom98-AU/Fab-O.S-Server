@@ -25,14 +25,14 @@
                 <div class="method-options">
                     <label class="method-option">
                         <input type="radio" name="calibrationMethod" value="two-point"
-                               @onchange="() => SetCalibrationMethod(\"two-point\")"
+                               @onchange="@(() => SetCalibrationMethod("two-point"))"
                                checked="@(calibrationMethod == "two-point")" />
                         <span>Two-Point Calibration</span>
                         <small>Click two points with known distance</small>
                     </label>
                     <label class="method-option">
                         <input type="radio" name="calibrationMethod" value="preset"
-                               @onchange="() => SetCalibrationMethod(\"preset\")"
+                               @onchange="@(() => SetCalibrationMethod("preset"))"
                                checked="@(calibrationMethod == "preset")" />
                         <span>Scale Preset</span>
                         <small>Select from common architectural scales</small>

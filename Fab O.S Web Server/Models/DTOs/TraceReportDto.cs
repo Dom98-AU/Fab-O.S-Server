@@ -7,13 +7,13 @@ public class TraceReportDto
     public int EntityId { get; set; }
     public string ReportTitle { get; set; }
     public DateTime GeneratedDate { get; set; }
-    public List<TraceRecordDto> TraceRecords { get; set; } = new();
+    public List<TraceRecordSummaryDto> TraceRecords { get; set; } = new();
     public List<MaterialSummaryDto> Materials { get; set; } = new();
     public List<ProcessSummaryDto> Processes { get; set; } = new();
     public List<DocumentSummaryDto> Documents { get; set; } = new();
 }
 
-public class TraceRecordDto
+public class TraceRecordSummaryDto
 {
     public Guid TraceId { get; set; }
     public string EntityType { get; set; }

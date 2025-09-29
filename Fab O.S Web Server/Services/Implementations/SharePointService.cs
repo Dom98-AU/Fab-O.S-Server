@@ -670,4 +670,389 @@ public class SharePointService : ISharePointService
 
         return uploadedFile ?? throw new InvalidOperationException("Failed to get uploaded file");
     }
+
+    public async Task<SharePointFolderContents> GetFolderContentsAsync(string folderPath)
+    {
+        if (_settings.UseMockData)
+        {
+            // Return mock data for testing
+            return new SharePointFolderContents
+            {
+                CurrentPath = folderPath,
+                ParentPath = string.IsNullOrEmpty(folderPath) ? null : Path.GetDirectoryName(folderPath)?.Replace('\\', '/'),
+                IsRoot = string.IsNullOrEmpty(folderPath) || folderPath == "/",
+                Folders = new List<SharePointFolderInfo>
+                {
+                    new SharePointFolderInfo
+                    {
+                        Id = "mock-folder-1",
+                        Name = "Subfolder1",
+                        Path = Path.Combine(folderPath, "Subfolder1").Replace('\\', '/'),
+                        WebUrl = "https://mock.sharepoint.com/folders/subfolder1",
+                        CreatedDateTime = DateTime.UtcNow.AddDays(-10)
+                    }
+                },
+                Files = new List<SharePointFileInfo>
+                {
+                    new SharePointFileInfo
+                    {
+                        Id = "mock-file-1",
+                        Name = "Document.pdf",
+                        Size = 1024000,
+                        ContentType = "application/pdf",
+                        WebUrl = "https://mock.sharepoint.com/files/document.pdf",
+                        CreatedDateTime = DateTime.UtcNow.AddDays(-5),
+                        LastModifiedDateTime = DateTime.UtcNow.AddDays(-2),
+                        CreatedBy = "Mock User",
+                        ModifiedBy = "Mock User"
+                    }
+                }
+            };
+        }
+
+        try
+        {
+            var client = await GetGraphClientAsync();
+            var drive = await GetDocumentLibraryDriveAsync(client);
+
+            // Get the folder
+            DriveItem? folder;
+            if (string.IsNullOrEmpty(folderPath) || folderPath == "/")
+            {
+                folder = await client.Drives[drive.Id].Root.GetAsync();
+            }
+            else
+            {
+                folder = await client.Drives[drive.Id]
+                    .Root
+                    .ItemWithPath(folderPath)
+                    .GetAsync();
+            }
+
+            if (folder == null)
+            {
+                throw new InvalidOperationException($"Folder not found: {folderPath}");
+            }
+
+            // Get children (folders and files)
+            var children = await client.Drives[drive.Id]
+                .Items[folder.Id]
+                .Children
+                .GetAsync();
+
+            var contents = new SharePointFolderContents
+            {
+                CurrentPath = folderPath,
+                ParentPath = string.IsNullOrEmpty(folderPath) ? null : Path.GetDirectoryName(folderPath)?.Replace('\\', '/'),
+                IsRoot = string.IsNullOrEmpty(folderPath) || folderPath == "/"
+            };
+
+            if (children?.Value != null)
+            {
+                foreach (var item in children.Value)
+                {
+                    if (item.Folder != null)
+                    {
+                        contents.Folders.Add(new SharePointFolderInfo
+                        {
+                            Id = item.Id ?? string.Empty,
+                            Name = item.Name ?? string.Empty,
+                            Path = Path.Combine(folderPath, item.Name ?? string.Empty).Replace('\\', '/'),
+                            WebUrl = item.WebUrl ?? string.Empty,
+                            CreatedDateTime = item.CreatedDateTime?.DateTime ?? DateTime.MinValue
+                        });
+                    }
+                    else if (item.File != null)
+                    {
+                        contents.Files.Add(new SharePointFileInfo
+                        {
+                            Id = item.Id ?? string.Empty,
+                            Name = item.Name ?? string.Empty,
+                            Size = item.Size ?? 0,
+                            ContentType = item.File.MimeType ?? "application/octet-stream",
+                            WebUrl = item.WebUrl ?? string.Empty,
+                            CreatedDateTime = item.CreatedDateTime?.DateTime ?? DateTime.MinValue,
+                            LastModifiedDateTime = item.LastModifiedDateTime?.DateTime ?? DateTime.MinValue,
+                            CreatedBy = item.CreatedBy?.User?.DisplayName ?? "Unknown",
+                            ModifiedBy = item.LastModifiedBy?.User?.DisplayName ?? "Unknown",
+                            ETag = item.ETag
+                        });
+                    }
+                }
+            }
+
+            return contents;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting folder contents for path: {FolderPath}", folderPath);
+            throw;
+        }
+    }
+
+    public async Task<SharePointFolderInfo> CreateFolderAsync(string parentPath, string folderName)
+    {
+        if (_settings.UseMockData)
+        {
+            return new SharePointFolderInfo
+            {
+                Id = $"mock-folder-{Guid.NewGuid()}",
+                Name = folderName,
+                Path = Path.Combine(parentPath, folderName).Replace('\\', '/'),
+                WebUrl = $"https://mock.sharepoint.com/folders/{folderName}",
+                CreatedDateTime = DateTime.UtcNow
+            };
+        }
+
+        try
+        {
+            var client = await GetGraphClientAsync();
+            var drive = await GetDocumentLibraryDriveAsync(client);
+
+            // Get parent folder
+            DriveItem? parentFolder;
+            if (string.IsNullOrEmpty(parentPath) || parentPath == "/")
+            {
+                parentFolder = await client.Drives[drive.Id].Root.GetAsync();
+            }
+            else
+            {
+                parentFolder = await client.Drives[drive.Id]
+                    .Root
+                    .ItemWithPath(parentPath)
+                    .GetAsync();
+            }
+
+            if (parentFolder == null)
+            {
+                throw new InvalidOperationException($"Parent folder not found: {parentPath}");
+            }
+
+            // Create the new folder
+            var newFolder = new DriveItem
+            {
+                Name = folderName,
+                Folder = new Folder()
+            };
+
+            var createdFolder = await client.Drives[drive.Id]
+                .Items[parentFolder.Id]
+                .Children
+                .PostAsync(newFolder);
+
+            if (createdFolder == null)
+            {
+                throw new InvalidOperationException($"Failed to create folder: {folderName}");
+            }
+
+            return new SharePointFolderInfo
+            {
+                Id = createdFolder.Id ?? string.Empty,
+                Name = createdFolder.Name ?? string.Empty,
+                Path = Path.Combine(parentPath, folderName).Replace('\\', '/'),
+                WebUrl = createdFolder.WebUrl ?? string.Empty,
+                CreatedDateTime = createdFolder.CreatedDateTime?.DateTime ?? DateTime.UtcNow
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating folder {FolderName} in {ParentPath}", folderName, parentPath);
+            throw;
+        }
+    }
+
+    public async Task<List<SharePointBreadcrumbItem>> GetFolderBreadcrumbsAsync(string folderPath)
+    {
+        var breadcrumbs = new List<SharePointBreadcrumbItem>();
+
+        // Add root
+        breadcrumbs.Add(new SharePointBreadcrumbItem
+        {
+            Name = "Root",
+            Path = "/",
+            IsRoot = true,
+            IsCurrent = string.IsNullOrEmpty(folderPath) || folderPath == "/"
+        });
+
+        if (!string.IsNullOrEmpty(folderPath) && folderPath != "/")
+        {
+            var parts = folderPath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+            var currentPath = "";
+
+            for (int i = 0; i < parts.Length; i++)
+            {
+                currentPath = string.IsNullOrEmpty(currentPath)
+                    ? parts[i]
+                    : currentPath + "/" + parts[i];
+
+                breadcrumbs.Add(new SharePointBreadcrumbItem
+                {
+                    Name = parts[i],
+                    Path = currentPath,
+                    IsRoot = false,
+                    IsCurrent = i == parts.Length - 1
+                });
+            }
+        }
+
+        return await Task.FromResult(breadcrumbs);
+    }
+
+    public async Task<List<SharePointFileInfo>> UploadMultipleFilesAsync(string folderPath, List<(Stream stream, string fileName, string contentType)> files)
+    {
+        if (_settings.UseMockData)
+        {
+            var mockResults = new List<SharePointFileInfo>();
+            foreach (var file in files)
+            {
+                mockResults.Add(new SharePointFileInfo
+                {
+                    Id = $"mock-file-{Guid.NewGuid()}",
+                    Name = file.fileName,
+                    Size = file.stream.Length,
+                    ContentType = file.contentType,
+                    WebUrl = $"https://mock.sharepoint.com/files/{file.fileName}",
+                    CreatedDateTime = DateTime.UtcNow,
+                    LastModifiedDateTime = DateTime.UtcNow,
+                    CreatedBy = "Mock User",
+                    ModifiedBy = "Mock User"
+                });
+            }
+            return mockResults;
+        }
+
+        try
+        {
+            var uploadedFiles = new List<SharePointFileInfo>();
+            var client = await GetGraphClientAsync();
+            var drive = await GetDocumentLibraryDriveAsync(client);
+
+            // Get target folder
+            DriveItem? folder;
+            if (string.IsNullOrEmpty(folderPath) || folderPath == "/")
+            {
+                folder = await client.Drives[drive.Id].Root.GetAsync();
+            }
+            else
+            {
+                folder = await client.Drives[drive.Id]
+                    .Root
+                    .ItemWithPath(folderPath)
+                    .GetAsync();
+            }
+
+            if (folder == null)
+            {
+                throw new InvalidOperationException($"Folder not found: {folderPath}");
+            }
+
+            // Upload each file
+            foreach (var (stream, fileName, contentType) in files)
+            {
+                try
+                {
+                    DriveItem? uploadedItem;
+
+                    // For all files, use the simple upload method
+                    // Note: In production, implement chunked upload for large files (> 4MB)
+                    // using the Graph SDK's LargeFileUploadTask
+                    uploadedItem = await UploadSmallFileAsync(client, drive.Id!, folder.Id!, fileName, stream);
+
+                    if (uploadedItem != null)
+                    {
+                        uploadedFiles.Add(new SharePointFileInfo
+                        {
+                            Id = uploadedItem.Id ?? string.Empty,
+                            Name = uploadedItem.Name ?? string.Empty,
+                            Size = uploadedItem.Size ?? 0,
+                            ContentType = contentType,
+                            WebUrl = uploadedItem.WebUrl ?? string.Empty,
+                            CreatedDateTime = uploadedItem.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
+                            LastModifiedDateTime = uploadedItem.LastModifiedDateTime?.DateTime ?? DateTime.UtcNow,
+                            CreatedBy = uploadedItem.CreatedBy?.User?.DisplayName ?? "Unknown",
+                            ModifiedBy = uploadedItem.LastModifiedBy?.User?.DisplayName ?? "Unknown",
+                            ETag = uploadedItem.ETag
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error uploading file {FileName}", fileName);
+                    // Continue with other files even if one fails
+                }
+            }
+
+            return uploadedFiles;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading multiple files to {FolderPath}", folderPath);
+            throw;
+        }
+    }
+
+    public async Task<bool> DeleteMultipleFilesAsync(List<string> driveItemIds)
+    {
+        if (_settings.UseMockData)
+        {
+            _logger.LogInformation("Mock: Deleted {Count} files", driveItemIds.Count);
+            return true;
+        }
+
+        try
+        {
+            var client = await GetGraphClientAsync();
+            var drive = await GetDocumentLibraryDriveAsync(client);
+            var failedDeletes = new List<string>();
+
+            foreach (var itemId in driveItemIds)
+            {
+                try
+                {
+                    await client.Drives[drive.Id]
+                        .Items[itemId]
+                        .DeleteAsync();
+
+                    _logger.LogInformation("Deleted file with ID: {ItemId}", itemId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to delete file with ID: {ItemId}", itemId);
+                    failedDeletes.Add(itemId);
+                }
+            }
+
+            if (failedDeletes.Any())
+            {
+                _logger.LogWarning("Failed to delete {Count} files: {FileIds}",
+                    failedDeletes.Count, string.Join(", ", failedDeletes));
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting multiple files");
+            return false;
+        }
+    }
+
+    private async Task<DriveItem> UploadSmallFileAsync(GraphServiceClient client, string driveId, string folderId, string fileName, Stream stream)
+    {
+        // Reset stream position
+        if (stream.CanSeek)
+        {
+            stream.Position = 0;
+        }
+
+        // Upload the file
+        var uploadedItem = await client.Drives[driveId]
+            .Items[folderId]
+            .ItemWithPath(fileName)
+            .Content
+            .PutAsync(stream);
+
+        return uploadedItem ?? throw new InvalidOperationException($"Failed to upload {fileName}");
+    }
 }
