@@ -1,0 +1,184 @@
+/* Frozen Column Styles */
+.fabos-table-wrapper {
+    position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.fabos-table {
+    position: relative;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* Frozen column base styles */
+.frozen-column {
+    position: sticky !important;
+    background: var(--bs-body-bg, white);
+    z-index: 10;
+    transition: box-shadow 0.2s ease;
+}
+
+/* Frozen left columns */
+.frozen-column.frozen-left {
+    left: 0;
+    border-right: 1px solid var(--fabos-border, #E5E7EB);
+    box-shadow: 2px 0 8px rgba(13, 26, 128, 0.1);
+}
+
+/* Frozen right columns */
+.frozen-column.frozen-right {
+    right: 0;
+    border-left: 1px solid var(--fabos-border, #E5E7EB);
+    box-shadow: -2px 0 8px rgba(13, 26, 128, 0.1);
+}
+
+/* Header cells for frozen columns */
+.fabos-table-header-cell.frozen-column {
+    background: linear-gradient(135deg, #0066cc 0%, #004499 100%);
+    position: sticky;
+    top: 0;
+    z-index: 11;
+    color: white;
+}
+
+/* Body cells for frozen columns */
+.fabos-table-cell.frozen-column {
+    background: var(--bs-body-bg, white);
+    position: sticky;
+    z-index: 10;
+}
+
+/* Visual indicator for frozen state */
+.frozen-column::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(135deg, var(--fabos-secondary, #3144CD), var(--fabos-primary, #0D1A80));
+    opacity: 0.6;
+    z-index: 1;
+}
+
+.frozen-column.frozen-left::after {
+    right: 0;
+}
+
+.frozen-column.frozen-right::after {
+    left: 0;
+}
+
+/* Hover effects for frozen columns */
+.fabos-table-row:hover .fabos-table-cell.frozen-column {
+    background: rgba(var(--bs-primary-rgb, 13, 110, 253), 0.05);
+}
+
+/* Selected row frozen columns */
+.fabos-table-row.selected .fabos-table-cell.frozen-column {
+    background: rgba(var(--bs-primary-rgb, 13, 110, 253), 0.1);
+    border-left: 4px solid var(--bs-primary, #0d6efd);
+}
+
+/* Column freeze indicator in column manager */
+.freeze-btn.frozen {
+    color: var(--fabos-secondary, #3144CD);
+    background: rgba(49, 68, 205, 0.1);
+    border-radius: 4px;
+}
+
+/* Freeze position badges */
+.freeze-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    background: linear-gradient(135deg, var(--fabos-secondary, #3144CD), var(--fabos-primary, #0D1A80));
+    color: white;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Column reorder with frozen columns */
+.column-item.frozen {
+    background: rgba(49, 68, 205, 0.05);
+    border-left: 3px solid var(--fabos-secondary, #3144CD);
+}
+
+/* Shadow indicators */
+.frozen-column-shadow {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    pointer-events: none;
+    z-index: 5;
+    transition: opacity 0.2s ease;
+}
+
+.frozen-shadow-left {
+    background: linear-gradient(90deg, rgba(13, 26, 128, 0.15), transparent);
+}
+
+.frozen-shadow-right {
+    background: linear-gradient(270deg, rgba(13, 26, 128, 0.15), transparent);
+}
+
+/* Smooth scrolling for frozen tables */
+.fabos-table-wrapper::-webkit-scrollbar {
+    height: 8px;
+}
+
+.fabos-table-wrapper::-webkit-scrollbar-track {
+    background: var(--fabos-bg-hover, #F8F9FA);
+    border-radius: 4px;
+}
+
+.fabos-table-wrapper::-webkit-scrollbar-thumb {
+    background: var(--fabos-border, #E5E7EB);
+    border-radius: 4px;
+}
+
+.fabos-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--fabos-secondary, #3144CD);
+}
+
+/* Responsive behavior */
+@media (max-width: 768px) {
+    /* Reduce frozen column shadows on mobile */
+    .frozen-column {
+        box-shadow: 1px 0 4px rgba(13, 26, 128, 0.1);
+    }
+
+    .frozen-column.frozen-right {
+        box-shadow: -1px 0 4px rgba(13, 26, 128, 0.1);
+    }
+
+    .frozen-column::after {
+        width: 1px;
+        opacity: 0.4;
+    }
+
+    .frozen-column-shadow {
+        width: 3px;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Disable frozen columns on very small screens */
+    .frozen-column {
+        position: relative !important;
+        left: auto !important;
+        right: auto !important;
+        box-shadow: none !important;
+    }
+
+    .frozen-column::after {
+        display: none;
+    }
+
+    .frozen-column-shadow {
+        display: none;
+    }
+}

@@ -137,6 +137,7 @@ builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<IDatabaseService, DatabaseService>();
 builder.Services.AddScoped<FabOS.WebServer.Services.BreadcrumbService>();
 builder.Services.AddScoped<IViewPreferencesService, ViewPreferencesService>();
+builder.Services.AddScoped<IViewStateManager, ViewStateManager>();
 
 // Add Tenant Service for multi-tenancy
 builder.Services.AddScoped<ITenantService, TenantService>();

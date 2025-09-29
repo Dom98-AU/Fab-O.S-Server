@@ -38,6 +38,12 @@ public partial class StandardToolbar : ComponentBase
     [Parameter] public PageType PageType { get; set; } = PageType.List;
     [Parameter] public string? Breadcrumb { get; set; }
 
+    // View Control Parameters for List Pages
+    [Parameter] public RenderFragment? ViewSwitcher { get; set; }
+    [Parameter] public RenderFragment? ColumnManager { get; set; }
+    [Parameter] public RenderFragment? FilterButton { get; set; }
+    [Parameter] public RenderFragment? ViewSaving { get; set; }
+
     private string SearchTerm
     {
         get => searchTerm;

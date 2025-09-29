@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using FabOS.WebServer.Models;
 using FabOS.WebServer.Models.Columns;
 using FabOS.WebServer.Models.Filtering;
 using FabOS.WebServer.Models.ViewState;
@@ -254,6 +255,32 @@ public partial class GenericTableView<TItem> : ComponentBase where TItem : class
         return managed?.IsFrozen == true;
     }
 
+    private string GetFrozenColumnClass(TableColumn<TItem> column)
+    {
+        if (!EnableColumnManagement)
+            return "";
+
+        var managed = managedColumns.FirstOrDefault(mc => mc.PropertyName == column.PropertyName);
+        if (managed?.IsFrozen != true)
+            return "";
+
+        return managed.FreezePosition switch
+        {
+            FreezePosition.Left => "frozen-column frozen-left",
+            FreezePosition.Right => "frozen-column frozen-right",
+            _ => "frozen-column"
+        };
+    }
+
+    private string GetColumnFreezePosition(TableColumn<TItem> column)
+    {
+        if (!EnableColumnManagement)
+            return "none";
+
+        var managed = managedColumns.FirstOrDefault(mc => mc.PropertyName == column.PropertyName);
+        return managed?.FreezePosition.ToString().ToLower() ?? "none";
+    }
+
     private async Task HandleColumnsChanged(List<ColumnDefinition>? columns)
     {
         if (columns == null)
@@ -266,6 +293,10 @@ public partial class GenericTableView<TItem> : ComponentBase where TItem : class
             managedColumns = columns;
             hasCustomColumnConfig = true;
         }
+
+        // Reapply frozen columns after column changes
+        await ApplyFrozenColumnsFromState();
+
         hasUnsavedChanges = true;
         StateHasChanged();
     }
@@ -343,6 +374,10 @@ public partial class GenericTableView<TItem> : ComponentBase where TItem : class
                 ApplyFilters();
             }
         }
+
+        // Apply frozen columns from loaded state
+        await ApplyFrozenColumnsFromState();
+
         hasUnsavedChanges = false;
         StateHasChanged();
     }
@@ -351,7 +386,61 @@ public partial class GenericTableView<TItem> : ComponentBase where TItem : class
     {
         if (firstRender && EnableColumnManagement)
         {
-            await JSRuntime.InvokeVoidAsync("initColumnResize");
+            try
+            {
+                if (JSRuntime != null)
+                {
+                    await JSRuntime.InvokeVoidAsync("initColumnResize");
+                    await ApplyFrozenColumnsFromState();
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // JSRuntime not available during prerendering - ignore
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error initializing column features: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task ApplyFrozenColumnsFromState()
+    {
+        try
+        {
+            if (JSRuntime == null)
+            {
+                return;
+            }
+
+            var frozenColumns = managedColumns
+                .Where(c => c.IsVisible && c.IsFrozen && !string.IsNullOrEmpty(c.PropertyName))
+                .OrderBy(c => c.Order)
+                .Select(c => new
+                {
+                    PropertyName = c.PropertyName,
+                    FreezePosition = c.FreezePosition.ToString(),
+                    Order = c.Order
+                })
+                .ToArray();
+
+            if (frozenColumns.Any())
+            {
+                await JSRuntime.InvokeVoidAsync("applyFrozenColumns", frozenColumns);
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("clearFrozenColumns");
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // JSRuntime not available during prerendering - ignore
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error applying frozen columns from state: {ex.Message}");
         }
     }
 }

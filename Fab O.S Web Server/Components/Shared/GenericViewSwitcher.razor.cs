@@ -59,4 +59,5 @@ public partial class GenericViewSwitcher<TItem> : ComponentBase where TItem : cl
     }
 
     [Parameter] public bool ShowViewPreferences { get; set; } = false;
+    [Parameter] public EventCallback OnViewPreferencesClick { get; set; }
 }

@@ -9,8 +9,29 @@
 
 <PageTitle>Packages - Fab.OS</PageTitle>
 
-<!-- Standard Toolbar -->
-<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search packages..." PageType="PageType.List" />
+<!-- Standard Toolbar with View Controls -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search packages..." PageType="PageType.List">
+    <ViewSwitcher>
+        <GenericViewSwitcher TItem="Package"
+                           CurrentView="@currentView"
+                           CurrentViewChanged="@OnViewChanged"
+                           ShowViewPreferences="false" />
+    </ViewSwitcher>
+    <ColumnManager>
+        <ColumnManagerDropdown Columns="@columnDefinitions"
+                             OnColumnsChanged="@(async (columns) => await OnColumnsChanged(columns))" />
+    </ColumnManager>
+    <FilterButton>
+        <FilterDialog TItem="Package"
+                    OnFiltersChanged="@OnFiltersChanged" />
+    </FilterButton>
+    <ViewSaving>
+        <ViewSavingDropdown EntityType="Packages"
+                          CurrentState="@currentViewState"
+                          OnViewLoaded="@(async (state) => await OnViewLoaded(state))"
+                          HasUnsavedChanges="@hasUnsavedChanges" />
+    </ViewSaving>
+</StandardToolbar>
 
 <!-- Content -->
 <div class="packages-container">
@@ -23,21 +44,6 @@
     }
     else
     {
-        <!-- Results Summary and View Switcher -->
-        <div class="content-header">
-            <div class="results-summary">
-                <span class="results-count">@filteredPackages.Count package@(filteredPackages.Count != 1 ? "s" : "") found</span>
-                @if (!string.IsNullOrEmpty(searchTerm))
-                {
-                    <span class="search-filter">• Filtered by "@searchTerm"</span>
-                }
-            </div>
-
-            <GenericViewSwitcher TItem="Package" CurrentView="@currentView"
-                                CurrentViewChanged="@OnViewChanged"
-                                ShowViewPreferences="true" />
-        </div>
-
         <!-- Views -->
         @if (filteredPackages.Any())
         {
