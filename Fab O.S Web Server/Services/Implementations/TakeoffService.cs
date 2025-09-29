@@ -791,7 +791,7 @@ namespace FabOS.WebServer.Services.Implementations
                 if (!item.CatalogueItemId.HasValue ||
                     !catalogueItems.TryGetValue(item.CatalogueItemId.Value, out var catalogueItem))
                 {
-                    _logger.LogWarning($"Catalogue item {item.CatalogueItemId} not found for purchase requirements\");
+                    _logger.LogWarning($"Catalogue item {item.CatalogueItemId} not found for purchase requirements");
                     continue;
                 }
 
