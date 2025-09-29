@@ -55,8 +55,9 @@
                             }
                             @foreach (var column in GetVisibleColumns())
                             {
-                                <th class="fabos-table-header-cell @column.CssClass @(column.IsSortable ? "sortable" : "") @(IsColumnFrozen(column) ? "frozen-column" : "")"
+                                <th class="fabos-table-header-cell @column.CssClass @(column.IsSortable ? "sortable" : "") @(GetFrozenColumnClass(column))"
                                     data-column="@column.PropertyName"
+                                    data-freeze-position="@GetColumnFreezePosition(column)"
                                     @onclick="@(() => column.IsSortable ? HandleSort(column) : Task.CompletedTask)">
                                     <div class="header-content">
                                         <span class="header-text">@column.Header</span>
@@ -97,7 +98,8 @@
                                 }
                                 @foreach (var column in GetVisibleColumns())
                                 {
-                                    <td class="fabos-table-cell @column.CssClass @(IsColumnFrozen(column) ? "frozen-column" : "")">
+                                    <td class="fabos-table-cell @column.CssClass @(GetFrozenColumnClass(column))"
+                                        data-column="@column.PropertyName">
                                         <div class="cell-content">
                                             @if (column.Header == "Status" && !string.IsNullOrEmpty(column.ValueSelector(item)?.ToString()))
                                             {

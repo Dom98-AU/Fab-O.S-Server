@@ -35,7 +35,7 @@
             </div>
         }
 
-        <!-- Center Section: Standard Buttons (New, Edit, Delete) + Dropdowns (Actions, Related) -->
+        <!-- Center Section: Standard Buttons (New, Edit, Delete) -->
         <div class="fabos-toolbar-section fabos-toolbar-actions">
             <!-- New Button -->
             @{
@@ -191,9 +191,33 @@
             </div>
         </div>
 
-        <!-- Right Section: Empty space for future expansion -->
-        <div class="fabos-toolbar-section fabos-toolbar-menu">
-            <!-- Reserved for additional features -->
-        </div>
+        <!-- Right Section: View Controls (for List pages) -->
+        @if (PageType == PageType.List)
+        {
+            <div class="fabos-toolbar-section fabos-toolbar-right">
+                @if (ViewSwitcher != null)
+                {
+                    @ViewSwitcher
+                }
+                @if (ColumnManager != null)
+                {
+                    @ColumnManager
+                }
+                @if (FilterButton != null)
+                {
+                    @FilterButton
+                }
+                @if (ViewSaving != null)
+                {
+                    @ViewSaving
+                }
+            </div>
+        }
+        else
+        {
+            <div class="fabos-toolbar-section fabos-toolbar-menu">
+                <!-- Reserved for additional features -->
+            </div>
+        }
     </div>
 </div>

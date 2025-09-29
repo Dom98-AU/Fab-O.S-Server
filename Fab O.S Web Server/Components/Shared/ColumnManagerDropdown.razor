@@ -1,0 +1,218 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Models.Columns
+@using System.Linq
+
+<div class="column-manager-dropdown @(isOpen ? "open" : "")">
+    <button class="dropdown-toggle" @onclick="ToggleDropdown">
+        <i class="fas fa-columns"></i>
+        <span>Columns</span>
+        <i class="fas fa-chevron-down"></i>
+    </button>
+
+    @if (isOpen)
+    {
+        <div class="dropdown-panel">
+            <div class="dropdown-header">
+                <span>Manage Columns</span>
+                <button class="close-btn" @onclick="CloseDropdown">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="dropdown-body">
+                @foreach (var column in workingColumns.OrderBy(c => c.Order))
+                {
+                    <div class="column-item @(column.IsRequired ? "required" : "") @(column.IsFrozen ? "frozen" : "")">
+                        <div class="column-controls">
+                            <input type="checkbox"
+                                   id="col-@column.Id"
+                                   checked="@column.IsVisible"
+                                   disabled="@column.IsRequired"
+                                   @onchange="(e) => ToggleVisibility(column, e)" />
+                            <label for="col-@column.Id">
+                                @column.DisplayName
+                                @if (column.IsFrozen)
+                                {
+                                    <span class="freeze-indicator">
+                                        <i class="fas fa-thumbtack"></i>
+                                        @column.FreezePosition.ToString()
+                                    </span>
+                                }
+                            </label>
+                        </div>
+
+                        <div class="column-actions">
+                            @if (!column.IsRequired && column.Order > 0)
+                            {
+                                <button class="move-btn" @onclick="() => MoveUp(column)" title="Move Up">
+                                    <i class="fas fa-arrow-up"></i>
+                                </button>
+                            }
+                            @if (!column.IsRequired && column.Order < workingColumns.Count - 1)
+                            {
+                                <button class="move-btn" @onclick="() => MoveDown(column)" title="Move Down">
+                                    <i class="fas fa-arrow-down"></i>
+                                </button>
+                            }
+
+                            <div class="freeze-dropdown">
+                                <button class="freeze-btn @(column.IsFrozen ? "frozen" : "")"
+                                        @onclick="() => ToggleFreezeMenu(column.Id)"
+                                        title="Freeze Column">
+                                    <i class="fas fa-thumbtack"></i>
+                                </button>
+                                @if (openFreezeMenuId == column.Id)
+                                {
+                                    <div class="freeze-menu">
+                                        <button @onclick="() => SetFreezePosition(column, FreezePosition.None)">
+                                            No Freeze
+                                        </button>
+                                        <button @onclick="() => SetFreezePosition(column, FreezePosition.Left)">
+                                            Freeze Left
+                                        </button>
+                                        <button @onclick="() => SetFreezePosition(column, FreezePosition.Right)">
+                                            Freeze Right
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="dropdown-footer">
+                <button class="btn-link" @onclick="ResetToDefaults">Reset</button>
+                <div class="footer-actions">
+                    <button class="btn-secondary" @onclick="Cancel">Cancel</button>
+                    <button class="btn-primary" @onclick="ApplyChanges">Apply</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="dropdown-overlay" @onclick="CloseDropdown"></div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<ColumnDefinition> Columns { get; set; } = new();
+    [Parameter] public EventCallback<List<ColumnDefinition>> OnColumnsChanged { get; set; }
+    [Parameter] public List<ColumnDefinition>? DefaultColumns { get; set; }
+
+    private bool isOpen = false;
+    private List<ColumnDefinition> workingColumns = new();
+    private string? openFreezeMenuId;
+
+    protected override void OnInitialized()
+    {
+        InitializeWorkingColumns();
+    }
+
+    private void InitializeWorkingColumns()
+    {
+        if (Columns != null && Columns.Any())
+        {
+            workingColumns = Columns.Select(c => (ColumnDefinition)c.Clone()).ToList();
+        }
+        else
+        {
+            workingColumns = new List<ColumnDefinition>();
+        }
+    }
+
+    private void ToggleDropdown()
+    {
+        isOpen = !isOpen;
+        if (isOpen)
+        {
+            InitializeWorkingColumns();
+        }
+    }
+
+    private void CloseDropdown()
+    {
+        isOpen = false;
+        openFreezeMenuId = null;
+    }
+
+    private void ToggleVisibility(ColumnDefinition column, ChangeEventArgs e)
+    {
+        if (!column.IsRequired)
+        {
+            column.IsVisible = (bool)(e.Value ?? false);
+        }
+    }
+
+    private void MoveUp(ColumnDefinition column)
+    {
+        var index = workingColumns.IndexOf(column);
+        if (index > 0)
+        {
+            workingColumns.RemoveAt(index);
+            workingColumns.Insert(index - 1, column);
+            UpdateOrder();
+        }
+    }
+
+    private void MoveDown(ColumnDefinition column)
+    {
+        var index = workingColumns.IndexOf(column);
+        if (index < workingColumns.Count - 1)
+        {
+            workingColumns.RemoveAt(index);
+            workingColumns.Insert(index + 1, column);
+            UpdateOrder();
+        }
+    }
+
+    private void UpdateOrder()
+    {
+        for (int i = 0; i < workingColumns.Count; i++)
+        {
+            workingColumns[i].Order = i;
+        }
+    }
+
+    private void ToggleFreezeMenu(string columnId)
+    {
+        openFreezeMenuId = openFreezeMenuId == columnId ? null : columnId;
+    }
+
+    private void SetFreezePosition(ColumnDefinition column, FreezePosition position)
+    {
+        column.FreezePosition = position;
+        column.IsFrozen = position != FreezePosition.None;
+        openFreezeMenuId = null;
+    }
+
+    private void ResetToDefaults()
+    {
+        if (DefaultColumns != null)
+        {
+            workingColumns = DefaultColumns.Select(c => (ColumnDefinition)c.Clone()).ToList();
+        }
+        else
+        {
+            InitializeWorkingColumns();
+        }
+    }
+
+    private void Cancel()
+    {
+        InitializeWorkingColumns();
+        CloseDropdown();
+    }
+
+    private async Task ApplyChanges()
+    {
+        Columns.Clear();
+        Columns.AddRange(workingColumns.Select(c => (ColumnDefinition)c.Clone()));
+
+        if (OnColumnsChanged.HasDelegate)
+        {
+            await OnColumnsChanged.InvokeAsync(Columns);
+        }
+
+        CloseDropdown();
+    }
+}

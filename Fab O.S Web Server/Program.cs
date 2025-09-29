@@ -136,6 +136,7 @@ builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<IDatabaseService, DatabaseService>();
 builder.Services.AddScoped<FabOS.WebServer.Services.BreadcrumbService>();
 builder.Services.AddScoped<IViewPreferencesService, ViewPreferencesService>();
+builder.Services.AddScoped<IViewStateManager, ViewStateManager>();
 
 // Register OCR service with all dependencies for multi-tenant support
 builder.Services.AddHttpClient<AzureOcrService>();
