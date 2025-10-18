@@ -1,0 +1,476 @@
+@page "/takeoffs/{Id:int}"
+@using Microsoft.AspNetCore.Components.Web
+@rendermode InteractiveServer
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+@using FabOS.WebServer.Models
+@using static FabOS.WebServer.Components.Shared.EmbeddableListPart<TakeoffFile>
+@using FabOS.WebServer.Components.Shared
+
+<PageTitle>@(Id == 0 ? "New Takeoff" : takeoff?.DrawingNumber ?? "Takeoff Details") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" PageType="PageType.Card" />
+
+<!-- Main Content Container -->
+<div class="takeoff-layout">
+    @if (isLoading)
+    {
+        <!-- Loading State -->
+        <div class="takeoff-loading">
+            <div class="takeoff-spinner"></div>
+            <p>Loading takeoff details...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <!-- Error State -->
+        <div class="takeoff-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>@errorMessage</div>
+        </div>
+    }
+    else if (takeoff != null)
+    {
+        <!-- Container Wrapper -->
+        <div class="takeoff-container">
+            <!-- Collapsible Sections -->
+            <div class="takeoff-sections">
+
+                <!-- General Section (Basic Info + Customer) -->
+                <div class="takeoff-section">
+                    <div class="takeoff-section-header @(IsSectionExpanded("general") ? "expanded" : "")" @onclick="@(() => ToggleSection("general"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-info-circle section-icon"></i>
+                            <span class="section-title">General</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="takeoff-section-content @(IsSectionExpanded("general") ? "expanded" : "collapsed")">
+            <!-- Basic Information -->
+            <div class="takeoff-subsection">
+                <h3 class="takeoff-subsection-title">
+                    <i class="fas fa-file-alt"></i>
+                    Basic Information
+                </h3>
+                <div class="takeoff-subsection-body">
+                    <div class="takeoff-form-grid two-column">
+                        <!-- Drawing Number -->
+                        <div class="takeoff-form-group">
+                            <label class="takeoff-form-label">Drawing Number</label>
+                            @if (isEditMode && takeoff.Id == 0)
+                            {
+                                <input type="text" class="takeoff-form-control" @bind="takeoff.DrawingNumber"
+                                       placeholder="Enter or generate" disabled="@takeoffNumberGenerated" @onfocus="GenerateTakeoffNumber" />
+                            }
+                            else if (isEditMode)
+                            {
+                                <input type="text" class="takeoff-form-control" @bind="takeoff.DrawingNumber" />
+                            }
+                            else
+                            {
+                                <p class="takeoff-form-control-plaintext">@(takeoff.DrawingNumber ?? "Not set")</p>
+                            }
+                        </div>
+
+                        <!-- Project Name -->
+                        <div class="takeoff-form-group">
+                            <label class="takeoff-form-label">Project Name</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" class="takeoff-form-control" @bind="takeoff.ProjectName"
+                                       placeholder="Enter project name" />
+                            }
+                            else
+                            {
+                                <p class="takeoff-form-control-plaintext">@(takeoff.ProjectName ?? "Not set")</p>
+                            }
+                        </div>
+
+                        <!-- Project Number -->
+                        <div class="takeoff-form-group">
+                            <label class="takeoff-form-label">Project Number</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" class="takeoff-form-control" @bind="takeoff.ProjectNumber"
+                                       placeholder="Enter project number" />
+                            }
+                            else
+                            {
+                                <p class="takeoff-form-control-plaintext">@(takeoff.ProjectNumber ?? "Not set")</p>
+                            }
+                        </div>
+
+                        <!-- Status -->
+                        <div class="takeoff-form-group">
+                            <label class="takeoff-form-label">Status</label>
+                            @if (isEditMode)
+                            {
+                                <select class="takeoff-form-control" @bind="takeoff.Status">
+                                    <option value="Planning">Planning</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Review">Review</option>
+                                    <option value="Complete">Complete</option>
+                                    <option value="On Hold">On Hold</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                </select>
+                            }
+                            else
+                            {
+                                <p class="takeoff-form-control-plaintext">
+                                    <span class="takeoff-badge @GetStatusBadgeClass(takeoff.Status)">
+                                        @(takeoff.Status ?? "Not set")
+                                    </span>
+                                </p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer Information -->
+            <div class="takeoff-subsection">
+                <h3 class="takeoff-subsection-title">
+                    <i class="fas fa-building"></i>
+                    Customer Information
+                </h3>
+                <div class="takeoff-subsection-body">
+                    <div class="takeoff-form-grid two-column">
+                        <!-- Customer -->
+                        <div class="takeoff-form-group">
+                            <label class="takeoff-form-label">Customer</label>
+                            @if (isEditMode)
+                            {
+                                <select class="takeoff-form-control" @onchange="OnCustomerChanged">
+                                    <option value="">-- Select Customer --</option>
+                                    @foreach (var customer in customers)
+                                    {
+                                        <option value="@customer.Id" selected="@(customer.Id == takeoff.CustomerId)">
+                                            @customer.Name @(!string.IsNullOrEmpty(customer.Code) ? $"({customer.Code})" : "")
+                                        </option>
+                                    }
+                                </select>
+                            }
+                            else
+                            {
+                                <p class="takeoff-form-control-plaintext">
+                                    @if (selectedCustomer != null)
+                                    {
+                                        @selectedCustomer.Name
+                                        @if (!string.IsNullOrEmpty(selectedCustomer.Code))
+                                        {
+                                            <small class="takeoff-text-muted">(@selectedCustomer.Code)</small>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="takeoff-text-muted">Not set</span>
+                                    }
+                                </p>
+                            }
+                        </div>
+
+                        <!-- Contact -->
+                        <div class="takeoff-form-group">
+                            <label class="takeoff-form-label">Contact Person</label>
+                            @if (isEditMode)
+                            {
+                                <select class="takeoff-form-control" @onchange="OnContactChanged" disabled="@(takeoff.CustomerId == null)">
+                                    <option value="">-- Select Contact --</option>
+                                    @foreach (var contact in customerContacts)
+                                    {
+                                        <option value="@contact.Id" selected="@(contact.Id == takeoff.ContactId)">
+                                            @contact.FirstName @contact.LastName
+                                            @if (!string.IsNullOrEmpty(contact.Title))
+                                            {
+                                                <text> - @contact.Title</text>
+                                            }
+                                        </option>
+                                    }
+                                </select>
+                            }
+                            else
+                            {
+                                <p class="takeoff-form-control-plaintext">
+                                    @if (selectedContact != null)
+                                    {
+                                        @selectedContact.FirstName @selectedContact.LastName
+                                        @if (!string.IsNullOrEmpty(selectedContact.Title))
+                                        {
+                                            <small class="takeoff-text-muted">(@selectedContact.Title)</small>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="takeoff-text-muted">Not set</span>
+                                    }
+                                </p>
+                            }
+                        </div>
+
+                        <!-- Contact Email -->
+                        @if (selectedContact != null)
+                        {
+                            <div class="takeoff-form-group">
+                                <label class="takeoff-form-label">Contact Email</label>
+                                <p class="takeoff-form-control-plaintext">
+                                    @if (!string.IsNullOrEmpty(selectedContactEmail))
+                                    {
+                                        <a href="mailto:@selectedContactEmail" class="takeoff-text-secondary">@selectedContactEmail</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="takeoff-text-muted">Not available</span>
+                                    }
+                                </p>
+                            </div>
+
+                            <div class="takeoff-form-group">
+                                <label class="takeoff-form-label">Contact Phone</label>
+                                <p class="takeoff-form-control-plaintext">
+                                    @if (!string.IsNullOrEmpty(selectedContactPhone))
+                                    {
+                                        <a href="tel:@selectedContactPhone" class="takeoff-text-secondary">@selectedContactPhone</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="takeoff-text-muted">Not available</span>
+                                    }
+                                </p>
+                            </div>
+                        }
+                    </div>
+
+                    @if (selectedAddress != null)
+                    {
+                        <div class="takeoff-address">
+                            <label class="takeoff-form-label">Customer Address</label>
+                            <strong>@selectedCustomer?.Name</strong>
+                            @selectedAddress.AddressLine1<br/>
+                            @if (!string.IsNullOrEmpty(selectedAddress.AddressLine2))
+                            {
+                                @selectedAddress.AddressLine2<br/>
+                            }
+                            @selectedAddress.City, @selectedAddress.State @selectedAddress.PostalCode
+                            @if (!string.IsNullOrEmpty(selectedAddress.Country))
+                            {
+                                <br/>@selectedAddress.Country
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+                    </div> <!-- End of General section content -->
+                </div> <!-- End of General section -->
+
+            </div> <!-- End of takeoff-sections -->
+        </div> <!-- End of takeoff-container -->
+
+    }
+    else
+    {
+        <!-- No Data State -->
+        <div class="takeoff-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>No takeoff found</div>
+        </div>
+    }
+</div>
+
+<!-- Takeoff Files Modal -->
+<ModalTemplate IsVisible="showFilesModal"
+              IsVisibleChanged="@((value) => showFilesModal = value)"
+              Title="Takeoff Files"
+              ModalType="ModalTemplate.ModalDisplayType.Fullscreen"
+              CloseOnBackdrop="false">
+    <div class="takeoff-files-modal-content">
+        @if (isCheckingSharePoint)
+        {
+            <div class="sharepoint-checking">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Checking SharePoint status...</span>
+                </div>
+                <p class="mt-3">Checking SharePoint connection...</p>
+            </div>
+        }
+        else if (sharePointStatus == null || !sharePointStatus.IsConfigured)
+        {
+            <!-- SharePoint Setup Required -->
+            <div class="sharepoint-setup">
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-cloud"></i> SharePoint Setup Required</h5>
+                    <p>To manage takeoff files, you need to configure SharePoint integration first.</p>
+                </div>
+
+                <div class="setup-form">
+                    <h6>Configure SharePoint Connection</h6>
+                    <div class="mb-3">
+                        <label class="form-label">Azure AD Tenant ID</label>
+                        <input type="text" class="form-control" @bind="setupTenantId"
+                               placeholder="e.g., contoso.onmicrosoft.com or GUID" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Application (Client) ID</label>
+                        <input type="text" class="form-control" @bind="setupClientId"
+                               placeholder="Azure AD App Registration Client ID" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Client Secret</label>
+                        <input type="password" class="form-control" @bind="setupClientSecret"
+                               placeholder="Client Secret Value" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">SharePoint Site URL</label>
+                        <input type="text" class="form-control" @bind="setupSiteUrl"
+                               placeholder="https://contoso.sharepoint.com/sites/fabos" />
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(sharePointError))
+                    {
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i> @sharePointError
+                        </div>
+                    }
+
+                    <button class="btn btn-primary" @onclick="ConfigureSharePoint" disabled="@isConfiguringSharePoint">
+                        @if (isConfiguringSharePoint)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <text>Configuring...</text>
+                        }
+                        else
+                        {
+                            <i class="fas fa-save me-2"></i>
+                            <text>Configure SharePoint</text>
+                        }
+                    </button>
+
+                    <div class="mt-4 text-muted">
+                        <h6>Setup Instructions:</h6>
+                        <ol>
+                            <li>Register an app in Azure AD</li>
+                            <li>Grant Sites.ReadWrite.All and Files.ReadWrite.All permissions</li>
+                            <li>Create a client secret</li>
+                            <li>Enter the details above</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (!sharePointStatus.IsConnected)
+        {
+            <!-- SharePoint Connection Error -->
+            <div class="sharepoint-error">
+                <div class="alert alert-danger">
+                    <h5><i class="fas fa-exclamation-circle"></i> SharePoint Connection Failed</h5>
+                    <p>@(sharePointStatus.ErrorMessage ?? "Unable to connect to SharePoint. Please check your configuration.")</p>
+                </div>
+                <button class="btn btn-primary" @onclick="CheckSharePointStatus">
+                    <i class="fas fa-sync me-2"></i>Retry Connection
+                </button>
+            </div>
+        }
+        else if (!folderExists)
+        {
+            <!-- Create Folder for New Takeoff -->
+            <div class="sharepoint-create-folder">
+                <div class="alert alert-warning">
+                    <h5><i class="fas fa-folder-plus"></i> Initialize SharePoint Folder</h5>
+                    <p>This takeoff doesn't have a SharePoint folder yet. Click below to create the folder structure.</p>
+                </div>
+
+                <div class="folder-info">
+                    <p><strong>Folder will be created at:</strong></p>
+                    <code>/Takeoffs/Takeoff-@takeoff?.DrawingNumber/Rev-A/</code>
+                </div>
+
+                @if (!string.IsNullOrEmpty(sharePointError))
+                {
+                    <div class="alert alert-danger mt-3">
+                        <i class="fas fa-exclamation-triangle"></i> @sharePointError
+                    </div>
+                }
+
+                <button class="btn btn-success btn-lg mt-3" @onclick="CreateSharePointFolder" disabled="@isCreatingFolder">
+                    @if (isCreatingFolder)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <text>Creating Folder...</text>
+                    }
+                    else
+                    {
+                        <i class="fas fa-folder-plus me-2"></i>
+                        <text>Create SharePoint Folder</text>
+                    }
+                </button>
+            </div>
+        }
+        else if (isLoadingFiles)
+        {
+            <!-- Loading Files -->
+            <div class="sharepoint-loading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading files...</span>
+                </div>
+                <p class="mt-3">Loading files from SharePoint...</p>
+            </div>
+        }
+        else
+        {
+            <!-- Files List with Upload -->
+            <div class="sharepoint-files">
+                @if (!string.IsNullOrEmpty(sharePointError))
+                {
+                    <div class="alert alert-danger mb-3">
+                        <i class="fas fa-exclamation-triangle"></i> @sharePointError
+                        <button type="button" class="btn-close" @onclick="() => sharePointError = null"></button>
+                    </div>
+                }
+
+                <div class="file-upload-area mb-3">
+                    <InputFile OnChange="@HandleFileUpload" multiple class="form-control" />
+                    <small class="text-muted">Maximum file size: 250MB</small>
+                </div>
+
+                <EmbeddableListPart TItem="TakeoffFile"
+                                    Items="@takeoffFiles"
+                                    ItemsLabel="files"
+                                    EmptyMessage="No files uploaded yet"
+                                    SearchPlaceholder="Search files..."
+                                    SearchPredicate="@((file, term) => SearchFile(file, term))"
+                                    DefaultView="ViewType.Table"
+                                    ShowViewSwitcher="true"
+                                    AllowSelection="true"
+                                    ShowActions="true"
+                                    ActionProvider="@fileActionProvider"
+                                    CardTitleSelector="@(f => f.FileName)"
+                                    CardSubtitleSelector="@(f => f.FileType)"
+                                    CardDescriptionSelector="@(f => $"Uploaded {f.UploadedDate:MMM dd, yyyy} • {FormatFileSize(f.FileSize)}")"
+                                    CardStatusSelector="@(f => f.Status)"
+                                    CardBadgeSelector="@(f => f.Version)"
+                                    OnItemClick="@HandleFileClick"
+                                    OnItemDoubleClick="@HandleFileDoubleClick" />
+            </div>
+        }
+    </div>
+</ModalTemplate>
+
+@code {
+    private string GetStatusBadgeClass(string? status)
+    {
+        return status?.ToLower() switch
+        {
+            "planning" => "status-planning",
+            "in progress" => "status-progress",
+            "review" => "status-review",
+            "complete" => "status-complete",
+            "on hold" => "status-hold",
+            "cancelled" => "status-cancelled",
+            _ => "status-default"
+        };
+    }
+}

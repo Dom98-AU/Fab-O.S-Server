@@ -1,0 +1,137 @@
+@page "/takeoffs/{TakeoffId:int}/revisions/{Id:int}"
+@page "/takeoffs/{TakeoffId:int}/revisions/new"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>@(Id == 0 ? "New Revision" : revision?.RevisionCode ?? "Revision") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" PageType="PageType.Card" />
+
+<!-- Main Content Container -->
+<div class="revision-layout">
+    @if (isLoading)
+    {
+        <div class="revision-loading">
+            <div class="revision-spinner"></div>
+            <p>Loading revision...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="revision-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>@errorMessage</div>
+        </div>
+    }
+    else if (revision != null)
+    {
+        <div class="revision-container">
+            <div class="revision-sections">
+                <!-- General Information Section -->
+                <div class="revision-section">
+                    <div class="revision-section-header @(IsSectionExpanded("general") ? "expanded" : "")" @onclick="@(() => ToggleSection("general"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-code-branch section-icon"></i>
+                            <span class="section-title">Revision Details</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="revision-section-content @(IsSectionExpanded("general") ? "expanded" : "collapsed")">
+                        <div class="revision-form-grid two-column">
+                            <div class="revision-form-group">
+                                <label class="revision-form-label">Revision Code</label>
+                                @if (isEditMode && Id == 0)
+                                {
+                                    <input type="text" @bind="revision.RevisionCode" disabled class="revision-form-control" />
+                                    <small class="revision-form-text-muted">Will be auto-generated on save</small>
+                                }
+                                else
+                                {
+                                    <p class="revision-form-control-plaintext">@(revision.RevisionCode ?? "Not set")</p>
+                                }
+                            </div>
+                            <div class="revision-form-group">
+                                <label class="revision-form-label">Status</label>
+                                <p class="revision-form-control-plaintext">
+                                    <span class="revision-badge @(revision.IsActive ? "status-active" : "status-inactive")">
+                                        @(revision.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </p>
+                            </div>
+
+                            <div class="revision-form-group" style="grid-column: 1 / -1;">
+                                <label class="revision-form-label">Description</label>
+                                @if (isEditMode)
+                                {
+                                    <textarea @bind="revision.Description" class="revision-form-control" rows="3" />
+                                }
+                                else
+                                {
+                                    <p class="revision-form-control-plaintext">@(revision.Description ?? "—")</p>
+                                }
+                            </div>
+
+                            @if (Id > 0)
+                            {
+                                <div class="revision-form-group">
+                                    <label class="revision-form-label">Created Date</label>
+                                    <p class="revision-form-control-plaintext">@revision.CreatedDate.ToString("MMM dd, yyyy h:mm tt")</p>
+                                </div>
+                                <div class="revision-form-group">
+                                    <label class="revision-form-label">Created By</label>
+                                    <p class="revision-form-control-plaintext">@(revision.CreatedByUser?.Username ?? "—")</p>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Packages Section -->
+                @if (Id > 0)
+                {
+                    <div class="revision-section">
+                        <div class="revision-section-header @(IsSectionExpanded("packages") ? "expanded" : "")" @onclick="@(() => ToggleSection("packages"))">
+                            <div class="section-header-content">
+                                <i class="fas fa-box section-icon"></i>
+                                <span class="section-title">Packages (@(revision.Packages?.Count ?? 0))</span>
+                            </div>
+                            <i class="fas fa-chevron-down section-chevron"></i>
+                        </div>
+                        @if (IsSectionExpanded("packages"))
+                        {
+                            <div class="revision-section-content">
+                                @if (revision.Packages?.Any() == true)
+                                {
+                                    <div class="revision-packages-list">
+                                        @foreach (var package in revision.Packages.Where(p => !p.IsDeleted))
+                                        {
+                                            <div class="revision-package-item" @onclick="@(() => NavigateToPackage(package.Id))">
+                                                <div class="package-info">
+                                                    <div class="package-number">@package.PackageNumber</div>
+                                                    <div class="package-name">@package.PackageName</div>
+                                                </div>
+                                                <i class="fas fa-chevron-right"></i>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="revision-empty-state">
+                                        <i class="fas fa-box-open"></i>
+                                        <p>No packages in this revision</p>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>

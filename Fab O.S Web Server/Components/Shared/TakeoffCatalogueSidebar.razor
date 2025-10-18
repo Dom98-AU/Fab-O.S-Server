@@ -1,0 +1,235 @@
+@namespace FabOS.WebServer.Components.Shared
+@rendermode InteractiveServer
+
+<div class="takeoff-catalogue-sidebar @(IsVisible ? "visible" : "") @GetWidthClass()">
+    <!-- Sidebar Header -->
+    <div class="sidebar-header">
+        <h3>
+            <i class="fas fa-boxes"></i>
+            Catalogue
+        </h3>
+        <div class="header-actions">
+            <button class="btn-expand" @onclick="CycleWidth" title="Resize Sidebar">
+                <i class="fas @GetExpandIcon()"></i>
+            </button>
+            <button class="btn-close" @onclick="ToggleSidebar" title="Toggle Sidebar">
+                <i class="fas @(IsVisible ? "fa-chevron-left" : "fa-chevron-right")"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="sidebar-search">
+        <div class="search-input-group">
+            <i class="fas fa-search"></i>
+            <input type="text"
+                   class="form-control"
+                   placeholder="Search items..."
+                   @bind="searchTerm"
+                   @bind:event="oninput"
+                   @onkeyup="HandleSearchKeyup" />
+            @if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                <button class="btn-clear" @onclick="ClearSearch">
+                    <i class="fas fa-times"></i>
+                </button>
+            }
+        </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="sidebar-content">
+        @if (isLoading)
+        {
+            <div class="loading-state">
+                <div class="spinner-border"></div>
+                <p>Loading catalogue...</p>
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="error-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>@errorMessage</p>
+                <button class="btn btn-primary btn-sm" @onclick="LoadMaterials">
+                    <i class="fas fa-redo"></i>
+                    Retry
+                </button>
+            </div>
+        }
+        else if (isSearching && !string.IsNullOrWhiteSpace(searchTerm))
+        {
+            <!-- Search Results -->
+            <div class="search-results">
+                <div class="section-header">
+                    <h4>Search Results</h4>
+                    <span class="badge">@searchResults.Count items</span>
+                </div>
+
+                @if (searchResults.Count == 0)
+                {
+                    <div class="empty-state">
+                        <i class="fas fa-search"></i>
+                        <p>No items found for "@searchTerm"</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="items-list">
+                        @foreach (var item in searchResults)
+                        {
+                            <div class="catalogue-item @(SelectedItem?.Id == item.Id ? "selected" : "")"
+                                 @onclick="() => SelectItem(item)">
+                                <div class="item-description">@item.Description</div>
+                                <div class="item-code">@item.ItemCode</div>
+                                <div class="item-meta">
+                                    <span class="category-badge">@item.Material</span>
+                                    <span class="category-badge">@item.Category</span>
+                                    @if (item.Mass_kg_m.HasValue)
+                                    {
+                                        <span class="weight-badge">@item.Mass_kg_m.Value.ToString("F2") kg/m</span>
+                                    }
+                                    @if (item.Mass_kg_m2.HasValue)
+                                    {
+                                        <span class="weight-badge">@item.Mass_kg_m2.Value.ToString("F3") kg/m²</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <!-- Material → Category → Items Navigation -->
+            <div class="materials-list">
+                @if (materials.Count == 0)
+                {
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <p>No catalogue items available</p>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var material in materials)
+                    {
+                        <div class="material-group">
+                            <!-- Material Header -->
+                            <div class="material-header @(expandedMaterial == material ? "expanded" : "")"
+                                 @onclick="() => ToggleMaterial(material)">
+                                <i class="fas @(expandedMaterial == material ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                                <span class="material-name">@material</span>
+                            </div>
+
+                            @if (expandedMaterial == material)
+                            {
+                                <div class="material-categories">
+                                    @if (isLoadingCategories)
+                                    {
+                                        <div class="loading-items">
+                                            <div class="spinner-border spinner-border-sm"></div>
+                                            <span>Loading categories...</span>
+                                        </div>
+                                    }
+                                    else if (materialCategories.Count == 0)
+                                    {
+                                        <div class="empty-items">
+                                            <p>No categories for this material</p>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var category in materialCategories)
+                                        {
+                                            <div class="category-group">
+                                                <!-- Category Header -->
+                                                <div class="category-header @(expandedCategory == category ? "expanded" : "")"
+                                                     @onclick="() => ToggleCategory(category)">
+                                                    <i class="fas @(expandedCategory == category ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                                                    <span class="category-name">@category</span>
+                                                    @if (expandedCategory == category && categoryItems.Count > 0)
+                                                    {
+                                                        <span class="badge">@categoryItems.Count</span>
+                                                    }
+                                                </div>
+
+                                                @if (expandedCategory == category)
+                                                {
+                                                    <div class="category-items">
+                                                        @if (isLoadingItems)
+                                                        {
+                                                            <div class="loading-items">
+                                                                <div class="spinner-border spinner-border-sm"></div>
+                                                                <span>Loading items...</span>
+                                                            </div>
+                                                        }
+                                                        else if (categoryItems.Count == 0)
+                                                        {
+                                                            <div class="empty-items">
+                                                                <p>No items in this category</p>
+                                                            </div>
+                                                        }
+                                                        else
+                                                        {
+                                                            @foreach (var item in categoryItems)
+                                                            {
+                                                                <div class="catalogue-item @(SelectedItem?.Id == item.Id ? "selected" : "")"
+                                                                     @onclick="() => SelectItem(item)">
+                                                                    <div class="item-description">@item.Description</div>
+                                                                    <div class="item-code">@item.ItemCode</div>
+                                                                    <div class="item-meta">
+                                                                        @if (item.Mass_kg_m.HasValue)
+                                                                        {
+                                                                            <span class="weight-badge">@item.Mass_kg_m.Value.ToString("F2") kg/m</span>
+                                                                        }
+                                                                        @if (item.Mass_kg_m2.HasValue)
+                                                                        {
+                                                                            <span class="weight-badge">@item.Mass_kg_m2.Value.ToString("F3") kg/m²</span>
+                                                                        }
+                                                                        @if (item.Weight_kg.HasValue)
+                                                                        {
+                                                                            <span class="weight-badge">@item.Weight_kg.Value.ToString("F2") kg</span>
+                                                                        }
+                                                                        @if (item.SurfaceArea_m2_per_m.HasValue)
+                                                                        {
+                                                                            <span class="weight-badge">@item.SurfaceArea_m2_per_m.Value.ToString("F3") m²/m</span>
+                                                                        }
+                                                                    </div>
+                                                                </div>
+                                                            }
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Selected Item Footer -->
+    @if (SelectedItem != null)
+    {
+        <div class="sidebar-footer">
+            <div class="selected-item-preview">
+                <div class="preview-header">
+                    <strong>Selected Item</strong>
+                    <button class="btn-clear-selection" @onclick="ClearSelection">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="preview-content">
+                    <div class="preview-code">@SelectedItem.ItemCode</div>
+                    <div class="preview-description">@SelectedItem.Description</div>
+                </div>
+            </div>
+        </div>
+    }
+</div>

@@ -153,6 +153,12 @@
     margin-bottom: 2rem;
 }
 
+.takeoff-form-grid.two-column {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 2rem;
+    row-gap: 1.5rem;
+}
+
 .takeoff-form-group {
     display: flex;
     flex-direction: column;
@@ -161,19 +167,20 @@
 }
 
 .takeoff-form-label {
-    font-size: 0.9rem;
+    font-size: 1rem;
     font-weight: 500;
     color: #374151;
     letter-spacing: 0.025em;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.5rem;
 }
 
 .takeoff-form-control {
-    padding: 0.65rem 0.9rem;
+    padding: 1rem 1.2rem;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
-    font-size: 0.95rem;
+    font-size: 1.05rem;
     color: #1f2937;
+    min-height: 48px;
     background: white;
     transition: all 0.2s ease;
     font-weight: 400;
@@ -195,11 +202,12 @@
 }
 
 .takeoff-form-control-plaintext {
-    padding: 0.65rem 0.9rem;
-    font-size: 0.95rem;
+    padding: 1rem 1.2rem;
+    font-size: 1.05rem;
     color: #1f2937;
     background: #fafbfc;
     border: 1px solid transparent;
+    min-height: 48px;
     border-radius: 8px;
     margin: 0;
     font-weight: 400;
@@ -889,6 +897,10 @@
     .takeoff-form-grid {
         grid-template-columns: 1fr;
     }
+
+    .takeoff-form-grid.two-column {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 768px) {
@@ -939,8 +951,9 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.25rem 1.5rem;
+    padding: 1.5rem 1.5rem;
     background: linear-gradient(135deg, var(--modern-primary-light) 0%, var(--modern-primary) 100%);
+    border-bottom: 3px solid #0284c7;
     cursor: pointer;
     transition: all 0.3s ease;
     user-select: none;
@@ -962,7 +975,7 @@
 }
 
 .section-title {
-    font-size: 1.1rem;
+    font-size: 2rem;
     font-weight: 600;
     color: var(--modern-text-dark);
 }
@@ -981,14 +994,17 @@
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.4s ease;
+    padding: 0;
 }
 
 .takeoff-section-content.expanded {
     max-height: 5000px;
+    padding: 2rem 1.5rem;
 }
 
 .takeoff-section-content.collapsed {
     max-height: 0;
+    padding: 0;
 }
 
 /* Subsection Styles */

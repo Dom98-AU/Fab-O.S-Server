@@ -25,7 +25,7 @@ public class DrawingTakeoffDto
     public string DrawingTitle { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string? DrawingNumber { get; set; }
-    public string? ProjectNumber { get; set; }
+    // public string? ProjectNumber { get; set; } // Removed as per requirements
     public decimal? Scale { get; set; }
     public string? ScaleUnit { get; set; }
     public List<TakeoffMeasurementDto> Measurements { get; set; } = new List<TakeoffMeasurementDto>();
@@ -244,7 +244,7 @@ public class ComplianceReportDto
 
 public class ComplianceReportRequest
 {
-    public string? ProjectNumber { get; set; }
+    // public string? ProjectNumber { get; set; } // Removed as per requirements
     public string? OrderNumber { get; set; }
     public string? CustomerName { get; set; }
     public DateTime? FromDate { get; set; }

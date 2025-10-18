@@ -1,9 +1,10 @@
 @namespace FabOS.WebServer.Components.Shared
 @using FabOS.WebServer.Services.Interfaces
 @inject IScaleCalibrationService ScaleCalibrationService
+@inject NavigationManager Navigation
 
 <ModalTemplate @bind-IsVisible="IsVisible"
-               Title="@Title"
+               Title="@GetModalTitle()"
                ModalType="ModalTemplate.ModalDisplayType.Fullscreen"
                ShowCloseButton="true"
                CloseOnBackdrop="false"
@@ -11,13 +12,37 @@
     <ChildContent>
         @if (IsVisible && PackageDrawingId > 0)
         {
-            <TakeoffPdfViewer PackageDrawingId="@PackageDrawingId"
-                             OnClose="HandleClose"
-                             OnScaleCalibrationRequest="OpenScaleCalibration"
-                             @ref="takeoffViewer" />
+            <div class="pdf-viewer-container-with-controls">
+                <div class="viewer-toolbar">
+                    <button class="btn btn-sm btn-warning" @onclick="OpenInFoxitViewer" title="Test with Foxit SDK POC">
+                        <i class="fas fa-flask"></i>
+                        Test with Foxit SDK
+                    </button>
+                </div>
+                <NutrientPdfViewer PackageDrawingId="@PackageDrawingId"
+                                  OnClose="HandleClose"
+                                  @ref="nutrientViewer" />
+            </div>
         }
     </ChildContent>
 </ModalTemplate>
+
+<style>
+    .pdf-viewer-container-with-controls {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .viewer-toolbar {
+        padding: 0.5rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+</style>
 
 <!-- Scale Calibration Modal -->
 <ModalTemplate @bind-IsVisible="showScaleCalibrationModal"
@@ -42,7 +67,7 @@
     [Parameter] public EventCallback OnClose { get; set; }
 
     private bool showScaleCalibrationModal = false;
-    private TakeoffPdfViewer? takeoffViewer;
+    private NutrientPdfViewer? nutrientViewer;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -70,22 +95,25 @@
         showScaleCalibrationModal = false;
     }
 
-    private async Task HandleCalibrationComplete()
+    private void HandleCalibrationComplete()
     {
         showScaleCalibrationModal = false;
-
-        // Refresh the takeoff viewer to reflect new calibration
-        if (takeoffViewer != null)
-        {
-            await takeoffViewer.RefreshData();
-        }
+        // TODO: Update scale in Nutrient viewer if needed
     }
 
-    public async Task RefreshData()
+    public void RefreshData()
     {
-        if (takeoffViewer != null)
-        {
-            await takeoffViewer.RefreshData();
-        }
+        // TODO: Implement refresh for Nutrient viewer if needed
+    }
+
+    private string GetModalTitle()
+    {
+        return $"{Title} (Nutrient)";
+    }
+
+    private void OpenInFoxitViewer()
+    {
+        // Navigate to Foxit viewer with same drawing
+        Navigation.NavigateTo($"/takeoff/foxit/{PackageDrawingId}", forceLoad: true);
     }
 }

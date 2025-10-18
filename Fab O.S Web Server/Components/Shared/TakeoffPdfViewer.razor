@@ -1,14 +1,17 @@
 @namespace FabOS.WebServer.Components.Shared
+@rendermode InteractiveServer
 @using FabOS.WebServer.Models.Entities
 @using FabOS.WebServer.Data.Contexts
 @using FabOS.WebServer.Services.Interfaces
 @using Microsoft.EntityFrameworkCore
 @using System.Text.Json
+@using Microsoft.JSInterop
 @inject ApplicationDbContext DbContext
 @inject ITakeoffService TakeoffService
 @inject ISharePointService SharePointService
 @inject IJSRuntime JS
 @inject ILogger<TakeoffPdfViewer> Logger
+@implements IDisposable
 
 <div class="takeoff-pdf-viewer">
     @if (isLoading)
@@ -73,16 +76,6 @@
                         <i class="fas fa-search"></i>
                         <span>@(selectedCatalogueItem != null ? selectedCatalogueItem.ItemCode : "Select Item")</span>
                     </button>
-                </div>
-
-                <div class="tool-group">
-                    <label>Scale</label>
-                    <div class="scale-display">
-                        <button class="tool-btn" @onclick="OpenScaleCalibration">
-                            <i class="fas fa-balance-scale"></i>
-                            <span>1:@currentScale</span>
-                        </button>
-                    </div>
                 </div>
 
                 <div class="tool-group">
@@ -281,7 +274,6 @@
 @code {
     [Parameter] public int PackageDrawingId { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnScaleCalibrationRequest { get; set; }
 
     private PackageDrawing? drawing;
     private ElementReference pdfContainer;
@@ -305,27 +297,89 @@
     // Takeoff reference
     private TraceTakeoff? currentTakeoff;
 
+    private int previousPackageDrawingId = 0;
+    private bool isPdfViewerInitialized = false;
+    private bool hasAttemptedInitialization = false;
+
     protected override async Task OnInitializedAsync()
     {
+        Logger.LogInformation("[TakeoffPdfViewer] OnInitializedAsync started for PackageDrawingId {PackageDrawingId}", PackageDrawingId);
+        isLoading = true; // Keep loading until PDF is actually loaded
         await LoadDrawing();
         await LoadOrCreateTakeoff();
         await LoadMeasurements();
-        isLoading = false;
+        // Don't set isLoading = false here, it will be set by OnPdfLoaded callback
+        Logger.LogInformation("[TakeoffPdfViewer] OnInitializedAsync completed, drawing={HasDrawing}", drawing != null);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Logger.LogInformation("[TakeoffPdfViewer] OnParametersSetAsync called - PackageDrawingId={PackageDrawingId}, Previous={Previous}, HasAttempted={HasAttempted}",
+            PackageDrawingId, previousPackageDrawingId, hasAttemptedInitialization);
+
+        // Check if this is a new PackageDrawingId being set (modal just opened)
+        if (PackageDrawingId > 0 && PackageDrawingId != previousPackageDrawingId && !hasAttemptedInitialization)
+        {
+            previousPackageDrawingId = PackageDrawingId;
+            hasAttemptedInitialization = true;
+
+            Logger.LogInformation("[TakeoffPdfViewer] New PackageDrawingId detected, will attempt PDF viewer initialization");
+
+            // Give the DOM time to render the canvas elements
+            await Task.Delay(100);
+
+            // Try to initialize - canvas elements should be rendered now
+            await InitializePdfViewer();
+
+            // Only load PDF if initialization succeeded
+            if (isPdfViewerInitialized)
+            {
+                await LoadPdfInViewer();
+            }
+            else
+            {
+                Logger.LogError("[TakeoffPdfViewer] Failed to initialize PDF viewer - canvas elements may not be available");
+                isLoading = false;
+                StateHasChanged();
+            }
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && drawing != null)
+        // Keep this as a fallback in case OnParametersSetAsync doesn't work
+        if (firstRender && drawing != null && !hasAttemptedInitialization)
         {
+            Logger.LogInformation("[TakeoffPdfViewer] OnAfterRenderAsync first render - fallback initialization attempt");
+            hasAttemptedInitialization = true;
+
+            await Task.Delay(100);
             await InitializePdfViewer();
-            await LoadPdfInViewer();
+
+            if (isPdfViewerInitialized)
+            {
+                await LoadPdfInViewer();
+            }
+            else
+            {
+                Logger.LogError("[TakeoffPdfViewer] Failed to initialize PDF viewer in fallback");
+                isLoading = false;
+                StateHasChanged();
+            }
         }
     }
+
+    private DotNetObjectReference<TakeoffPdfViewer>? dotNetRef;
 
     private async Task InitializePdfViewer()
     {
         try
         {
+            Logger.LogInformation("[TakeoffPdfViewer] Initializing PDF viewer JavaScript");
+
+            // Create DotNetObjectReference to pass to JavaScript
+            dotNetRef = DotNetObjectReference.Create(this);
+
             // Initialize the PDF viewer JavaScript and helper functions
             await JS.InvokeVoidAsync("eval", @"
                 // Add getBoundingClientRect helper if not exists
@@ -341,19 +395,51 @@
                         };
                     };
                 }
-
-                // Initialize PDF viewer
-                if (typeof window.pdfViewerInterop !== 'undefined') {
-                    window.pdfViewerInterop.initialize('pdf-canvas', 'measurement-overlay', null);
-                } else {
-                    console.error('PDF viewer interop not loaded');
-                }
             ");
+
+            // Store the DotNet reference globally for JavaScript to access FIRST
+            await JS.InvokeVoidAsync("eval", "window.blazorPdfViewerRef = arguments[0];", dotNetRef);
+
+            // Initialize PDF viewer with DotNet reference - Direct function call (like FileUploadModal)
+            if (dotNetRef != null)
+            {
+                Logger.LogInformation("[TakeoffPdfViewer] Calling pdfViewerInterop.initialize directly with canvas IDs");
+
+                var success = await JS.InvokeAsync<bool>("pdfViewerInterop.initialize",
+                    "pdf-canvas",
+                    "measurement-overlay",
+                    dotNetRef);
+
+                isPdfViewerInitialized = success;
+                Logger.LogInformation("[TakeoffPdfViewer] PDF viewer JavaScript initialized: {Success}", success);
+            }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error initializing PDF viewer");
+            Logger.LogError(ex, "[TakeoffPdfViewer] CRITICAL ERROR initializing PDF viewer");
+            isPdfViewerInitialized = false;
+            // Hide loading spinner even on error
+            isLoading = false;
+            StateHasChanged();
         }
+    }
+
+    [JSInvokable]
+    public Task OnPdfLoaded(int totalPages)
+    {
+        Logger.LogInformation("[TakeoffPdfViewer] PDF loaded successfully with {TotalPages} pages", totalPages);
+        isLoading = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task OnMeasurementAdded(object measurement)
+    {
+        Logger.LogInformation("[TakeoffPdfViewer] Measurement added from JavaScript");
+        // Reload measurements from database
+        _ = LoadMeasurements();
+        return Task.CompletedTask;
     }
 
     public async Task RefreshData()
@@ -445,13 +531,29 @@
     {
         try
         {
+            Logger.LogInformation("[TakeoffPdfViewer] Loading PDF from API endpoint: /api/packagedrawings/{PackageDrawingId}/content", PackageDrawingId);
+
+            // Keep loading spinner visible while PDF loads
+            isLoading = true;
+            StateHasChanged();
+
             // Call JavaScript to load PDF from our API
-            await JS.InvokeVoidAsync("pdfViewerInterop.loadPdfFromUrl",
+            var success = await JS.InvokeAsync<bool>("pdfViewerInterop.loadPdfFromUrl",
                 $"/api/packagedrawings/{PackageDrawingId}/content");
+
+            if (!success)
+            {
+                Logger.LogError("[TakeoffPdfViewer] PDF loading failed, hiding loading spinner");
+                isLoading = false;
+                StateHasChanged();
+            }
+            // If successful, isLoading will be set to false by OnPdfLoaded callback
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error loading PDF");
+            Logger.LogError(ex, "[TakeoffPdfViewer] Error loading PDF");
+            isLoading = false;
+            StateHasChanged();
         }
     }
 
@@ -506,7 +608,7 @@
             var dx = currentMeasurement.Points[1].X - currentMeasurement.Points[0].X;
             var dy = currentMeasurement.Points[1].Y - currentMeasurement.Points[0].Y;
             var pixelDistance = Math.Sqrt(dx * dx + dy * dy);
-            currentMeasurement.Value = (decimal)(pixelDistance * currentScale); // Convert to real-world mm
+            currentMeasurement.Value = (decimal)(pixelDistance * (double)currentScale); // Convert to real-world mm
             currentMeasurement.Unit = "mm";
         }
     }
@@ -623,11 +725,6 @@
         showCatalogueModal = false;
     }
 
-    private async Task OpenScaleCalibration()
-    {
-        await OnScaleCalibrationRequest.InvokeAsync();
-    }
-
     private void CalculateTotalWeight()
     {
         totalWeight = measurements.Sum(m => m.CalculatedWeight ?? 0);
@@ -689,6 +786,11 @@
         public double Top { get; set; }
         public double Width { get; set; }
         public double Height { get; set; }
+    }
+
+    public void Dispose()
+    {
+        dotNetRef?.Dispose();
     }
 }
 

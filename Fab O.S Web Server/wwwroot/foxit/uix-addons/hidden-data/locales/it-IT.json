@@ -1,0 +1,50 @@
+{
+  "button-tooltip": {
+    "title": "Dati nascosti",
+    "tooltip": "Dati nascosti"
+  },
+  "sanitizeDocument": {
+    "title": "Rendi puro il documento",
+    "tooltip": "Rendi puro il documento",
+    "dialog": {
+      "title": "L'opzione Rendi puro il documento consente di rimuovere dal documento PDF i metadati e altri dati nascosti che possono contenere informazioni riservate. Questa funzione rimuove:",
+      "content": {
+        "metadata": "Metadati",
+        "embeddedAttached": "Contenuti integrati e file allegati",
+        "scripts": "Script",
+        "hiddenLayers": "Layer nascosti",
+        "embeddedSearchIndexes": "Indici di ricerca integrati",
+        "storedFormData": "Dati del modulo memorizzati",
+        "reviewComment": "Rivedi e commenta i dati",
+        "hiddenDataPreDocSave": "Dati nascosti da precedenti salvataggi del documento",
+        "obscuredTextAndImage": "Testo e immagini oscurati",
+        "commentsHidden": "Commenti nascosti nel corpo del file PDF",
+        "unreferencedData": "Dati senza riferimento",
+        "linksActionsJavascripts": "Link, azioni e Javascript",
+        "overlappingObjects": "Oggetti sovrapposti"
+      },
+      "notShowAgain": "Non visualizzare più questo messaggio"
+    }
+  },
+  "removeHiddenInformation": {
+    "title": "Rimuovi informazioni nascoste",
+    "tooltip": "Rimuovi informazioni nascoste",
+    "dialog": {
+      "title": "L'opzione Rimuovi informazioni nascoste consente di cercare e rimuovere le seguenti informazioni sul documento",
+      "checkboxes": {
+        "metadata": "Metadati",
+        "fileAttachments": "Allegati",
+        "bookmarks": "Segnalibri",
+        "embeddedSearchIndexes": "Indice di ricerca incorporato",
+        "commentsAndMarkups": "Commenti e revisioni",
+        "formFields": "Campi del modulo",
+        "hiddenText": "Testo nascosto",
+        "hiddenLayers": "Layer nascosti",
+        "deletedOrCroppedContent": "Contenuti eliminati o ritagliati",
+        "linksActionsJavascripts": "Link, azioni e Javascript",
+        "overlappingObjects": "Oggetti sovrapposti"
+      },
+      "noCheckedAlert": "Selezionare almeno un elemento da rimuovere."
+    }
+  }
+}

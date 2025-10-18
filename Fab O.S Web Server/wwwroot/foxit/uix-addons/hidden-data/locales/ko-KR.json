@@ -1,0 +1,50 @@
+{
+  "button-tooltip": {
+    "title": "숨겨진 데이터",
+    "tooltip": "숨겨진 데이터"
+  },
+  "sanitizeDocument": {
+    "title": "문서 점검",
+    "tooltip": "문서 점검",
+    "dialog": {
+      "title": "당신의 PDF 문서에서 민감한 정보가 포함되어 있을 수 있으므로 문서 점검이 메타데이터 및 기타 숨겨진 데이터를 제거합니다. 이 기능은 다음을 제거합니다.",
+      "content": {
+        "metadata": "메타데이터",
+        "embeddedAttached": "임베디드 컴텐츠 및 첨부 파일",
+        "scripts": "스크립트",
+        "hiddenLayers": "숨겨진 레이어",
+        "embeddedSearchIndexes": "임베디드 검색 색인",
+        "storedFormData": "저장된 양식 데이터",
+        "reviewComment": "데이터 검토 및 주석",
+        "hiddenDataPreDocSave": "이전에 저장된 문서 숨겨진 데이터",
+        "obscuredTextAndImage": "가려진 텍스트 및 이미지",
+        "commentsHidden": "PDF 파일 본문에 숨겨진 주석",
+        "unreferencedData": "참조되지 않은 데이터",
+        "linksActionsJavascripts": "링크, 작업 및 자바스크립트",
+        "overlappingObjects": "중복된 오브젝트"
+      },
+      "notShowAgain": "이 메시지 다시 보지 않기"
+    }
+  },
+  "removeHiddenInformation": {
+    "title": "숨겨진 정보 제거",
+    "tooltip": "숨겨진 정보 제거",
+    "dialog": {
+      "title": "숨겨진 정보 제거는 다음 문서 정보를 찾아서 제거합니다",
+      "checkboxes": {
+        "metadata": "메타데이터",
+        "fileAttachments": "첨부 파일",
+        "bookmarks": "북마크",
+        "embeddedSearchIndexes": "임베디드 검색 색인",
+        "commentsAndMarkups": "주석과 마크업",
+        "formFields": "양식 필드",
+        "hiddenText": "숨겨진 텍스트",
+        "hiddenLayers": "숨겨진 레이어",
+        "deletedOrCroppedContent": "삭제되거나 잘린 콘텐츠",
+        "linksActionsJavascripts": "링크, 작업 및 자바스크립트",
+        "overlappingObjects": "중복된 오브젝트"
+      },
+      "noCheckedAlert": "제거할 항목을 두 개 이상 선택하십시오."
+    }
+  }
+}

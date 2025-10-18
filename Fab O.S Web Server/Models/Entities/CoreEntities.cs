@@ -10,6 +10,16 @@ public class Customer
     public int Id { get; set; }
 
     [Required]
+    public int CompanyId { get; set; } = 1;
+
+    [Required]
+    [StringLength(200)]
+    public string CompanyName { get; set; } = "Default Company";
+
+    // Audit fields - nullable until user system is implemented
+    public int? CreatedById { get; set; }
+
+    [Required]
     [StringLength(200)]
     public string Name { get; set; } = string.Empty;
 

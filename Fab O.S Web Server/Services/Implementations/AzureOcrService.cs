@@ -109,12 +109,48 @@ namespace FabOS.WebServer.Services.Implementations
                 },
                 ExtractedFields = new List<ExtractedField>
                 {
-                    new ExtractedField { FieldName = "Drawing Number", Value = ExtractMockDrawingNumber(fileName), Confidence = 0.98f },
-                    new ExtractedField { FieldName = "Drawing Title", Value = ExtractMockDrawingTitle(fileName), Confidence = 0.92f },
-                    new ExtractedField { FieldName = "Project Name", Value = $"{tenantContext.CompanyName} - {tenantContext.DefaultProjectTemplate}", Confidence = 0.88f },
-                    new ExtractedField { FieldName = "Client", Value = GenerateClientName(tenantContext), Confidence = 0.85f },
-                    new ExtractedField { FieldName = "Scale", Value = "1:100", Confidence = 0.95f },
-                    new ExtractedField { FieldName = "Revision", Value = "A", Confidence = 0.90f }
+                    new ExtractedField
+                    {
+                        FieldName = "Drawing Number",
+                        Value = ExtractMockDrawingNumber(fileName),
+                        Confidence = 0.98f,
+                        Bounds = new BoundingBox { X = 1220, Y = 70, Width = 180, Height = 30 }
+                    },
+                    new ExtractedField
+                    {
+                        FieldName = "Drawing Title",
+                        Value = ExtractMockDrawingTitle(fileName),
+                        Confidence = 0.92f,
+                        Bounds = new BoundingBox { X = 1220, Y = 110, Width = 360, Height = 30 }
+                    },
+                    new ExtractedField
+                    {
+                        FieldName = "Project Name",
+                        Value = $"{tenantContext.CompanyName} - {tenantContext.DefaultProjectTemplate}",
+                        Confidence = 0.88f,
+                        Bounds = new BoundingBox { X = 1220, Y = 150, Width = 360, Height = 30 }
+                    },
+                    new ExtractedField
+                    {
+                        FieldName = "Client",
+                        Value = GenerateClientName(tenantContext),
+                        Confidence = 0.85f,
+                        Bounds = new BoundingBox { X = 1220, Y = 190, Width = 280, Height = 25 }
+                    },
+                    new ExtractedField
+                    {
+                        FieldName = "Scale",
+                        Value = "1:100",
+                        Confidence = 0.95f,
+                        Bounds = new BoundingBox { X = 1420, Y = 70, Width = 80, Height = 25 }
+                    },
+                    new ExtractedField
+                    {
+                        FieldName = "Revision",
+                        Value = "A",
+                        Confidence = 0.90f,
+                        Bounds = new BoundingBox { X = 1520, Y = 70, Width = 60, Height = 25 }
+                    }
                 }
             };
 
@@ -193,49 +229,325 @@ namespace FabOS.WebServer.Services.Implementations
         {
             var document = JsonSerializer.Deserialize<JsonElement>(jsonResult);
             var analyzeResult = document.GetProperty("analyzeResult");
-            
-            // Extract text and key-value pairs
-            var extractedFields = new List<ExtractedField>();
-            var confidence = 0.8f; // Default confidence
 
-            // Try to extract titleblock information using pattern matching
-            var drawingNumber = ExtractFieldFromDocument(analyzeResult, "drawing.?number|dwg.?no|drawing.?no", fileName);
-            var drawingTitle = ExtractFieldFromDocument(analyzeResult, "title|drawing.?title|description", fileName);
-            var projectName = ExtractFieldFromDocument(analyzeResult, "project|job.?name|project.?name", fileName);
-            var clientName = ExtractFieldFromDocument(analyzeResult, "client|owner|company", fileName);
-            var scale = ExtractFieldFromDocument(analyzeResult, "scale", "1:100");
-            var revision = ExtractFieldFromDocument(analyzeResult, "rev|revision", "A");
+            // Step 1: Detect titleblock region
+            var titleblockRegion = DetectTitleblockRegion(analyzeResult);
+
+            // Step 2: Extract text content from titleblock region
+            var titleblockText = ExtractTextFromRegion(analyzeResult, titleblockRegion);
+
+            // Step 3: Extract titleblock fields using pattern matching
+            var extractedFields = ExtractTitleblockFields(titleblockText, analyzeResult, titleblockRegion);
+
+            // Step 4: Parse individual fields
+            var drawingNumber = GetFieldValue(extractedFields, "Drawing Number", ExtractMockDrawingNumber(fileName));
+            var drawingTitle = GetFieldValue(extractedFields, "Drawing Title", ExtractMockDrawingTitle(fileName));
+            var projectName = GetFieldValue(extractedFields, "Project", $"{tenantContext.CompanyName} Project");
+            var clientName = GetFieldValue(extractedFields, "Client", GenerateClientName(tenantContext));
+            var scale = GetFieldValue(extractedFields, "Scale", "1:100");
+            var revision = GetFieldValue(extractedFields, "Revision", "A");
+            var dateStr = GetFieldValue(extractedFields, "Date", null);
+
+            // Step 5: Parse date if found
+            DateTime? drawingDate = ParseDrawingDate(dateStr);
+
+            // Step 6: Calculate overall confidence
+            var confidence = CalculateAverageConfidence(extractedFields);
 
             return new OcrAnalysisResult
             {
                 DrawingNumber = drawingNumber,
                 DrawingTitle = drawingTitle,
-                ProjectName = projectName ?? $"{tenantContext.CompanyName} Project",
-                ClientName = clientName ?? GenerateClientName(tenantContext),
+                ProjectName = projectName,
+                ClientName = clientName,
                 Discipline = DetermineDiscipline(fileName),
                 Scale = scale,
                 Revision = revision,
-                DrawingDate = DateTime.Now.AddDays(-30),
+                DrawingDate = drawingDate ?? DateTime.Now.AddDays(-30),
                 Confidence = confidence,
                 TenantId = tenantContext.TenantId,
                 CompanyId = tenantContext.CompanyId,
                 ExtractedFields = extractedFields,
-                TitleblockBounds = ExtractTitleblockBounds(analyzeResult)
+                TitleblockBounds = titleblockRegion
             };
         }
 
-        private string ExtractFieldFromDocument(JsonElement analyzeResult, string pattern, string fallback)
+        /// <summary>
+        /// Detects the titleblock region (typically bottom-right of the drawing)
+        /// using keyword density analysis
+        /// </summary>
+        private BoundingBox DetectTitleblockRegion(JsonElement analyzeResult)
         {
-            // This would implement pattern matching against the extracted text
-            // For now, return smart fallback based on patterns
-            return fallback;
+            try
+            {
+                // Get page dimensions
+                var pages = analyzeResult.GetProperty("pages");
+                if (pages.GetArrayLength() == 0)
+                {
+                    return GetDefaultTitleblockBounds();
+                }
+
+                var firstPage = pages[0];
+                var pageWidth = firstPage.GetProperty("width").GetDouble();
+                var pageHeight = firstPage.GetProperty("height").GetDouble();
+
+                // Define titleblock search region (bottom-right quadrant)
+                // Typically titleblocks are in bottom-right 30% of page
+                var searchRegion = new BoundingBox
+                {
+                    X = (int)(pageWidth * 0.65),
+                    Y = (int)(pageHeight * 0.70),
+                    Width = (int)(pageWidth * 0.35),
+                    Height = (int)(pageHeight * 0.30)
+                };
+
+                // Look for titleblock keywords in this region
+                var titleblockKeywords = new[] { "drawing", "dwg", "title", "project", "client", "scale", "revision", "rev", "date", "drawn", "checked" };
+
+                if (!firstPage.TryGetProperty("words", out var words))
+                {
+                    return searchRegion;
+                }
+
+                var keywordMatches = new List<(double x, double y, double width, double height)>();
+
+                foreach (var word in words.EnumerateArray())
+                {
+                    if (!word.TryGetProperty("content", out var contentProp))
+                        continue;
+
+                    var content = contentProp.GetString()?.ToLower() ?? "";
+
+                    if (titleblockKeywords.Any(k => content.Contains(k)))
+                    {
+                        if (word.TryGetProperty("polygon", out var polygon))
+                        {
+                            var bbox = PolygonToBoundingBox(polygon);
+                            if (IsWithinRegion(bbox, searchRegion))
+                            {
+                                keywordMatches.Add((bbox.X, bbox.Y, bbox.Width, bbox.Height));
+                            }
+                        }
+                    }
+                }
+
+                // If we found keywords, calculate bounding box around all matches
+                if (keywordMatches.Any())
+                {
+                    var minX = keywordMatches.Min(m => m.x);
+                    var minY = keywordMatches.Min(m => m.y);
+                    var maxX = keywordMatches.Max(m => m.x + m.width);
+                    var maxY = keywordMatches.Max(m => m.y + m.height);
+
+                    return new BoundingBox
+                    {
+                        X = (int)minX,
+                        Y = (int)minY,
+                        Width = (int)(maxX - minX),
+                        Height = (int)(maxY - minY)
+                    };
+                }
+
+                return searchRegion;
+            }
+            catch
+            {
+                return GetDefaultTitleblockBounds();
+            }
         }
 
-        private BoundingBox? ExtractTitleblockBounds(JsonElement analyzeResult)
+        /// <summary>
+        /// Converts Azure polygon format to bounding box
+        /// </summary>
+        private BoundingBox PolygonToBoundingBox(JsonElement polygon)
         {
-            // This would analyze the document layout to find the titleblock region
-            // For now, return a default titleblock location (typically bottom-right)
-            return new BoundingBox { X = 1200, Y = 50, Width = 400, Height = 200 };
+            var points = polygon.EnumerateArray().ToList();
+            if (points.Count < 4)
+            {
+                return new BoundingBox { X = 0, Y = 0, Width = 0, Height = 0 };
+            }
+
+            var xCoords = new List<double>();
+            var yCoords = new List<double>();
+
+            for (int i = 0; i < points.Count; i += 2)
+            {
+                xCoords.Add(points[i].GetDouble());
+                if (i + 1 < points.Count)
+                {
+                    yCoords.Add(points[i + 1].GetDouble());
+                }
+            }
+
+            var minX = xCoords.Min();
+            var minY = yCoords.Min();
+            var maxX = xCoords.Max();
+            var maxY = yCoords.Max();
+
+            return new BoundingBox
+            {
+                X = (int)minX,
+                Y = (int)minY,
+                Width = (int)(maxX - minX),
+                Height = (int)(maxY - minY)
+            };
+        }
+
+        /// <summary>
+        /// Checks if a bounding box is within a region
+        /// </summary>
+        private bool IsWithinRegion(BoundingBox bbox, BoundingBox region)
+        {
+            return bbox.X >= region.X &&
+                   bbox.Y >= region.Y &&
+                   (bbox.X + bbox.Width) <= (region.X + region.Width) &&
+                   (bbox.Y + bbox.Height) <= (region.Y + region.Height);
+        }
+
+        /// <summary>
+        /// Extracts all text content from a specific region
+        /// </summary>
+        private string ExtractTextFromRegion(JsonElement analyzeResult, BoundingBox region)
+        {
+            var textBuilder = new StringBuilder();
+
+            try
+            {
+                var pages = analyzeResult.GetProperty("pages");
+                if (pages.GetArrayLength() == 0)
+                    return "";
+
+                var firstPage = pages[0];
+                if (!firstPage.TryGetProperty("words", out var words))
+                    return "";
+
+                foreach (var word in words.EnumerateArray())
+                {
+                    if (word.TryGetProperty("polygon", out var polygon) &&
+                        word.TryGetProperty("content", out var content))
+                    {
+                        var bbox = PolygonToBoundingBox(polygon);
+                        if (IsWithinRegion(bbox, region))
+                        {
+                            textBuilder.Append(content.GetString() + " ");
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Return empty string on error
+            }
+
+            return textBuilder.ToString();
+        }
+
+        /// <summary>
+        /// Extracts titleblock fields using regex patterns
+        /// </summary>
+        private List<ExtractedField> ExtractTitleblockFields(string titleblockText, JsonElement analyzeResult, BoundingBox titleblockRegion)
+        {
+            var fields = new List<ExtractedField>();
+
+            // Define regex patterns for common titleblock fields
+            var patterns = new Dictionary<string, string>
+            {
+                { "Drawing Number", @"(?:drawing|dwg)\s*(?:no\.?|number|#)[\s:]*([A-Z0-9\-\.\/]+)" },
+                { "Drawing Title", @"(?:title|drawing\s*title)[\s:]*([^\n\r]{5,100})" },
+                { "Project", @"(?:project|job)\s*(?:name)?[\s:]*([^\n\r]{5,100})" },
+                { "Client", @"(?:client|owner|company)[\s:]*([^\n\r]{3,100})" },
+                { "Scale", @"(?:scale)[\s:]*(\d+:\d+|1/\d+|NTS|AS NOTED)" },
+                { "Revision", @"(?:rev\.?|revision)[\s:]*([A-Z0-9]{1,5})" },
+                { "Date", @"(?:date|drawn)[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})" }
+            };
+
+            foreach (var pattern in patterns)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(
+                    titleblockText,
+                    pattern.Value,
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                );
+
+                if (match.Success && match.Groups.Count > 1)
+                {
+                    fields.Add(new ExtractedField
+                    {
+                        FieldName = pattern.Key,
+                        Value = match.Groups[1].Value.Trim(),
+                        Confidence = 0.85f, // Pattern match confidence
+                        Bounds = titleblockRegion
+                    });
+                }
+            }
+
+            return fields;
+        }
+
+        /// <summary>
+        /// Gets field value from extracted fields or returns fallback
+        /// </summary>
+        private string GetFieldValue(List<ExtractedField> fields, string fieldName, string? fallback)
+        {
+            var field = fields.FirstOrDefault(f => f.FieldName.Equals(fieldName, StringComparison.OrdinalIgnoreCase));
+            return field?.Value ?? fallback ?? "";
+        }
+
+        /// <summary>
+        /// Calculates average confidence from extracted fields
+        /// </summary>
+        private float CalculateAverageConfidence(List<ExtractedField> fields)
+        {
+            if (!fields.Any())
+                return 0.5f; // Low confidence if no fields extracted
+
+            return fields.Average(f => f.Confidence);
+        }
+
+        /// <summary>
+        /// Parses drawing date from various formats
+        /// </summary>
+        private DateTime? ParseDrawingDate(string? dateStr)
+        {
+            if (string.IsNullOrWhiteSpace(dateStr))
+                return null;
+
+            var formats = new[]
+            {
+                "M/d/yyyy", "MM/dd/yyyy", "M-d-yyyy", "MM-dd-yyyy",
+                "d/M/yyyy", "dd/MM/yyyy", "d-M-yyyy", "dd-MM-yyyy",
+                "M/d/yy", "MM/dd/yy", "M-d-yy", "MM-dd-yy"
+            };
+
+            foreach (var format in formats)
+            {
+                if (DateTime.TryParseExact(dateStr, format, null, System.Globalization.DateTimeStyles.None, out var date))
+                {
+                    return date;
+                }
+            }
+
+            // Try general parsing as last resort
+            if (DateTime.TryParse(dateStr, out var parsedDate))
+            {
+                return parsedDate;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Returns default titleblock bounds (bottom-right corner)
+        /// </summary>
+        private BoundingBox GetDefaultTitleblockBounds()
+        {
+            return new BoundingBox
+            {
+                X = 1200,
+                Y = 50,
+                Width = 400,
+                Height = 200
+            };
         }
 
         private string ExtractMockDrawingNumber(string fileName)

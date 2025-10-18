@@ -5,12 +5,15 @@ using FabOS.WebServer.Components.Shared.Interfaces;
 using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models;
+using FabOS.WebServer.Models.Columns;
+using FabOS.WebServer.Models.ViewState;
 
 namespace FabOS.WebServer.Components.Pages;
 
 public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, IDisposable
 {
     [Parameter] public int TakeoffId { get; set; }
+    [Parameter] public int? RevisionId { get; set; }
 
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
@@ -30,6 +33,13 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
     private List<Package> selectedListItems = new();
     private List<Package> selectedCardItems = new();
 
+    // View state management
+    private ViewState? currentViewState;
+    private bool hasUnsavedChanges = false;
+    private bool hasCustomColumnConfig = false;
+    private List<ColumnDefinition> managedColumns = new();
+    private List<Package> allPackages = new();
+
     // Table columns
     private List<GenericTableView<Package>.TableColumn<Package>> tableColumns = new();
 
@@ -45,7 +55,14 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
     {
         if (takeoff != null)
         {
-            BreadcrumbService.SetBreadcrumb($"Takeoffs / {takeoff.DrawingNumber ?? $"Takeoff #{TakeoffId}"} / Packages");
+            if (RevisionId.HasValue)
+            {
+                BreadcrumbService.SetBreadcrumb($"Takeoffs / {takeoff.DrawingNumber ?? $"Takeoff #{TakeoffId}"} / Revision / Packages");
+            }
+            else
+            {
+                BreadcrumbService.SetBreadcrumb($"Takeoffs / {takeoff.DrawingNumber ?? $"Takeoff #{TakeoffId}"} / Packages");
+            }
         }
         else
         {
@@ -128,12 +145,24 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
             isLoading = true;
             StateHasChanged();
 
-            // Get all packages that have TraceDrawings with the current TakeoffId
-            packages = await DbContext.Packages
-                .Include(p => p.TraceDrawings)
-                .Where(p => !p.IsDeleted && p.TraceDrawings.Any(td => td.Id == TakeoffId))
-                .OrderBy(p => p.PackageNumber)
-                .ToListAsync();
+            if (RevisionId.HasValue)
+            {
+                // Filter by specific revision
+                packages = await DbContext.Packages
+                    .Where(p => !p.IsDeleted && p.RevisionId == RevisionId.Value)
+                    .OrderBy(p => p.PackageNumber)
+                    .ToListAsync();
+            }
+            else
+            {
+                // Show all packages for this takeoff (across all revisions)
+                packages = await DbContext.Packages
+                    .Where(p => !p.IsDeleted && p.RevisionId != null)
+                    .Where(p => DbContext.TakeoffRevisions
+                        .Any(r => r.Id == p.RevisionId && r.TakeoffId == TakeoffId))
+                    .OrderBy(p => p.PackageNumber)
+                    .ToListAsync();
+            }
 
             FilterPackages();
         }
@@ -149,6 +178,7 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
         if (string.IsNullOrEmpty(searchTerm))
         {
             filteredPackages = packages;
+            allPackages = packages;
         }
         else
         {
@@ -268,6 +298,7 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = "New",
+                    Label = "New",
                     Icon = "fas fa-plus",
                     ActionFunc = () => { CreateNew(); return Task.CompletedTask; },
                     IsDisabled = false,
@@ -329,6 +360,21 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
                 }
             }
         };
+    }
+
+    private void HandleViewLoaded(ViewState viewState)
+    {
+        // Handle loading a saved view preference
+        hasUnsavedChanges = false;
+        StateHasChanged();
+    }
+
+    private void HandleColumnsChanged(List<ColumnDefinition> columns)
+    {
+        managedColumns = columns;
+        hasUnsavedChanges = true;
+        hasCustomColumnConfig = true;
+        StateHasChanged();
     }
 
     public void Dispose()

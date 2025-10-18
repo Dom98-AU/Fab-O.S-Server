@@ -15,9 +15,12 @@ public class Package
     // NEW: Direct Order relationship (for simple quote-based packages)
     public int? OrderId { get; set; }
 
+    // NEW: Revision relationship (packages belong to a specific takeoff revision)
+    public int? RevisionId { get; set; }
+
     // NEW: Package source tracking
     [StringLength(20)]
-    public string PackageSource { get; set; } = "Project"; // Project, DirectOrder
+    public string PackageSource { get; set; } = "Project"; // Project, DirectOrder, Takeoff
 
     [Required]
     [StringLength(50)]
@@ -86,6 +89,10 @@ public class Package
     [ForeignKey("OrderId")]
     public virtual Order? Order { get; set; }
 
+    // NEW: Revision navigation property (for takeoff revision packages)
+    [ForeignKey("RevisionId")]
+    public virtual TakeoffRevision? Revision { get; set; }
+
     [ForeignKey("CreatedBy")]
     public virtual User? CreatedByUser { get; set; }
 
@@ -98,7 +105,8 @@ public class Package
     [ForeignKey("RoutingId")]
     public virtual RoutingTemplate? RoutingTemplate { get; set; }
 
-    public virtual ICollection<TraceDrawing> TraceDrawings { get; set; } = new List<TraceDrawing>();
+    // NOTE: TraceDrawings removed - use TakeoffRevision.Takeoff instead
+    // public virtual ICollection<TraceDrawing> TraceDrawings { get; set; } = new List<TraceDrawing>();
     public virtual ICollection<WeldingConnection> WeldingConnections { get; set; } = new List<WeldingConnection>();
 
     // NEW: Work orders collection (production management)

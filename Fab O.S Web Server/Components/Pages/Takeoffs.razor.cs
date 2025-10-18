@@ -5,6 +5,8 @@ using FabOS.WebServer.Components.Shared;
 using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models;
+using FabOS.WebServer.Models.Columns;
+using FabOS.WebServer.Models.ViewState;
 using ModelToolbarAction = FabOS.WebServer.Models.ToolbarAction;
 
 namespace FabOS.WebServer.Components.Pages;
@@ -23,21 +25,154 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
     private List<TraceDrawing> selectedListItems = new();
     private List<TraceDrawing> selectedCardItems = new();
 
+    // View state management
+    private ViewState? currentViewState;
+    private bool hasUnsavedChanges = false;
+    private bool hasCustomColumnConfig = false;
+    private List<ColumnDefinition> managedColumns = new();
+
 
     // Table columns configuration
     private List<GenericTableView<TraceDrawing>.TableColumn<TraceDrawing>> tableColumns = new()
     {
-        new() { Header = "Name", ValueSelector = item => item.DrawingNumber ?? item.FileName, IsSortable = true },
+        new() { Header = "Takeoff Number", ValueSelector = item => item.TakeoffNumber ?? "N/A", IsSortable = true },
+        new() { Header = "Description", ValueSelector = item => item.TraceName ?? "No description", IsSortable = true },
+        new() { Header = "Project", ValueSelector = item => item.ProjectName ?? "N/A", IsSortable = true },
+        new() { Header = "Customer", ValueSelector = item => item.Customer?.Name ?? "N/A", IsSortable = true },
         new() { Header = "Type", ValueSelector = item => item.FileType, IsSortable = true },
         new() { Header = "Status", ValueSelector = item => item.ProcessingStatus, IsSortable = true },
-        new() { Header = "Scale", ValueSelector = item => item.Scale?.ToString() ?? "N/A", IsSortable = false },
-        new() { Header = "Upload Date", ValueSelector = item => item.UploadDate.ToString("MMM dd, yyyy"), IsSortable = true }
+        new() { Header = "Created Date", ValueSelector = item => item.CreatedDate.ToString("MMM dd, yyyy"), IsSortable = true }
     };
 
+    // Missing template properties for Takeoffs.razor
+    private RenderFragment<TraceDrawing>? TableActionsTemplate => null;
+
+    private RenderFragment<TraceDrawing> ListIconTemplate => item => builder =>
+    {
+        builder.OpenElement(0, "i");
+        builder.AddAttribute(1, "class", "fas fa-drafting-compass");
+        builder.CloseElement();
+    };
+
+    private RenderFragment<TraceDrawing> ListTitleTemplate => item => builder =>
+    {
+        builder.AddContent(0, item.TakeoffNumber ?? "N/A");
+    };
+
+    private RenderFragment<TraceDrawing> ListSubtitleTemplate => item => builder =>
+    {
+        builder.AddContent(0, item.TraceName ?? "No description");
+    };
+
+    private RenderFragment<TraceDrawing> ListStatusTemplate => item => builder =>
+    {
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", $"badge bg-{(item.ProcessingStatus == "Completed" ? "success" : "secondary")}");
+        builder.AddContent(2, item.ProcessingStatus);
+        builder.CloseElement();
+    };
+
+    private RenderFragment<TraceDrawing> ListDetailsTemplate => item => builder =>
+    {
+        builder.AddContent(0, $"Project: {item.ProjectName ?? "N/A"}");
+    };
 
     protected override async Task OnInitializedAsync()
     {
+        InitializeColumns();
         await LoadTakeoffs();
+    }
+
+    private void InitializeColumns()
+    {
+        managedColumns = new List<ColumnDefinition>
+        {
+            new ColumnDefinition
+            {
+                PropertyName = "TakeoffNumber",
+                DisplayName = "Takeoff Number",
+                Type = ColumnType.Text,
+                IsVisible = true,
+                IsSortable = true,
+                IsResizable = true,
+                IsReorderable = true,
+                Width = 150,
+                Order = 0
+            },
+            new ColumnDefinition
+            {
+                PropertyName = "TraceName",
+                DisplayName = "Description",
+                Type = ColumnType.Text,
+                IsVisible = true,
+                IsSortable = true,
+                IsResizable = true,
+                IsReorderable = true,
+                Width = 250,
+                Order = 1
+            },
+            new ColumnDefinition
+            {
+                PropertyName = "ProjectName",
+                DisplayName = "Project",
+                Type = ColumnType.Text,
+                IsVisible = true,
+                IsSortable = true,
+                IsResizable = true,
+                IsReorderable = true,
+                Width = 200,
+                Order = 2
+            },
+            new ColumnDefinition
+            {
+                PropertyName = "Customer.Name",
+                DisplayName = "Customer",
+                Type = ColumnType.Text,
+                IsVisible = true,
+                IsSortable = true,
+                IsResizable = true,
+                IsReorderable = true,
+                Width = 180,
+                Order = 3
+            },
+            new ColumnDefinition
+            {
+                PropertyName = "FileType",
+                DisplayName = "Type",
+                Type = ColumnType.Text,
+                IsVisible = true,
+                IsSortable = true,
+                IsResizable = true,
+                IsReorderable = true,
+                Width = 100,
+                Order = 4
+            },
+            new ColumnDefinition
+            {
+                PropertyName = "ProcessingStatus",
+                DisplayName = "Status",
+                Type = ColumnType.Status,
+                IsVisible = true,
+                IsSortable = true,
+                IsResizable = true,
+                IsReorderable = true,
+                Width = 120,
+                Order = 5
+            },
+            new ColumnDefinition
+            {
+                PropertyName = "CreatedDate",
+                DisplayName = "Created Date",
+                Type = ColumnType.Date,
+                IsVisible = true,
+                IsSortable = true,
+                IsResizable = true,
+                IsReorderable = true,
+                Width = 150,
+                Order = 6,
+                Format = "MMM dd, yyyy"
+            }
+        };
     }
 
 
@@ -47,7 +182,9 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
         {
             isLoading = true;
             allTakeoffs = await DbContext.TraceDrawings
-                .OrderByDescending(t => t.UploadDate)
+                .Include(t => t.Customer)
+                .Include(t => t.Project)
+                .OrderByDescending(t => t.CreatedDate)
                 .ToListAsync();
 
             FilterTakeoffs();
@@ -140,6 +277,21 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
         Navigation.NavigateTo($"/takeoffs/{takeoffId}");
     }
 
+    private void HandleViewLoaded(ViewState viewState)
+    {
+        // Handle loading a saved view preference
+        hasUnsavedChanges = false;
+        StateHasChanged();
+    }
+
+    private void HandleColumnsChanged(List<ColumnDefinition> columns)
+    {
+        managedColumns = columns;
+        hasUnsavedChanges = true;
+        hasCustomColumnConfig = true;
+        StateHasChanged();
+    }
+
     private void CreateNewTakeoff()
     {
         Navigation.NavigateTo("/takeoffs/0");
@@ -153,8 +305,8 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
         {
             new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
             {
-                Label = "New Takeoff",
-                Text = "New Takeoff",
+                Label = "New",
+                Text = "New",
                 Icon = "fas fa-plus",
                 Action = EventCallback.Factory.Create(this, () => CreateNewTakeoff()),
                 IsDisabled = false,

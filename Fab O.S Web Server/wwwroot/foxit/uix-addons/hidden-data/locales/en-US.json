@@ -1,0 +1,50 @@
+{
+    "button-tooltip": {
+        "title": "Hidden Data",
+        "tooltip": "Hidden Data"
+    },
+    "sanitizeDocument": {
+        "title": "Sanitize Document",
+        "tooltip": "Sanitize Document",
+        "dialog": {
+            "title": "Sanitize Document removes metadata and other hidden data that may contain sensitive information from your PDF document. This function will remove:",
+            "content": {
+                "metadata": "Metadata",
+                "embeddedAttached": "Embedded content and attached files",
+                "scripts": "Scripts",
+                "hiddenLayers": "Hidden layers",
+                "embeddedSearchIndexes": "Embedded search indexes",
+                "storedFormData": "Stored form data",
+                "reviewComment": "Review and comment data",
+                "hiddenDataPreDocSave": "Hidden data from previous document saves",
+                "obscuredTextAndImage": "Obscured text and images",
+                "commentsHidden": "Comments hidden within the body of the PDF file",
+                "unreferencedData": "Unreferenced data",
+                "linksActionsJavascripts": "Links, actions and Javascripts",
+                "overlappingObjects": "Overlapping objects"
+            },
+            "notShowAgain": "Do not show this message again"
+        }
+    },
+    "removeHiddenInformation": {
+        "title": "Remove Hidden Information",
+        "tooltip": "Remove Hidden Information",
+        "dialog": {
+            "title": "Remove Hidden Information will search for and remove the following document information",
+            "checkboxes": {
+                "metadata": "Metadata",
+                "fileAttachments": "File attachments",
+                "bookmarks": "Bookmarks",
+                "embeddedSearchIndexes": "Embedded search index",
+                "commentsAndMarkups": "Comments and markups",
+                "formFields": "Form fields",
+                "hiddenText": "Hidden text",
+                "hiddenLayers": "Hidden layers",
+                "deletedOrCroppedContent": "Deleted or cropped content",
+                "linksActionsJavascripts": "Links, actions and Javascripts",
+                "overlappingObjects": "Overlapping objects"
+            },
+            "noCheckedAlert": "Please select at least one item to remove."
+        }
+    }
+}

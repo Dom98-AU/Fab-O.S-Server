@@ -147,6 +147,8 @@ public class TraceTakeoffDto
     public DateTime CreatedDate { get; set; }
     public DateTime? ModifiedDate { get; set; }
     public List<TraceTakeoffMeasurementDto> Measurements { get; set; } = new();
+    public int MeasurementCount { get; set; }
+    public decimal? TotalWeight { get; set; }
 }
 
 public class CreateTraceTakeoffDto
@@ -172,6 +174,8 @@ public class TraceTakeoffMeasurementDto
     public string? Label { get; set; }
     public string? Color { get; set; }
     public DateTime CreatedDate { get; set; }
+    public string? CatalogueItemCode { get; set; }
+    public string? CatalogueItemDescription { get; set; }
 }
 
 public class CreateTraceTakeoffMeasurementDto
@@ -223,6 +227,7 @@ public class CatalogueItemSummaryDto
     public string? Category { get; set; }
     public string? Unit { get; set; }
     public decimal? UnitPrice { get; set; }
+    public decimal? WeightPerUnit { get; set; }
 }
 
 // BOM DTOs (keeping the existing ones but adding missing)

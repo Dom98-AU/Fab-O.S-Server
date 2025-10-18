@@ -15,12 +15,12 @@ Define standard page types for the SteelEstimation application following Busines
 - **Mandatory StandardToolbar** with action providers following Fab.OS Toolbar Specification
 
 **Examples**:
+- Takeoffs List (`/takeoffs`) - Uses TableViewToolbar with view preferences, column management, and view switching
+- Packages List (`/packages`) - Full implementation with TableViewToolbar and generic views
+- Takeoff Packages (`/takeoffs/{id}/packages`) - Filtered list showing packages for specific takeoff
 - Customer List (`/customers`)
 - Sales Order List (`/orders`)
 - Product List (`/products`)
-- Invoice List (`/invoices`)
-- Supplier List (`/suppliers`)
-- Project List (`/projects`)
 
 **StandardToolbar Implementation**:
 All List Pages must implement the StandardToolbar component with proper IToolbarActionProvider integration. The toolbar must follow the **Fab.OS Toolbar Specification** detailed in the Fab.OS Visual Identity Guidelines document (`C:\Fab.OS Platform\Fab O.S Web-Design Architecture\fabos_visual_identity.md`), including:
@@ -37,12 +37,38 @@ See the "Toolbar Specification" section of the Fab.OS Visual Identity Guidelines
 ```
 ┌─ StandardToolbar (Fab.OS styled) ─┐
 ├─ Breadcrumb Navigation          ─┤
+├─ TableViewToolbar               ─┤
+│  ├─ Left: View Preferences      │
+│  ├─ Left: Column Manager        │
+│  ├─ Center: Results Count       │
+│  ├─ Center: Filter Info         │
+│  └─ Right: View Switcher        │
 ├─ FilterSystem Component         ─┤
-├─ GenericViewSwitcher            ─┤
-│  ├─ Table View                  │
-│  ├─ Grid View (cards)           │
-│  └─ List View (compact)         │
+│  (Inside GenericTableView)      │
+├─ GenericTableView/CardView/List ─┤
+│  ├─ Table View with columns     │
+│  ├─ Card View (grid layout)     │
+│  └─ List View (compact items)   │
 └─ Pagination                     ─┘
+```
+
+**TableViewToolbar Implementation**:
+The new unified TableViewToolbar component combines multiple view controls:
+```razor
+<TableViewToolbar TItem="TraceDrawing"
+                 EnableViewPreferences="true"
+                 EnableColumnManagement="true"
+                 EntityType="TraceDrawing"
+                 CurrentViewState="@currentViewState"
+                 OnViewLoaded="@HandleViewLoaded"
+                 HasUnsavedChanges="@hasUnsavedChanges"
+                 Columns="@managedColumns"
+                 OnColumnsChanged="@HandleColumnsChanged"
+                 HasCustomColumnConfig="@hasCustomColumnConfig"
+                 CurrentView="@currentView"
+                 OnViewChanged="@OnViewChanged"
+                 ResultsText="@($"{filteredItems.Count} items found")"
+                 FilterText="@(!string.IsNullOrEmpty(searchTerm) ? $"• Filtered by \"{searchTerm}\"" : null)" />
 ```
 
 ### 2. Card Pages
@@ -55,11 +81,13 @@ See the "Toolbar Specification" section of the Fab.OS Visual Identity Guidelines
 - Field validation and data entry
 
 **Examples**:
+- Takeoff Card (`/takeoffs/{id}`) - Detailed view of single takeoff with measurements
+- Package Card (`/packages/{id}`) - Package details with related drawings and files
 - Customer Details (`/customers/{id}`)
+- Customer Edit (`/customers/{id}/edit`) - Edit form for customer
+- Contact Edit (`/contacts/{id}/edit`) - Edit form for contact
 - Sales Order Details (`/orders/{id}`)
 - Product Details (`/products/{id}`)
-- User Profile (`/profile`)
-- Company Details (`/company/{id}`)
 
 **Layout Structure**:
 ```
@@ -106,7 +134,86 @@ See the "Toolbar Specification" section of the Fab.OS Visual Identity Guidelines
 └─ Workflow Actions                    ─┘
 ```
 
-### 4. Worksheet Pages
+### 4. Document/Viewer Pages
+**Purpose**: Specialized pages for viewing and interacting with documents
+**Characteristics**:
+- Full-screen or modal document viewing
+- Interactive tools (drawing, measuring, annotating)
+- Document-specific navigation and controls
+- Real-time collaboration features
+- Export and sharing capabilities
+
+**Examples**:
+- Takeoff PDF UI (`/takeoffs/{id}/pdf`) - Interactive PDF viewer with measurement tools
+- PDF Takeoff Viewer (`/takeoff-viewer/{id}`) - Dedicated takeoff measurement interface
+- Takeoff Drawing Manager (`/takeoffs/{id}/drawings`) - Manage multiple drawings for takeoff
+
+**Layout Structure**:
+```
+┌─ Viewer Toolbar (Tools/Actions) ─┐
+├─ Document Navigation             ─┤
+├─ Document Viewer                 ─┤
+│  ├─ Canvas/PDF Renderer          │
+│  ├─ Annotation Layer             │
+│  ├─ Measurement Tools            │
+│  └─ Zoom/Pan Controls            │
+├─ Properties Panel                ─┤
+└─ Status Bar                      ─┘
+```
+
+### 5. SharePoint Integration Pages
+**Purpose**: Manage files and folders in SharePoint from within the application
+**Characteristics**:
+- SharePoint file browser interface
+- Upload/download capabilities
+- Folder navigation with breadcrumbs
+- File operations (create, rename, delete, move)
+- Integration with SharePoint permissions
+- Multiple view modes (grid, list)
+
+**Examples**:
+- Package SharePoint Files (`/packages/{id}/sharepoint-files`) - Manage package drawings in SharePoint
+
+**Layout Structure**:
+```
+┌─ StandardToolbar (SharePoint Actions) ─┐
+├─ SharePoint Connection Status        ─┤
+├─ Upload Section                      ─┤
+│  ├─ Drawing Number Input             │
+│  ├─ Drawing Title Input              │
+│  ├─ File Selector                    │
+│  └─ Upload Button                    │
+├─ SharePointFileBrowser               ─┤
+│  ├─ Breadcrumb Navigation            │
+│  ├─ View Switcher (Grid/List)        │
+│  ├─ Folder Tree                      │
+│  └─ File/Folder Grid                 │
+└─ File Actions (Open/Download/Delete) ─┘
+```
+
+**Interface Implementation**:
+```csharp
+@implements ISharePointFilesPage<SharePointFileInfo>
+
+public interface ISharePointFilesPage<TFileInfo>
+{
+    string CurrentFolderPath { get; }
+    List<TFileInfo> SelectedFiles { get; }
+    bool HasSelectedFiles { get; }
+    bool IsAtRoot { get; }
+
+    Task NavigateToFolderAsync(string folderPath);
+    Task NavigateUpAsync();
+    Task RefreshAsync();
+    Task CreateFolderAsync(string folderName);
+    Task UploadFilesAsync();
+    Task DeleteSelectedFilesAsync();
+    void ClearSelection();
+    List<SharePointBreadcrumb> GetBreadcrumbs();
+}
+```
+
+### 6. Worksheet Pages
 **Purpose**: Data processing and batch operations on multiple records
 **Characteristics**:
 - Spreadsheet-like interface
@@ -180,21 +287,53 @@ All page types MUST include:
 #### StandardToolbar Integration
 All page types use StandardToolbar with IToolbarActionProvider:
 
-**List Pages** - Actual Working Implementation:
+**List Pages** - Actual Working Implementation with TableViewToolbar:
 ```csharp
+// In Takeoffs.razor
+<TableViewToolbar TItem="TraceDrawing"
+                 EnableViewPreferences="true"
+                 EnableColumnManagement="true"
+                 EntityType="TraceDrawing"
+                 CurrentViewState="@currentViewState"
+                 OnViewLoaded="@HandleViewLoaded"
+                 HasUnsavedChanges="@hasUnsavedChanges"
+                 Columns="@managedColumns"
+                 OnColumnsChanged="@HandleColumnsChanged"
+                 HasCustomColumnConfig="@hasCustomColumnConfig"
+                 CurrentView="@currentView"
+                 OnViewChanged="@OnViewChanged"
+                 ResultsText="@($"{filteredTakeoffs.Count} takeoff{(filteredTakeoffs.Count != 1 ? "s" : "")} found")"
+                 FilterText="@(!string.IsNullOrEmpty(searchTerm) ? $"• Filtered by \"{searchTerm}\"" : null)" />
+
+// In code-behind
 public ToolbarActionGroup GetActions() => new()
 {
     PrimaryActions = new List<ToolbarAction>
     {
-        new() { Text = "Add Product", Icon = "fas fa-plus", Action = AddProduct, Style = ToolbarActionStyle.Primary },
-        new() { Text = "Import", Icon = "fas fa-upload", Action = ImportProducts }
+        new() { Text = "New Takeoff", Icon = "fas fa-plus", Action = CreateNewTakeoff, Style = ToolbarActionStyle.Primary },
+        new() { Text = "Import", Icon = "fas fa-upload", Action = ImportTakeoffs }
     },
     MenuActions = new List<ToolbarAction>
     {
-        new() { Text = "Export", Icon = "fas fa-download", Action = ExportProducts },
-        new() { Text = "Bulk Edit", Icon = "fas fa-edit", Action = BulkEdit, RequiresSelection = true }
+        new() { Text = "Export", Icon = "fas fa-download", Action = ExportTakeoffs },
+        new() { Text = "Bulk Delete", Icon = "fas fa-trash", Action = BulkDelete, RequiresSelection = true }
     }
 };
+
+// Handler methods for TableViewToolbar
+private void HandleViewLoaded(ViewState viewState)
+{
+    hasUnsavedChanges = false;
+    StateHasChanged();
+}
+
+private void HandleColumnsChanged(List<ColumnDefinition> columns)
+{
+    managedColumns = columns;
+    hasUnsavedChanges = true;
+    hasCustomColumnConfig = true;
+    StateHasChanged();
+}
 ```
 
 **Worksheet Pages** - Actual Working Implementation:
@@ -476,32 +615,41 @@ Data Import → Worksheet → Validation → Processing → Results
 
 ### Component Usage by Page Type
 
-| Component | List Pages | Card Pages | Document Pages | Worksheet Pages |
-|-----------|------------|------------|----------------|-----------------|
-| FilterSystem | ✅ | ❌ | ❌ | ✅ |
-| StandardToolbar | ✅ | ✅ | ✅ | ✅ |
-| ColumnReorderManager | ✅ | ❌ | ❌ | ✅ |
-| **ColumnResizer** | ✅ | ❌ | ✅ (lines) | ✅ |
-| GenericViewSwitcher | ✅ | ❌ | ❌ | ✅ |
-| GenericCard/Grid/List | ✅ | ❌ | ❌ | ✅ |
-| SaveViewPreferences | ✅ | ❌ | ❌ | ✅ |
-| Form Validation | ❌ | ✅ | ✅ | ✅ |
-| DataTable | ✅ | ❌ | ✅ (lines) | ✅ |
-| StandardListPage | ✅ | ❌ | ❌ | ❌ |
-| Tab Navigation | ❌ | ✅ | ✅ | ❌ |
-| Workflow Controls | ❌ | ❌ | ✅ | ✅ |
+| Component | List Pages | Card Pages | Document Pages | Viewer Pages | SharePoint Pages | Worksheet Pages |
+|-----------|------------|------------|----------------|--------------|------------------|-----------------|
+| FilterSystem | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| StandardToolbar | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **TableViewToolbar** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| TableViewPreferences | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| TableColumnManager | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| ColumnReorderManager | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| ColumnResizer | ✅ | ❌ | ✅ (lines) | ❌ | ❌ | ✅ |
+| GenericViewSwitcher | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| GenericTableView | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| GenericCardView | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| GenericListView | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| SaveViewPreferences | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **SharePointFileBrowser** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| Form Validation | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| DataTable | ✅ | ❌ | ✅ (lines) | ❌ | ❌ | ✅ |
+| Tab Navigation | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Workflow Controls | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ |
+| **PDF Viewer** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Measurement Tools** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 
 ### State Management by Page Type
 
 #### List Pages
-- Current view mode (table/grid/list)
+- Current view mode (table/card/list)
 - Selected items
 - Filter criteria
 - Sort settings
 - Pagination state
-- **Column widths** (persisted in saved views)
-- **Column freeze positions** (left/right/none)
-- **Column order** (reorderable columns)
+- **Column widths** (persisted via TableViewPreferences)
+- **Column freeze positions** (managed by TableColumnManager)
+- **Column order** (reorderable via TableColumnManager)
+- **View state** (saved preferences via TableViewPreferences)
+- **Unsaved changes indicator**
 
 #### Card Pages  
 - Form data
@@ -516,6 +664,22 @@ Data Import → Worksheet → Validation → Processing → Results
 - Calculation results
 - Approval status
 
+#### Viewer Pages
+- Document/PDF content
+- Zoom level and pan position
+- Annotation data
+- Measurement data
+- Tool selection state
+- Layer visibility
+
+#### SharePoint Pages
+- Current folder path
+- Selected files/folders
+- Upload queue
+- SharePoint connection status
+- Breadcrumb navigation state
+- View mode (grid/list)
+
 #### Worksheet Pages
 - Worksheet data collection
 - Template selection
@@ -524,6 +688,47 @@ Data Import → Worksheet → Validation → Processing → Results
 - **Column widths** (persisted in saved views)
 - **Column freeze positions** (for spreadsheet-like interface)
 - **Column order** (customizable per user)
+
+## Current Implementation Status
+
+### Implemented Pages by Type
+
+#### List Pages (Fully Implemented with TableViewToolbar)
+- ✅ **Takeoffs** (`/takeoffs`) - Complete with TableViewToolbar, view preferences, column management
+- ✅ **Packages** (`/packages`) - Full generic view system with all three views
+- ✅ **Takeoff Packages** (`/takeoffs/{id}/packages`) - Filtered list with context
+
+#### Card Pages (Implemented)
+- ✅ **Takeoff Card** (`/takeoffs/{id}`) - Detailed takeoff information
+- ✅ **Package Card** (`/packages/{id}`) - Package details and management
+- ✅ **Customer Detail** (`/customers/{id}`) - Customer information display
+- ✅ **Customer Edit** (`/customers/{id}/edit`) - Customer form editing
+- ✅ **Contact Edit** (`/contacts/{id}/edit`) - Contact form editing
+
+#### Viewer Pages (Implemented)
+- ✅ **Takeoff PDF UI** (`/takeoffs/{id}/pdf`) - PDF viewer with measurement tools
+- ✅ **PDF Takeoff Viewer** (`/takeoff-viewer/{id}`) - Dedicated measurement interface
+- ✅ **Takeoff Drawing Manager** (`/takeoffs/{id}/drawings`) - Multi-drawing management
+
+#### SharePoint Pages (Implemented)
+- ✅ **Package SharePoint Files** (`/packages/{id}/sharepoint-files`) - Full SharePoint integration
+
+### Key Component Integration Patterns
+
+#### TableViewToolbar Integration
+All list pages now use the unified TableViewToolbar which provides:
+- **Left Section**: View Preferences button + Column Manager button
+- **Center Section**: Results count + Active filter information
+- **Right Section**: View switcher (Table/Card/List)
+
+This replaces the previous separate placement of these controls and provides a consistent, professional interface across all list pages.
+
+#### Generic View System
+The generic view components (GenericTableView, GenericCardView, GenericListView) are now fully integrated with:
+- Column management (resize, reorder, freeze)
+- View state persistence
+- Filter system integration
+- Selection management
 
 ## Migration Strategy
 

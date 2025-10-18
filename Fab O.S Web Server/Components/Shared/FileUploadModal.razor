@@ -1,0 +1,1286 @@
+@using Microsoft.AspNetCore.Components.Forms
+
+<ModalTemplate @bind-IsVisible="IsVisible"
+               Title="Upload Drawing Files"
+               ModalType="@ModalTemplate.ModalDisplayType.Fullscreen"
+               OnClose="HandleClose">
+    <ModalBody>
+        <div class="upload-modal-content">
+            @if (!ShowOcrResultsTable)
+            {
+                <!-- Split Pane Layout -->
+                <div class="upload-preview-layout">
+                    <!-- Left Sidebar - File List -->
+                    <div class="files-sidebar">
+                        <div class="sidebar-header">
+                            <h6 class="mb-0">Files (@uploadedFiles.Count)</h6>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    @onclick="TriggerFileInput"
+                                    disabled="@isProcessingBatch">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(batchProgressMessage))
+                        {
+                            <div class="batch-progress-info">
+                                <small class="text-primary">@batchProgressMessage</small>
+                            </div>
+                        }
+
+                        <div class="files-list">
+                            @if (uploadedFiles.Any())
+                            {
+                                @foreach (var file in uploadedFiles)
+                                {
+                                    <div class="file-item @(currentlySelectedFile == file ? "active" : "") @(file.Status == FileStatus.OcrProcessing ? "ocr-processing" : "")"
+                                         @onclick="() => SelectFileForPreview(file)">
+                                        <div class="file-thumbnail">
+                                            @if (!string.IsNullOrEmpty(file.ThumbnailDataUrl))
+                                            {
+                                                <img src="@file.ThumbnailDataUrl" alt="PDF thumbnail" />
+                                            }
+                                            else
+                                            {
+                                                <div class="thumbnail-placeholder">
+                                                    <i class="fas fa-file-pdf"></i>
+                                                </div>
+                                            }
+                                        </div>
+
+                                        <div class="file-info">
+                                            <div class="file-name" title="@file.File.Name">
+                                                @TruncateFileName(file.File.Name, 25)
+                                            </div>
+                                            <div class="file-details">
+                                                <span class="file-size">@FormatFileSize(file.File.Size)</span>
+                                                @if (file.Status != FileStatus.Pending)
+                                                {
+                                                    <span class="status-badge badge-@GetStatusColor(file.Status)">
+                                                        @GetStatusIcon(file.Status) @file.Status
+                                                    </span>
+                                                }
+                                            </div>
+                                            @if (file.Status == FileStatus.Uploading)
+                                            {
+                                                <div class="progress-bar-container">
+                                                    <div class="progress-bar" style="width: @(file.UploadProgress)%"></div>
+                                                </div>
+                                            }
+                                            @if (file.Status == FileStatus.OcrProcessing)
+                                            {
+                                                <div class="progress-bar-container ocr-progress">
+                                                    <div class="progress-bar" style="width: @(file.OcrProgress)%"></div>
+                                                </div>
+                                            }
+                                            @if (!string.IsNullOrEmpty(file.ErrorMessage))
+                                            {
+                                                <small class="text-danger">@file.ErrorMessage</small>
+                                            }
+                                        </div>
+
+                                        <button type="button"
+                                                class="btn-remove"
+                                                @onclick:stopPropagation="true"
+                                                @onclick="() => RemoveFile(file)"
+                                                disabled="@(isProcessingBatch || file.Status == FileStatus.Uploading || file.Status == FileStatus.OcrProcessing)">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="empty-state">
+                                    <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">No files selected</p>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Hidden file input -->
+                        <InputFile OnChange="HandleFilesSelected"
+                                   accept=".pdf"
+                                   multiple
+                                   class="file-input"
+                                   id="fileInput"
+                                   disabled="@isProcessingBatch" />
+                    </div>
+
+                    <!-- Right Pane - Preview Area -->
+                    <div class="preview-pane">
+                        @if (currentlySelectedFile != null)
+                        {
+                            <div class="preview-header">
+                                <h5 class="mb-1">
+                                    <i class="fas fa-file-pdf text-danger me-2"></i>
+                                    @currentlySelectedFile.File.Name
+                                </h5>
+                                <div class="preview-meta">
+                                    <span>Size: @FormatFileSize(currentlySelectedFile.File.Size)</span>
+                                    @if (currentlySelectedFile.OcrResult != null)
+                                    {
+                                        <span class="ms-3">
+                                            Drawing #: @currentlySelectedFile.OcrResult.DrawingNumber
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="pdf-preview-frame">
+                                @if (currentlySelectedFile.Status == FileStatus.OcrProcessing)
+                                {
+                                    <div class="ocr-overlay">
+                                        <div class="ocr-processing-indicator">
+                                            <div class="spinner-border text-primary mb-3" role="status"></div>
+                                            <h5>Analyzing Titleblock...</h5>
+                                            <p>Extracting drawing information</p>
+                                            <div class="progress mt-3" style="width: 200px;">
+                                                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                                     style="width: @(currentlySelectedFile.OcrProgress)%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+
+                                @if (!string.IsNullOrEmpty(currentlySelectedFile.PreviewDataUrl))
+                                {
+                                    <NutrientPdfViewer PackageDrawingId="0"
+                                                      PdfDataUrl="@currentlySelectedFile.PreviewDataUrl"
+                                                      OcrResult="@currentlySelectedFile.OcrResult"
+                                                      ShowOcrOverlay="true"
+                                                      OnClose="EventCallback.Empty" />
+                                }
+                                else if (string.IsNullOrEmpty(currentlySelectedFile.PreviewDataUrl) && currentlySelectedFile.Status != FileStatus.OcrProcessing)
+                                {
+                                    <div class="pdf-loading-overlay">
+                                        <div class="spinner-border text-primary mb-2" role="status"></div>
+                                        <p>Preparing PDF preview...</p>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="empty-preview">
+                                <div class="file-upload-zone @(isDragOver ? "drag-over" : "")"
+                                     @ondrop="HandleDrop"
+                                     @ondragenter="HandleDragEnter"
+                                     @ondragleave="HandleDragLeave"
+                                     @ondragover:preventDefault
+                                     @ondrop:preventDefault>
+
+                                    <label for="fileInput" class="file-upload-label">
+                                        <div class="file-prompt">
+                                            <i class="fas fa-cloud-upload-alt fa-4x mb-3 text-primary"></i>
+                                            <h4>Drop PDF files here or click to browse</h4>
+                                            <p class="text-muted">Select multiple drawing files (Maximum 250 MB per file)</p>
+                                            <button type="button" class="btn btn-primary mt-3">
+                                                <i class="fas fa-folder-open me-2"></i>
+                                                Browse Files
+                                            </button>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- OCR Results Table View -->
+                <div class="ocr-results-table-container">
+                    <div class="results-header mb-3">
+                        <h5>
+                            <i class="fas fa-clipboard-list me-2"></i>
+                            OCR Results - Review & Edit
+                        </h5>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary"
+                                @onclick="() => ShowOcrResultsTable = false">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Back to Files
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover ocr-results-table">
+                            <thead>
+                                <tr>
+                                    <th>Filename</th>
+                                    <th>Drawing Number</th>
+                                    <th>Drawing Title</th>
+                                    <th>Scale</th>
+                                    <th>Rev</th>
+                                    <th>Confidence</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var file in uploadedFiles.Where(f => f.OcrResult != null))
+                                {
+                                    <tr class="@(currentlySelectedFile == file ? "table-active" : "")"
+                                        @onclick="() => SelectFileForPreview(file)">
+                                        <td class="filename-cell">
+                                            <i class="fas fa-file-pdf text-danger me-2"></i>
+                                            @TruncateFileName(file.File.Name, 30)
+                                        </td>
+                                        <td>
+                                            <input type="text"
+                                                   class="form-control form-control-sm"
+                                                   @bind="file.OcrResult.DrawingNumber"
+                                                   @onclick:stopPropagation="true" />
+                                        </td>
+                                        <td>
+                                            <input type="text"
+                                                   class="form-control form-control-sm"
+                                                   @bind="file.OcrResult.DrawingTitle"
+                                                   @onclick:stopPropagation="true" />
+                                        </td>
+                                        <td>@file.OcrResult.Scale</td>
+                                        <td>@file.OcrResult.Revision</td>
+                                        <td>
+                                            <span class="badge confidence-@GetConfidenceColor(file.OcrResult.Confidence)">
+                                                @($"{file.OcrResult.Confidence:P0}")
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button type="button"
+                                                    class="btn btn-sm btn-link"
+                                                    title="Preview"
+                                                    @onclick:stopPropagation="true"
+                                                    @onclick="() => SelectFileForPreview(file)">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="alert alert-danger mt-3" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    @ErrorMessage
+                </div>
+            }
+        </div>
+    </ModalBody>
+
+    <ModalFooter>
+        @if (!ShowOcrResultsTable)
+        {
+            @if (uploadedFiles.Any(f => f.Status == FileStatus.Pending))
+            {
+                <!-- Upload pending files -->
+                <button type="button"
+                        class="btn btn-secondary"
+                        @onclick="HandleClose"
+                        disabled="@isProcessingBatch">
+                    Cancel
+                </button>
+                <button type="button"
+                        class="btn btn-primary"
+                        @onclick="HandleUploadAll"
+                        disabled="@(isProcessingBatch || !uploadedFiles.Any())">
+                    @if (isProcessingBatch)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Uploading...</span>
+                    }
+                    else
+                    {
+                        <i class="fas fa-upload me-2"></i>
+                        <span>Upload @uploadedFiles.Count(f => f.Status == FileStatus.Pending) File(s) to SharePoint</span>
+                    }
+                </button>
+            }
+            else if (uploadedFiles.Any(f => f.Status == FileStatus.OcrReady))
+            {
+                <!-- Run OCR on uploaded files -->
+                <button type="button"
+                        class="btn btn-secondary"
+                        @onclick="() => ShowOcrResultsTable = true"
+                        disabled="@isProcessingBatch">
+                    Skip OCR
+                </button>
+                <button type="button"
+                        class="btn btn-primary"
+                        @onclick="HandleRunOcrOnAll"
+                        disabled="@isProcessingBatch">
+                    @if (isProcessingBatch)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Processing OCR...</span>
+                    }
+                    else
+                    {
+                        <i class="fas fa-magic me-2"></i>
+                        <span>Run OCR on All Files</span>
+                    }
+                </button>
+            }
+            else if (uploadedFiles.Any(f => f.Status == FileStatus.OcrComplete))
+            {
+                <!-- OCR completed, show results -->
+                <button type="button"
+                        class="btn btn-primary"
+                        @onclick="() => ShowOcrResultsTable = true">
+                    <i class="fas fa-table me-2"></i>
+                    Review OCR Results
+                </button>
+            }
+            else
+            {
+                <!-- Default close button -->
+                <button type="button"
+                        class="btn btn-secondary"
+                        @onclick="HandleClose">
+                    Close
+                </button>
+            }
+        }
+        else
+        {
+            <!-- OCR Results Table Actions -->
+            <button type="button"
+                    class="btn btn-secondary"
+                    @onclick="HandleDiscardAll">
+                <i class="fas fa-times me-2"></i>
+                Discard
+            </button>
+            <button type="button"
+                    class="btn btn-success"
+                    @onclick="HandleSaveAllChanges">
+                <i class="fas fa-save me-2"></i>
+                Save All Changes
+            </button>
+        }
+    </ModalFooter>
+</ModalTemplate>
+
+@using FabOS.WebServer.Services.Interfaces
+@using FabOS.WebServer.Services.Implementations
+@using FabOS.WebServer.Data.Contexts
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@inject IAzureOcrService OcrService
+@inject ISharePointService SharePointService
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JS
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public EventCallback<UploadFileRequest> OnUpload { get; set; }
+    [Parameter] public EventCallback<UploadCompleteResult> OnUploadComplete { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    // Multi-file state
+    private List<UploadedFileItem> uploadedFiles = new();
+    private UploadedFileItem? currentlySelectedFile = null;
+    private bool isProcessingBatch = false;
+    private string batchProgressMessage = "";
+    private int totalFilesProcessed = 0;
+    private bool ShowOcrResultsTable = false;
+
+    // UI state
+    private bool isDragOver = false;
+    private string ErrorMessage = "";
+
+    // Data models
+    private class UploadedFileItem
+    {
+        public IBrowserFile File { get; set; } = null!;
+        public byte[]? FileData { get; set; }
+        public string ThumbnailDataUrl { get; set; } = "";
+        public string PreviewDataUrl { get; set; } = "";
+        public FileStatus Status { get; set; } = FileStatus.Pending;
+        public int? DrawingId { get; set; }
+        public OcrAnalysisResult? OcrResult { get; set; }
+        public string? ErrorMessage { get; set; }
+        public float UploadProgress { get; set; } = 0f;
+        public float OcrProgress { get; set; } = 0f;
+    }
+
+    private enum FileStatus
+    {
+        Pending,
+        Uploading,
+        Uploaded,
+        OcrReady,
+        OcrProcessing,
+        OcrComplete,
+        Error
+    }
+
+    private async Task HandleFilesSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            ErrorMessage = "";
+            var files = e.GetMultipleFiles(50); // Allow up to 50 files
+
+            foreach (var file in files)
+            {
+                // Validate file
+                if (!file.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    ErrorMessage = $"File '{file.Name}' is not a PDF file.";
+                    continue;
+                }
+
+                if (file.Size > 250 * 1024 * 1024) // 250MB limit
+                {
+                    ErrorMessage = $"File '{file.Name}' exceeds 250MB limit.";
+                    continue;
+                }
+
+                // Check if file already added
+                if (uploadedFiles.Any(f => f.File.Name == file.Name && f.File.Size == file.Size))
+                {
+                    continue;
+                }
+
+                // Add to list
+                var item = new UploadedFileItem
+                {
+                    File = file,
+                    Status = FileStatus.Pending
+                };
+
+                uploadedFiles.Add(item);
+
+                // Generate thumbnail asynchronously
+                _ = GenerateThumbnailAsync(item);
+            }
+
+            // Auto-select first file if none selected
+            if (currentlySelectedFile == null && uploadedFiles.Any())
+            {
+                await SelectFileForPreview(uploadedFiles.First());
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to process files: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private async Task GenerateThumbnailAsync(UploadedFileItem item)
+    {
+        try
+        {
+            // Read file data
+            using var stream = item.File.OpenReadStream(maxAllowedSize: 250 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+
+            item.FileData = memoryStream.ToArray();
+
+            // For thumbnail, we'll use a placeholder icon since generating actual PDF thumbnails
+            // would require additional processing
+            item.ThumbnailDataUrl = ""; // Will use CSS icon instead
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            item.ErrorMessage = $"Failed to process file: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private async Task SelectFileForPreview(UploadedFileItem item)
+    {
+        currentlySelectedFile = item;
+        ErrorMessage = ""; // Clear any previous errors
+
+        // Generate preview data URL if not already generated
+        if (string.IsNullOrEmpty(item.PreviewDataUrl))
+        {
+            // Wait for file data to be available (with timeout)
+            int attempts = 0;
+            while (item.FileData == null && attempts < 20) // Wait up to 2 seconds
+            {
+                await Task.Delay(100);
+                attempts++;
+            }
+
+            if (item.FileData != null)
+            {
+                // Generate base64 data URL for PDF preview (Nutrient viewer will load this)
+                await Task.Run(() =>
+                {
+                    var base64 = Convert.ToBase64String(item.FileData);
+                    item.PreviewDataUrl = $"data:application/pdf;base64,{base64}";
+                });
+
+                Console.WriteLine($"[FileUploadModal] Generated preview data URL for {item.File.Name}");
+                StateHasChanged();
+            }
+            else
+            {
+                ErrorMessage = "Failed to load file data for preview";
+                StateHasChanged();
+                return;
+            }
+        }
+        else
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void RemoveFile(UploadedFileItem item)
+    {
+        uploadedFiles.Remove(item);
+
+        if (currentlySelectedFile == item)
+        {
+            currentlySelectedFile = uploadedFiles.FirstOrDefault();
+        }
+
+        StateHasChanged();
+    }
+
+    private void TriggerFileInput()
+    {
+        // This will be handled by clicking the hidden file input
+        // The label in the UI is connected to the input
+    }
+
+    private async Task HandleUploadAll()
+    {
+        isProcessingBatch = true;
+        totalFilesProcessed = 0;
+        var pendingFiles = uploadedFiles.Where(f => f.Status == FileStatus.Pending).ToList();
+
+        try
+        {
+            foreach (var file in pendingFiles)
+            {
+                batchProgressMessage = $"Uploading {totalFilesProcessed + 1} of {pendingFiles.Count}: {file.File.Name}";
+                file.Status = FileStatus.Uploading;
+                StateHasChanged();
+
+                // Simulate progress
+                for (int i = 0; i <= 100; i += 20)
+                {
+                    file.UploadProgress = i;
+                    StateHasChanged();
+                    await Task.Delay(100);
+                }
+
+                try
+                {
+                    var request = new UploadFileRequest
+                    {
+                        File = file.File,
+                        FileData = file.FileData
+                    };
+
+                    await OnUpload.InvokeAsync(request);
+
+                    file.Status = FileStatus.Uploaded;
+                    file.UploadProgress = 100;
+                    totalFilesProcessed++;
+
+                    // Transition to OCR ready after short delay
+                    await Task.Delay(500);
+                    file.Status = FileStatus.OcrReady;
+                }
+                catch (Exception ex)
+                {
+                    file.Status = FileStatus.Error;
+                    file.ErrorMessage = ex.Message;
+                }
+
+                StateHasChanged();
+            }
+
+            batchProgressMessage = $"Upload complete! {totalFilesProcessed} files uploaded successfully.";
+            await Task.Delay(2000);
+            batchProgressMessage = "";
+        }
+        finally
+        {
+            isProcessingBatch = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleRunOcrOnAll()
+    {
+        isProcessingBatch = true;
+        totalFilesProcessed = 0;
+        var ocrReadyFiles = uploadedFiles.Where(f => f.Status == FileStatus.OcrReady).ToList();
+
+        try
+        {
+            foreach (var file in ocrReadyFiles)
+            {
+                batchProgressMessage = $"Running OCR {totalFilesProcessed + 1} of {ocrReadyFiles.Count}: {file.File.Name}";
+                file.Status = FileStatus.OcrProcessing;
+
+                // Select the file being processed
+                await SelectFileForPreview(file);
+                StateHasChanged();
+
+                // Simulate OCR progress
+                for (int i = 0; i <= 100; i += 25)
+                {
+                    file.OcrProgress = i;
+                    StateHasChanged();
+                    await Task.Delay(200);
+                }
+
+                try
+                {
+                    // Create memory stream from file data
+                    using var stream = new MemoryStream(file.FileData ?? Array.Empty<byte>());
+
+                    // Run OCR analysis
+                    file.OcrResult = await OcrService.AnalyzePdfTitleblock(stream, file.File.Name);
+
+                    // Set default values if OCR didn't extract them
+                    if (string.IsNullOrEmpty(file.OcrResult.DrawingNumber))
+                    {
+                        file.OcrResult.DrawingNumber = Path.GetFileNameWithoutExtension(file.File.Name);
+                    }
+
+                    file.Status = FileStatus.OcrComplete;
+                    file.OcrProgress = 100;
+                    totalFilesProcessed++;
+
+                    // OCR overlay will be automatically displayed by NutrientPdfViewer component
+                }
+                catch (Exception ex)
+                {
+                    file.Status = FileStatus.Error;
+                    file.ErrorMessage = $"OCR failed: {ex.Message}";
+                }
+
+                StateHasChanged();
+            }
+
+            batchProgressMessage = $"OCR complete! {totalFilesProcessed} files processed successfully.";
+            await Task.Delay(2000);
+            batchProgressMessage = "";
+
+            // Auto-show results table if OCR completed
+            if (totalFilesProcessed > 0)
+            {
+                ShowOcrResultsTable = true;
+            }
+        }
+        finally
+        {
+            isProcessingBatch = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleSaveAllChanges()
+    {
+        try
+        {
+            foreach (var file in uploadedFiles.Where(f => f.OcrResult != null && f.DrawingId.HasValue))
+            {
+                var drawing = await DbContext.PackageDrawings
+                    .FirstOrDefaultAsync(d => d.Id == file.DrawingId.Value);
+
+                if (drawing != null)
+                {
+                    drawing.DrawingNumber = file.OcrResult.DrawingNumber;
+                    drawing.DrawingTitle = file.OcrResult.DrawingTitle;
+                }
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            // Notify parent component
+            if (uploadedFiles.Any())
+            {
+                var firstFile = uploadedFiles.First();
+                await OnUploadComplete.InvokeAsync(new UploadCompleteResult
+                {
+                    DrawingId = firstFile.DrawingId ?? 0,
+                    DrawingNumber = firstFile.OcrResult?.DrawingNumber ?? "",
+                    DrawingTitle = firstFile.OcrResult?.DrawingTitle ?? "",
+                    OcrApplied = true
+                });
+            }
+
+            await HandleClose();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to save changes: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private void HandleDiscardAll()
+    {
+        ShowOcrResultsTable = false;
+        foreach (var file in uploadedFiles)
+        {
+            file.OcrResult = null;
+            if (file.Status == FileStatus.OcrComplete)
+            {
+                file.Status = FileStatus.OcrReady;
+            }
+        }
+        StateHasChanged();
+    }
+
+    private async Task HandleClose()
+    {
+        if (isProcessingBatch) return;
+
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(false);
+        await OnClose.InvokeAsync();
+
+        // Reset all state
+        uploadedFiles.Clear();
+        currentlySelectedFile = null;
+        isProcessingBatch = false;
+        batchProgressMessage = "";
+        totalFilesProcessed = 0;
+        ShowOcrResultsTable = false;
+        ErrorMessage = "";
+    }
+
+    private void HandleDragEnter()
+    {
+        isDragOver = true;
+    }
+
+    private void HandleDragLeave()
+    {
+        isDragOver = false;
+    }
+
+    private async Task HandleDrop(DragEventArgs e)
+    {
+        isDragOver = false;
+        // File handling in drop is limited in Blazor Server
+        // The InputFile component will handle the actual file selection
+        await Task.CompletedTask;
+    }
+
+    // Helper methods
+    private string GetStatusIcon(FileStatus status) => status switch
+    {
+        FileStatus.Uploading => "<i class='fas fa-spinner fa-spin'></i>",
+        FileStatus.Uploaded => "<i class='fas fa-check'></i>",
+        FileStatus.OcrReady => "<i class='fas fa-magic'></i>",
+        FileStatus.OcrProcessing => "<i class='fas fa-spinner fa-spin'></i>",
+        FileStatus.OcrComplete => "<i class='fas fa-check-double'></i>",
+        FileStatus.Error => "<i class='fas fa-exclamation-triangle'></i>",
+        _ => ""
+    };
+
+    private string GetStatusColor(FileStatus status) => status switch
+    {
+        FileStatus.Uploading => "info",
+        FileStatus.Uploaded => "success",
+        FileStatus.OcrReady => "warning",
+        FileStatus.OcrProcessing => "info",
+        FileStatus.OcrComplete => "success",
+        FileStatus.Error => "danger",
+        _ => "secondary"
+    };
+
+    private string GetConfidenceColor(double confidence) => confidence switch
+    {
+        >= 0.8 => "high",
+        >= 0.6 => "medium",
+        _ => "low"
+    };
+
+    private string TruncateFileName(string name, int maxLength)
+    {
+        if (name.Length <= maxLength) return name;
+
+        var extension = Path.GetExtension(name);
+        var nameWithoutExt = Path.GetFileNameWithoutExtension(name);
+
+        if (nameWithoutExt.Length > maxLength - extension.Length - 3)
+        {
+            nameWithoutExt = nameWithoutExt.Substring(0, maxLength - extension.Length - 3) + "...";
+        }
+
+        return nameWithoutExt + extension;
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        var sizes = new[] { "B", "KB", "MB", "GB" };
+        var order = 0;
+        var size = (double)bytes;
+
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+
+        return $"{size:0.##} {sizes[order]}";
+    }
+
+    // Public method for parent component to set uploaded drawing IDs
+    public void SetUploadedDrawingId(int drawingId)
+    {
+        if (currentlySelectedFile != null)
+        {
+            currentlySelectedFile.DrawingId = drawingId;
+        }
+        StateHasChanged();
+    }
+
+    public class UploadFileRequest
+    {
+        public IBrowserFile File { get; set; } = null!;
+        public byte[]? FileData { get; set; }
+    }
+
+    public class UploadCompleteResult
+    {
+        public int DrawingId { get; set; }
+        public string DrawingNumber { get; set; } = "";
+        public string DrawingTitle { get; set; } = "";
+        public bool OcrApplied { get; set; }
+    }
+}
+
+<style>
+    .upload-modal-content {
+        height: calc(100vh - 200px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Split Pane Layout */
+    .upload-preview-layout {
+        display: flex;
+        height: 100%;
+        gap: 1rem;
+    }
+
+    .files-sidebar {
+        width: 320px;
+        border: 1px solid var(--border-color, #dee2e6);
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        background: white;
+    }
+
+    .sidebar-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color, #dee2e6);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .batch-progress-info {
+        padding: 0.5rem 1rem;
+        background: #e3f2fd;
+        border-bottom: 1px solid var(--border-color, #dee2e6);
+    }
+
+    .files-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0.5rem;
+    }
+
+    .file-item {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        border: 1px solid var(--border-color, #dee2e6);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        position: relative;
+    }
+
+    .file-item:hover {
+        background: #f8f9fa;
+        border-color: var(--primary-color, #0d6efd);
+    }
+
+    .file-item.active {
+        background: #e3f2fd;
+        border-color: var(--primary-color, #0d6efd);
+        box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.1);
+    }
+
+    .file-item.ocr-processing {
+        animation: pulse 2s infinite;
+    }
+
+    @@keyframes pulse {
+        0% { background: #e3f2fd; }
+        50% { background: #bbdefb; }
+        100% { background: #e3f2fd; }
+    }
+
+    .file-thumbnail {
+        width: 40px;
+        height: 50px;
+        margin-right: 12px;
+        flex-shrink: 0;
+    }
+
+    .thumbnail-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f8f9fa;
+        border-radius: 4px;
+        color: #dc3545;
+        font-size: 1.5rem;
+    }
+
+    .file-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .file-name {
+        font-weight: 500;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .file-details {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+
+    .file-size {
+        white-space: nowrap;
+    }
+
+    .status-badge {
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        white-space: nowrap;
+    }
+
+    .badge-info { background: #cfe2ff; color: #084298; }
+    .badge-success { background: #d1f2db; color: #0a5624; }
+    .badge-warning { background: #fff3cd; color: #664d03; }
+    .badge-danger { background: #f8d7da; color: #842029; }
+    .badge-secondary { background: #e2e3e5; color: #41464b; }
+
+    .progress-bar-container {
+        margin-top: 4px;
+        height: 3px;
+        background: #e9ecef;
+        border-radius: 2px;
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: var(--primary-color, #0d6efd);
+        transition: width 0.3s;
+    }
+
+    .progress-bar-container.ocr-progress .progress-bar {
+        background: #28a745;
+    }
+
+    .btn-remove {
+        position: absolute;
+        right: 8px;
+        top: 8px;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border: none;
+        background: rgba(255, 255, 255, 0.9);
+        color: #6c757d;
+        border-radius: 50%;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+    }
+
+    .file-item:hover .btn-remove {
+        display: flex;
+    }
+
+    .btn-remove:hover {
+        background: #dc3545;
+        color: white;
+    }
+
+    /* Preview Pane */
+    .preview-pane {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--border-color, #dee2e6);
+        border-radius: 8px;
+        background: white;
+    }
+
+    .preview-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color, #dee2e6);
+    }
+
+    .preview-meta {
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+
+    .pdf-preview-frame {
+        flex: 1;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* PDF Viewer Toolbar */
+    .pdf-preview-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid var(--border-color, #dee2e6);
+        background: #f8f9fa;
+        flex-shrink: 0;
+    }
+
+    .pdf-preview-toolbar .toolbar-group {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .pdf-preview-toolbar .page-indicator {
+        padding: 0 1rem;
+        font-size: 0.875rem;
+        color: #6c757d;
+        white-space: nowrap;
+    }
+
+    /* PDF Canvas Container */
+    .pdf-canvas-container {
+        flex: 1;
+        position: relative;
+        overflow: auto;
+        background: #525659;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 1rem;
+    }
+
+    #upload-pdf-canvas {
+        display: block;
+        max-width: 100%;
+        height: auto;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        background: white;
+    }
+
+    #upload-ocr-overlay {
+        position: absolute;
+        top: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
+        pointer-events: auto; /* Changed from none to auto for interactivity */
+        z-index: 10;
+    }
+
+    /* Hide overflow to prevent scrollbars on canvas container */
+    .pdf-canvas-container::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .pdf-canvas-container::-webkit-scrollbar-track {
+        background: #3a3d40;
+    }
+
+    .pdf-canvas-container::-webkit-scrollbar-thumb {
+        background: #666;
+        border-radius: 4px;
+    }
+
+    .pdf-canvas-container::-webkit-scrollbar-thumb:hover {
+        background: #888;
+    }
+
+    .ocr-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+
+    .ocr-processing-indicator {
+        text-align: center;
+    }
+
+    .empty-preview {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+    }
+
+    /* File Upload Zone */
+    .file-upload-zone {
+        border: 2px dashed #cbd5e0;
+        border-radius: 12px;
+        padding: 4rem 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        background: #f8f9fa;
+        position: relative;
+        width: 100%;
+        max-width: 600px;
+    }
+
+    .file-upload-zone.drag-over {
+        border-color: var(--primary-color, #0d6efd);
+        background: #e3f2fd;
+    }
+
+    .file-input {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .file-upload-label {
+        cursor: pointer;
+        display: block;
+        margin: 0;
+    }
+
+    .file-upload-zone:hover {
+        border-color: var(--primary-color, #0d6efd);
+        background: #f0f7ff;
+    }
+
+    /* OCR Results Table */
+    .ocr-results-table-container {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .results-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 1rem;
+    }
+
+    .ocr-results-table {
+        margin-bottom: 0;
+    }
+
+    .ocr-results-table th {
+        font-weight: 600;
+        background: #f8f9fa;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+
+    .ocr-results-table tbody tr {
+        cursor: pointer;
+    }
+
+    .ocr-results-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+
+    .filename-cell {
+        max-width: 250px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .confidence-high { background: #d4edda; color: #155724; }
+    .confidence-medium { background: #fff3cd; color: #856404; }
+    .confidence-low { background: #f8d7da; color: #721c24; }
+
+    /* PDF Loading Overlay */
+    .pdf-loading-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 100;
+        text-align: center;
+        padding: 2rem;
+    }
+
+    /* Visibility control classes */
+    .hidden {
+        display: none !important;
+    }
+
+    .pdf-hidden {
+        visibility: hidden !important;
+    }
+
+    /* Responsive Design */
+    @@media (max-width: 992px) {
+        .upload-preview-layout {
+            flex-direction: column;
+        }
+
+        .files-sidebar {
+            width: 100%;
+            max-height: 300px;
+        }
+    }
+</style>

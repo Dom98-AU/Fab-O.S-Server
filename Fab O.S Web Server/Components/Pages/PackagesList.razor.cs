@@ -19,6 +19,10 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
     [Inject] private FabOS.WebServer.Services.BreadcrumbService BreadcrumbService { get; set; } = default!;
 
+    // Query parameters
+    [SupplyParameterFromQuery(Name = "takeoffId")]
+    public int? TakeoffId { get; set; }
+
     private List<Package> packages = new();
     private List<Package> filteredPackages = new();
     private bool isLoading = true;
@@ -44,13 +48,32 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
     // View state management
     private ViewState currentViewState = new();
     private bool hasUnsavedChanges = false;
+    private bool hasCustomColumnConfig = false;
+    private List<ColumnDefinition> managedColumns = new();
+    private List<Package> allPackages = new();
 
     protected override async Task OnInitializedAsync()
     {
-        BreadcrumbService.SetBreadcrumb("Packages");
+        UpdateBreadcrumb();
         await InitializeTableColumns();
         InitializeColumnDefinitions();
         await LoadPackages();
+    }
+
+    private void UpdateBreadcrumb()
+    {
+        if (TakeoffId.HasValue && TakeoffId.Value > 0)
+        {
+            BreadcrumbService.SetBreadcrumbs(
+                new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = "Takeoffs", Url = "/takeoffs", IsActive = false },
+                new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = $"Takeoff #{TakeoffId}", Url = $"/takeoffs/{TakeoffId}", IsActive = false },
+                new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = "Packages", Url = $"/packages?takeoffId={TakeoffId}", IsActive = true }
+            );
+        }
+        else
+        {
+            BreadcrumbService.SetBreadcrumb("Packages");
+        }
     }
 
     private async Task InitializeTableColumns()
@@ -195,11 +218,21 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
             isLoading = true;
             StateHasChanged();
 
-            packages = await DbContext.Packages
-                .Where(p => !p.IsDeleted)
+            var query = DbContext.Packages
+                .Where(p => !p.IsDeleted);
+
+            // Filter by takeoffId if provided (when Package entity has TakeoffId property)
+            // Uncomment when TakeoffId is added to Package entity
+            // if (TakeoffId.HasValue && TakeoffId.Value > 0)
+            // {
+            //     query = query.Where(p => p.TakeoffId == TakeoffId.Value);
+            // }
+
+            packages = await query
                 .OrderBy(p => p.PackageNumber)
                 .ToListAsync();
 
+            allPackages = packages;
             FilterPackages();
         }
         finally
@@ -301,7 +334,15 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
 
     private void CreateNew()
     {
-        Navigation.NavigateTo("/packages/0");
+        if (TakeoffId.HasValue && TakeoffId.Value > 0)
+        {
+            // Create new package with takeoffId pre-populated
+            Navigation.NavigateTo($"/packages/0?takeoffId={TakeoffId}");
+        }
+        else
+        {
+            Navigation.NavigateTo("/packages/0");
+        }
     }
 
     private void EditPackage()
@@ -353,10 +394,11 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = "New",
+                    Label = "New",
                     Icon = "fas fa-plus",
                     ActionFunc = () => { CreateNew(); return Task.CompletedTask; },
                     IsDisabled = false,
-                    Tooltip = "Create new package"
+                    Tooltip = TakeoffId.HasValue ? "Create new package for this takeoff" : "Create new package"
                 },
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
@@ -398,11 +440,11 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
             {
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
-                    Text = "View Takeoffs",
+                    Text = TakeoffId.HasValue ? "Back to Takeoff" : "View Takeoffs",
                     Icon = "fas fa-ruler",
-                    ActionFunc = () => { Navigation.NavigateTo("/takeoffs"); return Task.CompletedTask; },
+                    ActionFunc = () => { Navigation.NavigateTo(TakeoffId.HasValue ? $"/takeoffs/{TakeoffId}" : "/takeoffs"); return Task.CompletedTask; },
                     IsDisabled = false,
-                    Tooltip = "View all takeoffs"
+                    Tooltip = TakeoffId.HasValue ? "Go back to takeoff details" : "View all takeoffs"
                 },
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
@@ -411,6 +453,21 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
                     ActionFunc = () => { Navigation.NavigateTo("/estimations"); return Task.CompletedTask; },
                     IsDisabled = false,
                     Tooltip = "View all estimations"
+                },
+                new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+                {
+                    Text = "SharePoint Takeoff Files",
+                    Icon = "fas fa-folder-open",
+                    ActionFunc = () => {
+                        // Navigate to first selected package's SharePoint files
+                        if (selected.Any())
+                        {
+                            Navigation.NavigateTo($"/packages/{selected.First().Id}/sharepoint-files");
+                        }
+                        return Task.CompletedTask;
+                    },
+                    IsDisabled = !hasSelection,
+                    Tooltip = "View SharePoint takeoff files for selected package"
                 }
             }
         };
@@ -595,6 +652,21 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
             FilterPackages();
         }
         hasUnsavedChanges = false;
+        StateHasChanged();
+    }
+
+    private void HandleViewLoaded(ViewState viewState)
+    {
+        // Handle loading a saved view preference
+        hasUnsavedChanges = false;
+        StateHasChanged();
+    }
+
+    private void HandleColumnsChanged(List<ColumnDefinition> columns)
+    {
+        managedColumns = columns;
+        hasUnsavedChanges = true;
+        hasCustomColumnConfig = true;
         StateHasChanged();
     }
 

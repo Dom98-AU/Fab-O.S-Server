@@ -9,29 +9,8 @@
 
 <PageTitle>Packages - Fab.OS</PageTitle>
 
-<!-- Standard Toolbar with View Controls -->
-<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search packages..." PageType="PageType.List">
-    <ViewSwitcher>
-        <GenericViewSwitcher TItem="Package"
-                           CurrentView="@currentView"
-                           CurrentViewChanged="@OnViewChanged"
-                           ShowViewPreferences="false" />
-    </ViewSwitcher>
-    <ColumnManager>
-        <ColumnManagerDropdown Columns="@columnDefinitions"
-                             OnColumnsChanged="@(async (columns) => await OnColumnsChanged(columns))" />
-    </ColumnManager>
-    <FilterButton>
-        <FilterDialog TItem="Package"
-                    OnFiltersChanged="@OnFiltersChanged" />
-    </FilterButton>
-    <ViewSaving>
-        <ViewSavingDropdown EntityType="Packages"
-                          CurrentState="@currentViewState"
-                          OnViewLoaded="@(async (state) => await OnViewLoaded(state))"
-                          HasUnsavedChanges="@hasUnsavedChanges" />
-    </ViewSaving>
-</StandardToolbar>
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search packages..." />
 
 <!-- Content -->
 <div class="packages-container">
@@ -44,6 +23,20 @@
     }
     else
     {
+        <!-- Unified View Toolbar -->
+        <TableViewToolbar TItem="Package"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="Package"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
+
         <!-- Views -->
         @if (filteredPackages.Any())
         {
@@ -51,13 +44,19 @@
             {
                 <GenericTableView TItem="Package"
                                  Items="@filteredPackages"
+                                 AllItems="@allPackages"
                                  Columns="@tableColumns"
                                  AllowSelection="true"
                                  ShowCheckboxes="true"
                                  SelectedItems="@selectedTableItems"
                                  SelectedItemsChanged="@HandleTableSelectionChanged"
                                  OnRowClick="@HandleRowClick"
-                                 OnRowDoubleClick="@HandleRowDoubleClick" />
+                                 OnRowDoubleClick="@HandleRowDoubleClick"
+                                 EnableAdvancedFeatures="true"
+                                 EnableColumnManagement="true"
+                                 EnableFiltering="true"
+                                 EnableViewPreferences="true"
+                                 EntityType="Package" />
             }
             else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.Package>.ViewType.List)
             {
@@ -113,18 +112,29 @@
         {
             <div class="no-results">
                 <i class="fas fa-box"></i>
-                <h3>No packages found</h3>
-                @if (!string.IsNullOrEmpty(searchTerm))
+                @if (TakeoffId.HasValue && TakeoffId.Value > 0)
                 {
-                    <p>Try adjusting your search criteria</p>
+                    <h3>No packages for this takeoff</h3>
+                    @if (!string.IsNullOrEmpty(searchTerm))
+                    {
+                        <p>Try adjusting your search criteria</p>
+                    }
+                    else
+                    {
+                        <p>This takeoff doesn't have any packages yet. Use the 'New' button above to create a package.</p>
+                    }
                 }
                 else
                 {
-                    <p>Create your first package to get started</p>
-                    <button class="fabos-btn fabos-btn-primary" @onclick="CreateNew">
-                        <i class="fas fa-plus"></i>
-                        Create Package
-                    </button>
+                    <h3>No packages found</h3>
+                    @if (!string.IsNullOrEmpty(searchTerm))
+                    {
+                        <p>Try adjusting your search criteria</p>
+                    }
+                    else
+                    {
+                        <p>Use the 'New' button above to create your first package.</p>
+                    }
                 }
             </div>
         }

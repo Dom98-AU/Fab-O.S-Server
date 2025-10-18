@@ -66,14 +66,82 @@
     z-index: 1041;
 }
 
-/* Adjust for collapsed sidebar */
-.sidebar-collapsed .modal-fullscreen {
+/* Base adjustments for collapsed/expanded main sidebar (without catalogue) */
+body.sidebar-collapsed:not(.catalogue-sidebar-open):not(.catalogue-sidebar-expanded):not(.catalogue-sidebar-full) .modal-fullscreen {
+    left: 60px !important; /* Collapsed main sidebar only */
+}
+
+body.sidebar-expanded:not(.catalogue-sidebar-open):not(.catalogue-sidebar-expanded):not(.catalogue-sidebar-full) .modal-fullscreen {
+    left: 420px !important; /* Expanded main sidebar only */
+}
+
+/* Catalogue sidebar adjustments - UPDATED 2025-10-15 */
+/* When catalogue sidebar opens (320px) with DEFAULT main sidebar (280px) */
+body.catalogue-sidebar-open:not(.sidebar-collapsed):not(.sidebar-expanded) .modal-fullscreen {
+    left: 600px !important; /* 280px main + 320px catalogue */
+}
+
+/* When catalogue sidebar opens (320px) with COLLAPSED main sidebar (60px) */
+body.sidebar-collapsed.catalogue-sidebar-open .modal-fullscreen {
+    left: 380px !important; /* 60px main + 320px catalogue */
+}
+
+/* When catalogue sidebar opens (320px) with EXPANDED main sidebar (420px) */
+body.sidebar-expanded.catalogue-sidebar-open .modal-fullscreen {
+    left: 740px !important; /* 420px main + 320px catalogue */
+}
+
+/* When catalogue sidebar expanded (480px) with DEFAULT main sidebar */
+body.catalogue-sidebar-expanded:not(.sidebar-collapsed):not(.sidebar-expanded) .modal-fullscreen {
+    left: 760px !important; /* 280px main + 480px catalogue */
+}
+
+/* When catalogue sidebar expanded (480px) with COLLAPSED main sidebar */
+body.sidebar-collapsed.catalogue-sidebar-expanded .modal-fullscreen {
+    left: 540px !important; /* 60px main + 480px catalogue */
+}
+
+/* When catalogue sidebar expanded (480px) with EXPANDED main sidebar */
+body.sidebar-expanded.catalogue-sidebar-expanded .modal-fullscreen {
+    left: 900px !important; /* 420px main + 480px catalogue */
+}
+
+body.modal-open:not(.sidebar-collapsed):not(.sidebar-expanded).catalogue-sidebar-full .modal-fullscreen {
+    left: calc(100vw - 280px + 280px);
+}
+
+/* Modal open + collapsed main sidebar (80px) */
+body.modal-open.sidebar-collapsed .modal-fullscreen {
     left: 80px;
 }
 
-/* Adjust for expanded sidebar */
-.sidebar-expanded .modal-fullscreen {
+body.modal-open.sidebar-collapsed.catalogue-sidebar-open .modal-fullscreen {
+    left: 380px; /* 60px main + 320px catalogue */
+}
+
+body.modal-open.sidebar-collapsed.catalogue-sidebar-expanded .modal-fullscreen {
+    left: 540px; /* 60px main + 480px catalogue */
+}
+
+body.modal-open.sidebar-collapsed.catalogue-sidebar-full .modal-fullscreen {
+    left: calc(100vw - 60px + 60px);
+}
+
+/* Modal open + expanded main sidebar (440px) */
+body.modal-open.sidebar-expanded .modal-fullscreen {
     left: 440px;
+}
+
+body.modal-open.sidebar-expanded.catalogue-sidebar-open .modal-fullscreen {
+    left: 740px; /* 420px main + 320px catalogue */
+}
+
+body.modal-open.sidebar-expanded.catalogue-sidebar-expanded .modal-fullscreen {
+    left: 900px; /* 420px main + 480px catalogue */
+}
+
+body.modal-open.sidebar-expanded.catalogue-sidebar-full .modal-fullscreen {
+    left: calc(100vw - 420px + 420px);
 }
 
 /* Animations */

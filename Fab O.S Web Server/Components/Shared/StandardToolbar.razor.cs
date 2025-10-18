@@ -76,9 +76,23 @@ public partial class StandardToolbar : ComponentBase
 
     private async Task ExecuteAction(IToolbarAction action)
     {
-        if (action.Action.HasDelegate)
+        Console.WriteLine($"ExecuteAction called for: {action.Label}");
+
+        // Check if this is a ToolbarAction with ActionFunc
+        if (action is ToolbarAction toolbarAction && toolbarAction.ActionFunc != null)
         {
+            Console.WriteLine("Executing ActionFunc");
+            await toolbarAction.ActionFunc();
+        }
+        // Otherwise check for EventCallback Action
+        else if (action.Action.HasDelegate)
+        {
+            Console.WriteLine("Executing EventCallback Action");
             await action.Action.InvokeAsync();
+        }
+        else
+        {
+            Console.WriteLine("WARNING: No action handler found!");
         }
     }
 

@@ -1,6 +1,8 @@
 @inherits LayoutComponentBase
 @using FabOS.WebServer.Components.Layout
+@using FabOS.WebServer.Components.Shared
 @using FabOS.WebServer.Services
+@using System.Linq
 @inject BreadcrumbService BreadcrumbService
 @implements IDisposable
 
@@ -13,7 +15,11 @@
         <!-- Top Bar -->
         <div class="fabos-top-bar">
             <div class="fabos-breadcrumb">
-                @if (!string.IsNullOrEmpty(BreadcrumbService.CurrentBreadcrumb))
+                @if (BreadcrumbService.BreadcrumbItems.Any())
+                {
+                    <Breadcrumb Items="@BreadcrumbService.BreadcrumbItems" />
+                }
+                else if (!string.IsNullOrEmpty(BreadcrumbService.CurrentBreadcrumb))
                 {
                     <i class="fas fa-home"></i>
                     <span>Home</span>

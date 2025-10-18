@@ -46,33 +46,24 @@
             {
                 <GenericTableView TItem="TraceDrawing"
                                  Items="@filteredTakeoffs"
-                                 AllItems="@allTakeoffs"
                                  Columns="@tableColumns"
                                  AllowSelection="true"
-                                 ShowCheckboxes="true"
                                  SelectedItems="@selectedTableItems"
                                  SelectedItemsChanged="@HandleTableSelectionChanged"
                                  OnRowClick="@HandleRowClick"
                                  OnRowDoubleClick="@HandleRowDoubleClick"
-                                 EnableAdvancedFeatures="true"
-                                 EnableColumnManagement="true"
-                                 EnableFiltering="true"
-                                 EnableViewPreferences="true"
-                                 EntityType="TraceDrawing" />
+                                 ActionsTemplate="@TableActionsTemplate" />
             }
             else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.TraceDrawing>.ViewType.Card)
             {
                 <GenericCardView TItem="TraceDrawing"
                                 Items="@filteredTakeoffs"
-                                TitleSelector="@(item => item.DrawingNumber ?? item.FileName)"
-                                SubtitleSelector="@(item => $"Project: {item.ProjectId}")"
-                                DescriptionSelector="@(item => item.TraceName ?? "No description available")"
-                                ImageUrlSelector="@(item => item.ThumbnailUrl)"
+                                TitleSelector="@(item => item.TakeoffNumber ?? "N/A")"
+                                SubtitleSelector="@(item => item.TraceName ?? "No description")"
                                 StatusSelector="@(item => item.ProcessingStatus)"
-                                BadgeSelector="@(item => item.FileType)"
                                 AllowSelection="true"
                                 SelectedItems="@selectedCardItems"
-                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<TraceDrawing>>(this, HandleCardSelectionChanged))"
+                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<TraceDrawing>>(this, items => selectedCardItems = items))"
                                 OnItemClick="@(EventCallback.Factory.Create<TraceDrawing>(this, (item) => OpenTakeoff(item.Id)))"
                                 OnItemDoubleClick="@(EventCallback.Factory.Create<TraceDrawing>(this, (item) => OpenTakeoff(item.Id)))" />
             }
@@ -80,25 +71,15 @@
             {
                 <GenericListView TItem="TraceDrawing"
                                 Items="@filteredTakeoffs"
-                                OnItemClick="@HandleRowClick"
-                                OnItemDoubleClick="@HandleRowDoubleClick"
                                 AllowSelection="true"
-                                SelectedItems="@selectedListItems"
-                                SelectedItemsChanged="@HandleListSelectionChanged">
-                    <CustomListItemContent Context="takeoff">
-                        <div class="takeoff-list-item">
-                            <div class="takeoff-header">
-                                <h3 class="takeoff-title">@(takeoff.DrawingNumber ?? takeoff.FileName)</h3>
-                                <span class="takeoff-type">@takeoff.FileType</span>
-                            </div>
-                            <p class="takeoff-description">@(takeoff.TraceName ?? "No description available")</p>
-                            <div class="takeoff-meta">
-                                <span class="takeoff-status">@takeoff.ProcessingStatus</span>
-                                <span class="takeoff-date">@takeoff.UploadDate.ToString("MMM dd, yyyy")</span>
-                            </div>
-                        </div>
-                    </CustomListItemContent>
-                </GenericListView>
+                                OnSelectionChanged="@(EventCallback.Factory.Create<(TraceDrawing item, bool selected)>(this, OnSelectionChanged))"
+                                OnItemClick="@(EventCallback.Factory.Create<TraceDrawing>(this, (item) => OpenTakeoff(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<TraceDrawing>(this, (item) => OpenTakeoff(item.Id)))"
+                                ItemIcon="@ListIconTemplate"
+                                ItemTitle="@ListTitleTemplate"
+                                ItemSubtitle="@ListSubtitleTemplate"
+                                ItemStatus="@ListStatusTemplate"
+                                ItemDetails="@ListDetailsTemplate" />
             }
         }
         else

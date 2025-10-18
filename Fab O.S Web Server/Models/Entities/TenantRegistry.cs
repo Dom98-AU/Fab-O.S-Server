@@ -17,6 +17,9 @@ public class Company
     [StringLength(50)]
     public string Code { get; set; } = string.Empty;
 
+    [StringLength(50)]
+    public string? ShortName { get; set; }
+
     [Required]
     public bool IsActive { get; set; } = true;
 

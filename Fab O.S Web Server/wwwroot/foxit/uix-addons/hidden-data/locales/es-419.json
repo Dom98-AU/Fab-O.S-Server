@@ -1,0 +1,50 @@
+{
+  "button-tooltip": {
+    "title": "Datos ocultos",
+    "tooltip": "Datos ocultos"
+  },
+  "sanitizeDocument": {
+    "title": "Corregir documento",
+    "tooltip": "Corregir documento",
+    "dialog": {
+      "title": "Corregir documento elimina metadatos y otros datos ocultos que pueden contener información confidencial del documento PDF. La función eliminará:",
+      "content": {
+        "metadata": "Metadatos",
+        "embeddedAttached": "Contenido integrado y archivos adjuntos",
+        "scripts": "Guiones",
+        "hiddenLayers": "Capas ocultas",
+        "embeddedSearchIndexes": "Índices de búsqueda integrados",
+        "storedFormData": "Datos de formulario almacenados",
+        "reviewComment": "Datos de comentarios y revisiones",
+        "hiddenDataPreDocSave": "Datos ocultos de los guardados de documentos anteriores",
+        "obscuredTextAndImage": "Eliminando imágenes y texto oscuros",
+        "commentsHidden": "Comentarios ocultos dentro del cuerpo del archivo PDF",
+        "unreferencedData": "Datos sin referencia",
+        "linksActionsJavascripts": "Vínculos, acciones y JavaScript",
+        "overlappingObjects": "Objetos superpuestos"
+      },
+      "notShowAgain": "No volver a mostrar este mensaje"
+    }
+  },
+  "removeHiddenInformation": {
+    "title": "Eliminar información oculta",
+    "tooltip": "Eliminar información oculta",
+    "dialog": {
+      "title": "La opción Eliminar información oculta buscará y eliminará la siguiente información del documento",
+      "checkboxes": {
+        "metadata": "Metadatos",
+        "fileAttachments": "Archivos adjuntos",
+        "bookmarks": "Marcadores",
+        "embeddedSearchIndexes": "Índice de búsqueda integrado",
+        "commentsAndMarkups": "Comentarios y marcado",
+        "formFields": "Campos del formulario",
+        "hiddenText": "Texto oculto",
+        "hiddenLayers": "Capas ocultas",
+        "deletedOrCroppedContent": "Contenido eliminado o recortado",
+        "linksActionsJavascripts": "Vínculos, acciones y JavaScript",
+        "overlappingObjects": "Objetos superpuestos"
+      },
+      "noCheckedAlert": "Seleccione al menos un elemento para eliminar."
+    }
+  }
+}

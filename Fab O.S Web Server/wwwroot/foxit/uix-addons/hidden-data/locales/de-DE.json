@@ -1,0 +1,50 @@
+{
+  "button-tooltip": {
+    "title": "Ausgeblendete Daten",
+    "tooltip": "Ausgeblendete Daten"
+  },
+  "sanitizeDocument": {
+    "title": "Dokument bereinigen",
+    "tooltip": "Dokument bereinigen",
+    "dialog": {
+      "title": "Beim Bereinigen des Dokuments werden Metadaten oder ausgeblendete Daten entfernt, die möglicherweise vertrauliche Informationen aus Ihrem PDF-Dokument enthalten. Diese Funktion entfernt:",
+      "content": {
+        "metadata": "Metadaten",
+        "embeddedAttached": "Eingebettete Inhalte und angehängte Dateien",
+        "scripts": "Skripte",
+        "hiddenLayers": "Ausgeblendete Ebenen",
+        "embeddedSearchIndexes": "Eingebettete Suchindizes",
+        "storedFormData": "Gespeicherte Formulardaten",
+        "reviewComment": "Daten überprüfen und kommentieren",
+        "hiddenDataPreDocSave": "Ausgeblendete Daten aus vorherigen Dokumentspeichervorgängen",
+        "obscuredTextAndImage": "Veralteter Text und Bilder",
+        "commentsHidden": "In der PDF-Datei ausgeblendete Kommentare",
+        "unreferencedData": "Nicht referenzierte Daten",
+        "linksActionsJavascripts": "Links, Aktionen und Javascripts",
+        "overlappingObjects": "Überlappende Objekte"
+      },
+      "notShowAgain": "Diese Meldung nicht mehr anzeigen"
+    }
+  },
+  "removeHiddenInformation": {
+    "title": "Ausgeblendete Informationen entfernen",
+    "tooltip": "Ausgeblendete Informationen entfernen",
+    "dialog": {
+      "title": "\"Ausgeblendete Informationen entfernen\" sucht und entfernt die folgenden Dokumentinformationen",
+      "checkboxes": {
+        "metadata": "Metadaten",
+        "fileAttachments": "Dateianhänge",
+        "bookmarks": "Lesezeichen",
+        "embeddedSearchIndexes": "Eingebetteter Suchindex",
+        "commentsAndMarkups": "Kommentare und Markierungen",
+        "formFields": "Formularfelder",
+        "hiddenText": "Ausgeblendeter Text",
+        "hiddenLayers": "Ausgeblendete Ebenen",
+        "deletedOrCroppedContent": "Gelöschter oder zugeschnittener Inhalt",
+        "linksActionsJavascripts": "Links, Aktionen und Javascripts",
+        "overlappingObjects": "Überlappende Objekte"
+      },
+      "noCheckedAlert": "Wählen Sie mindestens ein zu entfernendes Element aus."
+    }
+  }
+}

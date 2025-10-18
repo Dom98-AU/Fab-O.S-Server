@@ -26,6 +26,10 @@
         <div class="content-header">
             <div class="results-summary">
                 <span class="results-count">@filteredContacts.Count contact@(filteredContacts.Count != 1 ? "s" : "") found</span>
+                @if (filterCustomer != null)
+                {
+                    <span class="search-filter">• For customer: <strong>@filterCustomer.Name</strong></span>
+                }
                 @if (!string.IsNullOrEmpty(searchTerm))
                 {
                     <span class="search-filter">• Filtered by "@searchTerm"</span>

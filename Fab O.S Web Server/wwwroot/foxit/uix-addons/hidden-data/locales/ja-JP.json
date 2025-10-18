@@ -1,0 +1,50 @@
+{
+  "button-tooltip": {
+    "title": "非表示情報",
+    "tooltip": "非表示情報"
+  },
+  "sanitizeDocument": {
+    "title": "非表示情報を一括削除",
+    "tooltip": "非表示情報を一括で削除",
+    "dialog": {
+      "title": "非表示情報を一括削除することで、PDF 文書からメタデータ、および機密情報が含まれる可能性のある非表示のデータを一括で削除します。以下が削除されます:",
+      "content": {
+        "metadata": "メタデータ",
+        "embeddedAttached": "埋め込まれたコンテンツおよび添付ファイル",
+        "scripts": "スクリプト",
+        "hiddenLayers": "非表示のレイヤー",
+        "embeddedSearchIndexes": "埋め込まれた検索用インデックス",
+        "storedFormData": "保存されたフォームデータ",
+        "reviewComment": "レビューおよび注釈データ",
+        "hiddenDataPreDocSave": "以前の文書から保存された非表示データ",
+        "obscuredTextAndImage": "不明瞭なテキストおよび画像",
+        "commentsHidden": "PDF ファイル内の非表示の注釈",
+        "unreferencedData": "参照されないデータ",
+        "linksActionsJavascripts": "リンク、アクションおよび Javascript",
+        "overlappingObjects": "重なり合うオブジェクト"
+      },
+      "notShowAgain": "今後このメッセージを表示しない"
+    }
+  },
+  "removeHiddenInformation": {
+    "title": "非表示情報を選択削除",
+    "tooltip": "非表示情報を選択して削除",
+    "dialog": {
+      "title": "非表示情報の削除を実行することで、以下の文書の情報を削除します。",
+      "checkboxes": {
+        "metadata": "メタデータ",
+        "fileAttachments": "添付ファイル",
+        "bookmarks": "しおり",
+        "embeddedSearchIndexes": "埋め込まれた検索用インデックス",
+        "commentsAndMarkups": "注釈およびマークアップ",
+        "formFields": "フォームフィールド",
+        "hiddenText": "非表示のテキスト",
+        "hiddenLayers": "非表示のレイヤー",
+        "deletedOrCroppedContent": "削除された、または破損したコンテンツ",
+        "linksActionsJavascripts": "リンク、アクションおよび Javascript",
+        "overlappingObjects": "重なり合うオブジェクト"
+      },
+      "noCheckedAlert": "削除する項目を少なくとも 1 つ選択してください。"
+    }
+  }
+}

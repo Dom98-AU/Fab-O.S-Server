@@ -1,0 +1,11 @@
+{
+  "ribbon": {
+    "text": "Formular zu Tabelle"
+  },
+  "button-tooltip": {
+    "title": "Formulardaten in Kalkulationstabelle exportieren"
+  },
+  "export": {
+    "existing": "An vorhandenes Blatt anhängen"
+  }
+}

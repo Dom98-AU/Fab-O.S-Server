@@ -15,7 +15,8 @@ public class TraceDrawing
     [Required]
     public int ProjectId { get; set; }
 
-    public int? PackageId { get; set; }
+    [StringLength(50)]
+    public string? TakeoffNumber { get; set; }
 
     [StringLength(100)]
     public string? DrawingNumber { get; set; }
@@ -89,6 +90,11 @@ public class TraceDrawing
     // Contact relationship
     public int? ContactId { get; set; }
 
+
+    // Contact Person
+    [StringLength(200)]
+    public string? ContactPerson { get; set; }
+
     // OCR Enhancement Properties
     [StringLength(200)]
     public string? TraceName { get; set; }
@@ -105,8 +111,15 @@ public class TraceDrawing
 
     public int? OcrConfidence { get; set; }
 
-    [StringLength(50)]
-    public string? ProjectNumber { get; set; }
+    // ProjectNumber removed as per requirements
+    // [StringLength(50)]
+    // public string? ProjectNumber { get; set; }
+
+    [StringLength(200)]
+    public string? ProjectArchitect { get; set; }
+
+    [StringLength(200)]
+    public string? ProjectEngineer { get; set; }
 
     // Convenience property for UI compatibility
     [NotMapped]
@@ -119,15 +132,13 @@ public class TraceDrawing
     [ForeignKey("ProjectId")]
     public virtual Project Project { get; set; } = null!;
 
-    [ForeignKey("PackageId")]
-    public virtual Package? Package { get; set; }
-
     [ForeignKey("CustomerId")]
     public virtual Customer? Customer { get; set; }
 
     [ForeignKey("UploadedBy")]
     public virtual User UploadedByUser { get; set; } = null!;
 
+    public virtual ICollection<TakeoffRevision> Revisions { get; set; } = new List<TakeoffRevision>();
     public virtual ICollection<TraceMeasurement> TraceMeasurements { get; set; } = new List<TraceMeasurement>();
     public virtual ICollection<TraceBeamDetection> TraceBeamDetections { get; set; } = new List<TraceBeamDetection>();
     public virtual ICollection<TraceTakeoffItem> TraceTakeoffItems { get; set; } = new List<TraceTakeoffItem>();
@@ -177,15 +188,12 @@ public class WeldingConnection
     [Required]
     public DateTime LastModified { get; set; } = DateTime.UtcNow;
 
-    public int? PackageId { get; set; }
-
     [Required]
     [StringLength(20)]
     public string Size { get; set; } = "Small";
 
     // Navigation properties
-    [ForeignKey("PackageId")]
-    public virtual Package? Package { get; set; }
+    // Note: PackageId removed - replaced with TakeoffRevision system
 }
 
 [Table("TraceMeasurements")]

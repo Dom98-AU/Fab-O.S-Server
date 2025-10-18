@@ -1,0 +1,16 @@
+{
+  "ribbon": {
+    "text": "Export"
+  },
+  "button-tooltip": {
+    "title": "Export Form Data"
+  },
+  "export": {
+    "xml": "To a XML File",
+    "fdf": "To a FDF File",
+    "xfdf": "To a XFDF File",
+    "csv": "To a CSV File",
+    "txt": "To a TXT File",
+    "xdp": "To a XDP File"
+  }
+}

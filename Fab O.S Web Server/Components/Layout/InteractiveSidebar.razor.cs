@@ -6,6 +6,7 @@ namespace FabOS.WebServer.Components.Layout;
 public partial class InteractiveSidebar : ComponentBase
 {
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     private bool IsCollapsed = false;
     private bool IsExpanded = false;
@@ -13,6 +14,7 @@ public partial class InteractiveSidebar : ComponentBase
     private bool ShowModuleSelector = false;
     private string CurrentModule = "Trace";
     private string SearchTerm = "";
+    private bool HasAdminPermissions = true; // TODO: Get from auth service
 
     private class NavItem
     {
@@ -186,5 +188,18 @@ public partial class InteractiveSidebar : ComponentBase
         {
             // Ignore JavaScript errors during component disposal or when JS isn't available
         }
+    }
+
+    private void NavigateToModuleSettings()
+    {
+        ShowModuleSelector = false;
+        var moduleUrl = CurrentModule.ToLower();
+        NavigationManager.NavigateTo($"/settings/{moduleUrl}");
+    }
+
+    private void NavigateToGlobalSettings()
+    {
+        ShowModuleSelector = false;
+        NavigationManager.NavigateTo("/settings/global");
     }
 }

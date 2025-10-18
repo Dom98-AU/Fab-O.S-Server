@@ -1,0 +1,16 @@
+{
+  "ribbon": {
+    "text": "导出"
+  },
+  "button-tooltip": {
+    "title": "导出表单数据"
+  },
+  "export": {
+    "xml": "到XML文件",
+    "fdf": "到FDF文件",
+    "xfdf": "到XFDF文件",
+    "csv": "到CSV文件",
+    "txt": "到TXT文件",
+    "xdp": "到XDP文件"
+  }
+}

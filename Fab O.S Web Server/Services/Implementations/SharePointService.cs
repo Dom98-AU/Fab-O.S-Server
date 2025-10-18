@@ -8,30 +8,81 @@ using FabOS.WebServer.Data.Contexts;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 using Azure.Identity;
+using FabOS.WebServer.Models.Entities;
 
 namespace FabOS.WebServer.Services.Implementations;
 
 /// <summary>
-/// Implementation of SharePoint operations using Microsoft Graph
+/// Implementation of SharePoint operations using Microsoft Graph with multi-tenant support
 /// </summary>
 public class SharePointService : ISharePointService
 {
-    private readonly SharePointSettings _settings;
     private readonly ILogger<SharePointService> _logger;
     private readonly ApplicationDbContext _dbContext;
     private readonly IConfiguration _configuration;
+    private readonly ITenantService _tenantService;
     private GraphServiceClient? _graphClient;
+    private SharePointSettings? _currentTenantSettings;
+    private int? _lastLoadedCompanyId;
 
     public SharePointService(
-        IOptions<SharePointSettings> settings,
         ILogger<SharePointService> logger,
         ApplicationDbContext dbContext,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ITenantService tenantService)
     {
-        _settings = settings.Value;
         _logger = logger;
         _dbContext = dbContext;
         _configuration = configuration;
+        _tenantService = tenantService;
+    }
+
+    /// <summary>
+    /// Gets or loads the current tenant's SharePoint settings
+    /// </summary>
+    private async Task<SharePointSettings?> GetCurrentTenantSettingsAsync()
+    {
+        var companyId = _tenantService.GetCurrentCompanyId();
+
+        // Check if we already have the settings for the current company loaded
+        if (_currentTenantSettings != null && _lastLoadedCompanyId == companyId)
+        {
+            return _currentTenantSettings;
+        }
+
+        // Load settings from database for the current tenant
+        var tenantSettings = await _dbContext.CompanySharePointSettings
+            .FirstOrDefaultAsync(s => s.CompanyId == companyId);
+
+        if (tenantSettings == null)
+        {
+            _logger.LogInformation("No SharePoint settings found for company {CompanyId}", companyId);
+            _currentTenantSettings = null;
+            _lastLoadedCompanyId = companyId;
+            return null;
+        }
+
+        // Convert to SharePointSettings object
+        _currentTenantSettings = new SharePointSettings
+        {
+            TenantId = tenantSettings.TenantId,
+            ClientId = tenantSettings.ClientId,
+            ClientSecret = tenantSettings.ClientSecret,
+            SiteUrl = tenantSettings.SiteUrl,
+            DocumentLibrary = tenantSettings.DocumentLibrary,
+            TakeoffsRootFolder = tenantSettings.TakeoffsRootFolder,
+            IsEnabled = tenantSettings.IsEnabled,
+            UseMockData = tenantSettings.UseMockData,
+            MaxFileSizeMB = tenantSettings.MaxFileSizeMB
+        };
+
+        _lastLoadedCompanyId = companyId;
+        _graphClient = null; // Reset graph client when tenant changes
+
+        _logger.LogInformation("SharePoint settings loaded for company {CompanyId}. IsEnabled: {IsEnabled}, UseMockData: {UseMockData}",
+            companyId, tenantSettings.IsEnabled, tenantSettings.UseMockData);
+
+        return _currentTenantSettings;
     }
 
     private async Task<GraphServiceClient> GetGraphClientAsync()
@@ -39,53 +90,75 @@ public class SharePointService : ISharePointService
         if (_graphClient != null)
             return _graphClient;
 
-        if (!_settings.IsValid())
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null || !settings.IsValid())
         {
-            throw new InvalidOperationException("SharePoint is not properly configured");
+            throw new InvalidOperationException($"SharePoint is not properly configured for company {_tenantService.GetCurrentCompanyId()}");
         }
 
         var clientSecretCredential = new ClientSecretCredential(
-            _settings.TenantId,
-            _settings.ClientId,
-            _settings.ClientSecret);
+            settings.TenantId,
+            settings.ClientId,
+            settings.ClientSecret);
 
         _graphClient = new GraphServiceClient(clientSecretCredential);
         return _graphClient;
     }
 
+    public async Task<CompanySharePointSettings?> GetSettingsForTenantAsync(int companyId)
+    {
+        return await _dbContext.CompanySharePointSettings
+            .Include(s => s.Company)
+            .FirstOrDefaultAsync(s => s.CompanyId == companyId);
+    }
+
+    public async Task<bool> IsTenantConfiguredAsync()
+    {
+        var companyId = _tenantService.GetCurrentCompanyId();
+        return await _dbContext.CompanySharePointSettings
+            .AnyAsync(s => s.CompanyId == companyId && s.IsEnabled);
+    }
+
     public async Task<SharePointConnectionStatus> GetConnectionStatusAsync()
     {
-        var status = new SharePointConnectionStatus
-        {
-            IsConfigured = _settings.IsValid()
-        };
+        var status = new SharePointConnectionStatus();
+        var settings = await GetCurrentTenantSettingsAsync();
 
-        if (!status.IsConfigured)
+        if (settings == null)
         {
-            status.ErrorMessage = "SharePoint is not configured. Please complete the setup.";
+            status.IsConfigured = false;
+            status.ErrorMessage = $"SharePoint is not configured for company {_tenantService.GetCurrentCompanyId()}. Please complete the setup.";
             return status;
         }
 
-        if (_settings.UseMockData)
+        status.IsConfigured = settings.IsValid();
+
+        if (!status.IsConfigured)
+        {
+            status.ErrorMessage = "SharePoint configuration is incomplete. Please complete the setup.";
+            return status;
+        }
+
+        if (settings.UseMockData)
         {
             status.IsConnected = true;
             status.SiteName = "Mock SharePoint Site";
-            status.LibraryName = _settings.DocumentLibrary;
+            status.LibraryName = settings.DocumentLibrary;
             return status;
         }
 
         try
         {
             var client = await GetGraphClientAsync();
-            var site = await client.Sites[_settings.GetSiteId()].GetAsync();
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
 
             status.IsConnected = site != null;
             status.SiteName = site?.DisplayName ?? site?.Name;
-            status.LibraryName = _settings.DocumentLibrary;
+            status.LibraryName = settings.DocumentLibrary;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to connect to SharePoint");
+            _logger.LogError(ex, "Failed to connect to SharePoint for company {CompanyId}", _tenantService.GetCurrentCompanyId());
             status.IsConnected = false;
             status.ErrorMessage = $"Connection failed: {ex.Message}";
         }
@@ -97,14 +170,10 @@ public class SharePointService : ISharePointService
     {
         try
         {
-            // Update configuration in memory
-            _configuration["SharePoint:TenantId"] = tenantId;
-            _configuration["SharePoint:ClientId"] = clientId;
-            _configuration["SharePoint:ClientSecret"] = clientSecret;
-            _configuration["SharePoint:SiteUrl"] = siteUrl;
-            _configuration["SharePoint:IsEnabled"] = "true";
+            var companyId = _tenantService.GetCurrentCompanyId();
+            var userId = _tenantService.GetCurrentUserId();
 
-            // Test the connection
+            // Test the connection first
             var testSettings = new SharePointSettings
             {
                 TenantId = tenantId,
@@ -127,629 +196,707 @@ public class SharePointService : ISharePointService
                 throw new Exception("Unable to access SharePoint site");
             }
 
-            // Save to database for persistence
-            // TODO: Implement secure storage in database
+            // Check if settings already exist for this company
+            var existingSettings = await _dbContext.CompanySharePointSettings
+                .FirstOrDefaultAsync(s => s.CompanyId == companyId);
 
-            _logger.LogInformation("SharePoint configured successfully for site: {SiteName}", site.DisplayName);
+            if (existingSettings != null)
+            {
+                // Update existing settings
+                existingSettings.TenantId = tenantId;
+                existingSettings.ClientId = clientId;
+                existingSettings.ClientSecret = clientSecret;
+                existingSettings.SiteUrl = siteUrl;
+                existingSettings.IsEnabled = true;
+                existingSettings.UseMockData = false;
+                existingSettings.IsClientSecretEncrypted = true; // Mark for encryption
+                existingSettings.LastModifiedDate = DateTime.UtcNow;
+                existingSettings.LastModifiedByUserId = userId;
+            }
+            else
+            {
+                // Create new settings
+                var newSettings = new CompanySharePointSettings
+                {
+                    CompanyId = companyId,
+                    TenantId = tenantId,
+                    ClientId = clientId,
+                    ClientSecret = clientSecret,
+                    SiteUrl = siteUrl,
+                    DocumentLibrary = "Takeoff Files",
+                    TakeoffsRootFolder = "Takeoffs",
+                    IsEnabled = true,
+                    UseMockData = false,
+                    MaxFileSizeMB = 250,
+                    IsClientSecretEncrypted = true,
+                    CreatedDate = DateTime.UtcNow,
+                    LastModifiedDate = DateTime.UtcNow,
+                    CreatedByUserId = userId,
+                    LastModifiedByUserId = userId
+                };
+
+                _dbContext.CompanySharePointSettings.Add(newSettings);
+            }
+
+            await _dbContext.SaveChangesAsync();
+
+            // Reset cached settings to force reload
+            _currentTenantSettings = null;
+            _graphClient = null;
+
+            _logger.LogInformation("SharePoint configured successfully for company {CompanyId}, site: {SiteName}",
+                companyId, site.DisplayName);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to configure SharePoint");
+            _logger.LogError(ex, "Failed to configure SharePoint for company {CompanyId}", _tenantService.GetCurrentCompanyId());
             return false;
+        }
+    }
+
+    public async Task<DocumentLibraryCheckResult> CheckDocumentLibraryAsync()
+    {
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
+        {
+            return new DocumentLibraryCheckResult
+            {
+                Exists = false,
+                Message = $"SharePoint not configured for company {_tenantService.GetCurrentCompanyId()}",
+                LibraryName = "Unknown"
+            };
+        }
+
+        if (settings.UseMockData)
+        {
+            _logger.LogInformation("Mock mode: Document library exists");
+            return new DocumentLibraryCheckResult
+            {
+                Exists = true,
+                Message = "Mock mode - library simulation active",
+                LibraryName = settings.DocumentLibrary
+            };
+        }
+
+        try
+        {
+            var client = await GetGraphClientAsync();
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
+
+            if (site?.Id == null)
+            {
+                return new DocumentLibraryCheckResult
+                {
+                    Exists = false,
+                    Message = "Unable to access SharePoint site. Please check your connection settings.",
+                    LibraryName = settings.DocumentLibrary
+                };
+            }
+
+            // Check if document library already exists
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var existingDrive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
+
+            if (existingDrive != null)
+            {
+                _logger.LogInformation("Document library '{LibraryName}' already exists for company {CompanyId}",
+                    settings.DocumentLibrary, _tenantService.GetCurrentCompanyId());
+                return new DocumentLibraryCheckResult
+                {
+                    Exists = true,
+                    Message = $"Document library '{settings.DocumentLibrary}' is accessible and ready",
+                    LibraryName = settings.DocumentLibrary
+                };
+            }
+
+            // Note: Creating a new document library requires SharePoint admin permissions
+            // and is typically done through SharePoint admin center or PowerShell
+            _logger.LogWarning("Document library '{LibraryName}' does not exist. Please create it manually in SharePoint.",
+                settings.DocumentLibrary);
+            return new DocumentLibraryCheckResult
+            {
+                Exists = false,
+                Message = $"Document library '{settings.DocumentLibrary}' does not exist. It must be created manually in SharePoint by an administrator.",
+                LibraryName = settings.DocumentLibrary,
+                CanCreate = false
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to check document library for company {CompanyId}",
+                _tenantService.GetCurrentCompanyId());
+            return new DocumentLibraryCheckResult
+            {
+                Exists = false,
+                Message = $"Error checking library: {ex.Message}",
+                LibraryName = settings.DocumentLibrary
+            };
+        }
+    }
+
+    [Obsolete("Use CheckDocumentLibraryAsync instead - libraries cannot be created programmatically")]
+    public async Task<bool> EnsureDocumentLibraryExistsAsync()
+    {
+        var result = await CheckDocumentLibraryAsync();
+        return result.Exists;
+    }
+
+    public async Task<SharePointFolderInfo> EnsureTakeoffFolderExistsAsync(string takeoffNumber, string revisionCode = "A")
+    {
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
+        {
+            throw new InvalidOperationException($"SharePoint not configured for company {_tenantService.GetCurrentCompanyId()}");
+        }
+
+        if (settings.UseMockData)
+        {
+            return CreateMockFolderInfo(takeoffNumber, revisionCode);
+        }
+
+        try
+        {
+            var client = await GetGraphClientAsync();
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
+
+            if (site?.Id == null)
+            {
+                throw new InvalidOperationException("Unable to get SharePoint site");
+            }
+
+            // Get the document library drive
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
+
+            if (drive?.Id == null)
+            {
+                throw new InvalidOperationException($"Document library '{settings.DocumentLibrary}' not found");
+            }
+
+            // Build the folder path
+            var folderPath = $"{settings.TakeoffsRootFolder}/{takeoffNumber}/{revisionCode}";
+
+            // Try to get the folder first
+            try
+            {
+                var existingFolder = await client.Drives[drive.Id].Root
+                    .ItemWithPath(folderPath)
+                    .GetAsync();
+
+                if (existingFolder != null)
+                {
+                    return new SharePointFolderInfo
+                    {
+                        Id = existingFolder.Id ?? string.Empty,
+                        Name = existingFolder.Name ?? takeoffNumber,
+                        WebUrl = existingFolder.WebUrl ?? string.Empty,
+                        Path = folderPath,
+                        CreatedDateTime = existingFolder.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
+                        RevisionCode = revisionCode
+                    };
+                }
+            }
+            catch
+            {
+                // Folder doesn't exist, create it
+            }
+
+            // Create the folder hierarchy
+            var createdFolder = await CreateFolderHierarchyAsync(client, drive.Id, folderPath);
+
+            return new SharePointFolderInfo
+            {
+                Id = createdFolder.Id ?? string.Empty,
+                Name = createdFolder.Name ?? takeoffNumber,
+                WebUrl = createdFolder.WebUrl ?? string.Empty,
+                Path = folderPath,
+                CreatedDateTime = createdFolder.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
+                RevisionCode = revisionCode
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to ensure takeoff folder exists for {TakeoffNumber} in company {CompanyId}",
+                takeoffNumber, _tenantService.GetCurrentCompanyId());
+            throw;
         }
     }
 
     public async Task<bool> TakeoffFolderExistsAsync(string takeoffNumber)
     {
-        if (_settings.UseMockData)
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
         {
-            // Mock: Return true for even-numbered takeoffs, false for odd
-            return int.TryParse(takeoffNumber.Replace("T-", ""), out var num) && num % 2 == 0;
+            return false;
+        }
+
+        if (settings.UseMockData)
+        {
+            return true;
         }
 
         try
         {
             var client = await GetGraphClientAsync();
-            var path = $"{_settings.TakeoffsRootFolder}/Takeoff-{takeoffNumber}";
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
 
-            var drive = await GetDocumentLibraryDriveAsync(client);
-            var folder = await client.Drives[drive.Id]
-                .Root
-                .ItemWithPath(path)
-                .GetAsync();
+            if (site?.Id == null)
+                return false;
 
-            return folder != null;
-        }
-        catch (ServiceException ex) when (ex.ResponseStatusCode == 404)
-        {
-            return false;
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
+
+            if (drive?.Id == null)
+                return false;
+
+            var folderPath = $"{settings.TakeoffsRootFolder}/{takeoffNumber}";
+
+            try
+            {
+                var folder = await client.Drives[drive.Id].Root
+                    .ItemWithPath(folderPath)
+                    .GetAsync();
+
+                return folder != null;
+            }
+            catch
+            {
+                return false;
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking if takeoff folder exists for {TakeoffNumber}", takeoffNumber);
-            throw;
+            _logger.LogError(ex, "Failed to check if takeoff folder exists for {TakeoffNumber} in company {CompanyId}",
+                takeoffNumber, _tenantService.GetCurrentCompanyId());
+            return false;
         }
     }
 
     public async Task<SharePointFolderInfo> CreateTakeoffFolderAsync(string takeoffNumber, string revisionCode = "A")
     {
-        if (_settings.UseMockData)
-        {
-            return new SharePointFolderInfo
-            {
-                Id = Guid.NewGuid().ToString(),
-                Name = $"Takeoff-{takeoffNumber}",
-                Path = $"{_settings.TakeoffsRootFolder}/Takeoff-{takeoffNumber}/Rev-{revisionCode}",
-                WebUrl = $"https://mock.sharepoint.com/sites/fabos/{_settings.TakeoffsRootFolder}/Takeoff-{takeoffNumber}",
-                CreatedDateTime = DateTime.UtcNow,
-                RevisionCode = revisionCode
-            };
-        }
-
-        try
-        {
-            var client = await GetGraphClientAsync();
-            var drive = await GetDocumentLibraryDriveAsync(client);
-
-            // Create takeoff folder
-            var takeoffFolderPath = $"{_settings.TakeoffsRootFolder}/Takeoff-{takeoffNumber}";
-            var takeoffFolder = await CreateFolderAsync(client, drive.Id, takeoffFolderPath);
-
-            // Create revision subfolder
-            var revisionFolderPath = $"{takeoffFolderPath}/Rev-{revisionCode}";
-            var revisionFolder = await CreateFolderAsync(client, drive.Id, revisionFolderPath);
-
-            return new SharePointFolderInfo
-            {
-                Id = revisionFolder.Id ?? string.Empty,
-                Name = revisionFolder.Name ?? string.Empty,
-                Path = revisionFolderPath,
-                WebUrl = revisionFolder.WebUrl ?? string.Empty,
-                CreatedDateTime = revisionFolder.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
-                RevisionCode = revisionCode
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating takeoff folder for {TakeoffNumber}", takeoffNumber);
-            throw;
-        }
+        return await EnsureTakeoffFolderExistsAsync(takeoffNumber, revisionCode);
     }
 
     public async Task<SharePointFolderInfo?> GetTakeoffFolderAsync(string takeoffNumber)
     {
-        if (_settings.UseMockData)
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
         {
-            if (!await TakeoffFolderExistsAsync(takeoffNumber))
-                return null;
+            return null;
+        }
 
-            return new SharePointFolderInfo
-            {
-                Id = Guid.NewGuid().ToString(),
-                Name = $"Takeoff-{takeoffNumber}",
-                Path = $"{_settings.TakeoffsRootFolder}/Takeoff-{takeoffNumber}",
-                WebUrl = $"https://mock.sharepoint.com/sites/fabos/{_settings.TakeoffsRootFolder}/Takeoff-{takeoffNumber}",
-                CreatedDateTime = DateTime.UtcNow.AddDays(-5),
-                RevisionCode = "A"
-            };
+        if (settings.UseMockData)
+        {
+            return CreateMockFolderInfo(takeoffNumber, "A");
         }
 
         try
         {
             var client = await GetGraphClientAsync();
-            var path = $"{_settings.TakeoffsRootFolder}/Takeoff-{takeoffNumber}";
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
 
-            var drive = await GetDocumentLibraryDriveAsync(client);
-            var folder = await client.Drives[drive.Id]
-                .Root
-                .ItemWithPath(path)
-                .GetAsync();
-
-            if (folder == null)
+            if (site?.Id == null)
                 return null;
 
-            // Get the latest revision folder
-            var children = await client.Drives[drive.Id]
-                .Items[folder.Id]
-                .Children
-                .GetAsync();
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
 
-            var latestRevision = children?.Value?
-                .Where(i => i.Folder != null && i.Name?.StartsWith("Rev-") == true)
-                .OrderByDescending(i => i.Name)
-                .FirstOrDefault();
+            if (drive?.Id == null)
+                return null;
 
-            return new SharePointFolderInfo
+            var folderPath = $"{settings.TakeoffsRootFolder}/{takeoffNumber}";
+
+            try
             {
-                Id = folder.Id ?? string.Empty,
-                Name = folder.Name ?? string.Empty,
-                Path = path,
-                WebUrl = folder.WebUrl ?? string.Empty,
-                CreatedDateTime = folder.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
-                RevisionCode = latestRevision?.Name?.Replace("Rev-", "")
-            };
+                var folder = await client.Drives[drive.Id].Root
+                    .ItemWithPath(folderPath)
+                    .GetAsync();
+
+                if (folder == null)
+                    return null;
+
+                return new SharePointFolderInfo
+                {
+                    Id = folder.Id ?? string.Empty,
+                    Name = folder.Name ?? takeoffNumber,
+                    WebUrl = folder.WebUrl ?? string.Empty,
+                    Path = folderPath,
+                    CreatedDateTime = folder.CreatedDateTime?.DateTime ?? DateTime.UtcNow
+                };
+            }
+            catch
+            {
+                return null;
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting takeoff folder for {TakeoffNumber}", takeoffNumber);
+            _logger.LogError(ex, "Failed to get takeoff folder for {TakeoffNumber} in company {CompanyId}",
+                takeoffNumber, _tenantService.GetCurrentCompanyId());
             return null;
         }
     }
 
     public async Task<List<SharePointFileInfo>> GetTakeoffFilesAsync(string takeoffNumber)
     {
-        if (_settings.UseMockData)
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
         {
-            return new List<SharePointFileInfo>
-            {
-                new SharePointFileInfo
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Name = "Drawing-001.pdf",
-                    Size = 1024 * 1024 * 2,
-                    ContentType = "application/pdf",
-                    WebUrl = "https://mock.sharepoint.com/file1",
-                    CreatedDateTime = DateTime.UtcNow.AddDays(-3),
-                    LastModifiedDateTime = DateTime.UtcNow.AddDays(-1),
-                    CreatedBy = "John Doe",
-                    ModifiedBy = "Jane Smith"
-                },
-                new SharePointFileInfo
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Name = "Specifications.docx",
-                    Size = 1024 * 500,
-                    ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    WebUrl = "https://mock.sharepoint.com/file2",
-                    CreatedDateTime = DateTime.UtcNow.AddDays(-2),
-                    LastModifiedDateTime = DateTime.UtcNow.AddHours(-5),
-                    CreatedBy = "Alice Johnson",
-                    ModifiedBy = "Bob Wilson"
-                }
-            };
+            return new List<SharePointFileInfo>();
+        }
+
+        if (settings.UseMockData)
+        {
+            return CreateMockFileList(takeoffNumber);
         }
 
         try
         {
             var client = await GetGraphClientAsync();
-            var drive = await GetDocumentLibraryDriveAsync(client);
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
 
-            // Get all files from the latest revision folder
-            var folderInfo = await GetTakeoffFolderAsync(takeoffNumber);
-            if (folderInfo == null)
+            if (site?.Id == null)
                 return new List<SharePointFileInfo>();
 
-            var revisionPath = $"{folderInfo.Path}/Rev-{folderInfo.RevisionCode ?? "A"}";
-            var folder = await client.Drives[drive.Id]
-                .Root
-                .ItemWithPath(revisionPath)
-                .GetAsync();
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
 
-            if (folder == null)
+            if (drive?.Id == null)
                 return new List<SharePointFileInfo>();
 
-            var files = await client.Drives[drive.Id]
-                .Items[folder.Id]
-                .Children
-                .GetAsync();
+            var folderPath = $"{settings.TakeoffsRootFolder}/{takeoffNumber}";
+            var files = new List<SharePointFileInfo>();
 
-            var fileList = new List<SharePointFileInfo>();
-            foreach (var item in files?.Value ?? new List<DriveItem>())
+            try
             {
-                if (item.File != null)
+                var folder = await client.Drives[drive.Id].Root
+                    .ItemWithPath(folderPath)
+                    .Children
+                    .GetAsync();
+
+                if (folder?.Value != null)
                 {
-                    fileList.Add(new SharePointFileInfo
+                    foreach (var item in folder.Value.Where(i => i.File != null))
                     {
-                        Id = item.Id ?? string.Empty,
-                        Name = item.Name ?? string.Empty,
-                        Size = item.Size ?? 0,
-                        ContentType = item.File.MimeType ?? string.Empty,
-                        WebUrl = item.WebUrl ?? string.Empty,
-                        CreatedDateTime = item.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
-                        LastModifiedDateTime = item.LastModifiedDateTime?.DateTime ?? DateTime.UtcNow,
-                        CreatedBy = item.CreatedBy?.User?.DisplayName ?? "Unknown",
-                        ModifiedBy = item.LastModifiedBy?.User?.DisplayName ?? "Unknown",
-                        ETag = item.ETag
-                    });
+                        files.Add(new SharePointFileInfo
+                        {
+                            Id = item.Id ?? string.Empty,
+                            Name = item.Name ?? string.Empty,
+                            Size = item.Size ?? 0,
+                            ContentType = item.File?.MimeType ?? string.Empty,
+                            WebUrl = item.WebUrl ?? string.Empty,
+                            CreatedDateTime = item.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
+                            LastModifiedDateTime = item.LastModifiedDateTime?.DateTime ?? DateTime.UtcNow,
+                            CreatedBy = item.CreatedBy?.User?.DisplayName ?? "Unknown",
+                            ModifiedBy = item.LastModifiedBy?.User?.DisplayName ?? "Unknown",
+                            ETag = item.ETag,
+                            DownloadUrl = item.AdditionalData?.ContainsKey("@microsoft.graph.downloadUrl") == true ?
+                                item.AdditionalData["@microsoft.graph.downloadUrl"]?.ToString() : null
+                        });
+                    }
                 }
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get files for takeoff {TakeoffNumber}", takeoffNumber);
+            }
 
-            return fileList;
+            return files;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting files for takeoff {TakeoffNumber}", takeoffNumber);
+            _logger.LogError(ex, "Failed to get takeoff files for {TakeoffNumber} in company {CompanyId}",
+                takeoffNumber, _tenantService.GetCurrentCompanyId());
             return new List<SharePointFileInfo>();
         }
     }
 
     public async Task<SharePointFileInfo> UploadFileAsync(string takeoffNumber, Stream fileStream, string fileName, string contentType)
     {
-        if (_settings.UseMockData)
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
         {
-            return new SharePointFileInfo
-            {
-                Id = Guid.NewGuid().ToString(),
-                Name = fileName,
-                Size = fileStream.Length,
-                ContentType = contentType,
-                WebUrl = $"https://mock.sharepoint.com/files/{fileName}",
-                CreatedDateTime = DateTime.UtcNow,
-                LastModifiedDateTime = DateTime.UtcNow,
-                CreatedBy = "Current User",
-                ModifiedBy = "Current User"
-            };
+            throw new InvalidOperationException($"SharePoint not configured for company {_tenantService.GetCurrentCompanyId()}");
+        }
+
+        if (settings.UseMockData)
+        {
+            return CreateMockFileInfo(fileName, fileStream.Length, contentType);
         }
 
         try
         {
+            // Ensure the folder exists
+            var folder = await EnsureTakeoffFolderExistsAsync(takeoffNumber);
+
             var client = await GetGraphClientAsync();
-            var drive = await GetDocumentLibraryDriveAsync(client);
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
 
-            // Get the folder path
-            var folderInfo = await GetTakeoffFolderAsync(takeoffNumber);
-            if (folderInfo == null)
-            {
-                // Create folder if it doesn't exist
-                folderInfo = await CreateTakeoffFolderAsync(takeoffNumber);
-            }
+            if (site?.Id == null)
+                throw new InvalidOperationException("Unable to get SharePoint site");
 
-            var uploadPath = $"{folderInfo.Path}/Rev-{folderInfo.RevisionCode ?? "A"}/{fileName}";
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
 
-            // Upload file
+            if (drive?.Id == null)
+                throw new InvalidOperationException($"Document library '{settings.DocumentLibrary}' not found");
+
+            var folderPath = $"{settings.TakeoffsRootFolder}/{takeoffNumber}/A"; // Default to revision A
+            var filePath = $"{folderPath}/{fileName}";
+
             DriveItem uploadedFile;
-            if (fileStream.Length < 4 * 1024 * 1024) // Less than 4MB
+
+            // For large files (> 4MB), use upload session
+            if (fileStream.Length > 4 * 1024 * 1024)
             {
-                uploadedFile = await client.Drives[drive.Id]
-                    .Root
-                    .ItemWithPath(uploadPath)
-                    .Content
-                    .PutAsync(fileStream);
+                var uploadSessionRequestBody = new Microsoft.Graph.Drives.Item.Items.Item.CreateUploadSession.CreateUploadSessionPostRequestBody();
+                var uploadSession = await client.Drives[drive.Id].Root
+                    .ItemWithPath(filePath)
+                    .CreateUploadSession
+                    .PostAsync(uploadSessionRequestBody);
+
+                if (uploadSession?.UploadUrl == null)
+                    throw new InvalidOperationException("Failed to create upload session");
+
+                // Upload the file in chunks
+                var fileUploadTask = new LargeFileUploadTask<DriveItem>(uploadSession, fileStream);
+                var uploadResult = await fileUploadTask.UploadAsync();
+
+                if (!uploadResult.UploadSucceeded || uploadResult.ItemResponse == null)
+                    throw new InvalidOperationException("File upload failed");
+
+                uploadedFile = uploadResult.ItemResponse;
             }
             else
             {
-                // Use large file upload for files > 4MB
-                uploadedFile = await UploadLargeFileAsync(client, drive.Id, uploadPath, fileStream);
+                // For small files, upload directly
+                uploadedFile = await client.Drives[drive.Id].Root
+                    .ItemWithPath(filePath)
+                    .Content
+                    .PutAsync(fileStream);
             }
+
+            if (uploadedFile == null)
+                throw new InvalidOperationException("Upload completed but file information not returned");
 
             return new SharePointFileInfo
             {
                 Id = uploadedFile.Id ?? string.Empty,
-                Name = uploadedFile.Name ?? string.Empty,
-                Size = uploadedFile.Size ?? 0,
+                Name = uploadedFile.Name ?? fileName,
+                Size = uploadedFile.Size ?? fileStream.Length,
                 ContentType = contentType,
                 WebUrl = uploadedFile.WebUrl ?? string.Empty,
                 CreatedDateTime = uploadedFile.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
                 LastModifiedDateTime = uploadedFile.LastModifiedDateTime?.DateTime ?? DateTime.UtcNow,
                 CreatedBy = uploadedFile.CreatedBy?.User?.DisplayName ?? "Unknown",
                 ModifiedBy = uploadedFile.LastModifiedBy?.User?.DisplayName ?? "Unknown",
-                ETag = uploadedFile.ETag
+                ETag = uploadedFile.ETag,
+                DownloadUrl = uploadedFile.AdditionalData?.ContainsKey("@microsoft.graph.downloadUrl") == true ?
+                    uploadedFile.AdditionalData["@microsoft.graph.downloadUrl"]?.ToString() : null
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error uploading file {FileName} for takeoff {TakeoffNumber}", fileName, takeoffNumber);
+            _logger.LogError(ex, "Failed to upload file {FileName} for takeoff {TakeoffNumber} in company {CompanyId}",
+                fileName, takeoffNumber, _tenantService.GetCurrentCompanyId());
             throw;
         }
     }
 
     public async Task<Stream> DownloadFileAsync(string driveItemId)
     {
-        if (_settings.UseMockData)
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
         {
-            // Return mock file content
-            var mockContent = Encoding.UTF8.GetBytes("This is mock file content for testing purposes.");
-            return new MemoryStream(mockContent);
+            throw new InvalidOperationException($"SharePoint not configured for company {_tenantService.GetCurrentCompanyId()}");
+        }
+
+        if (settings.UseMockData)
+        {
+            // Return a mock stream with some test data
+            var mockData = Encoding.UTF8.GetBytes($"Mock file content for item {driveItemId}");
+            return new MemoryStream(mockData);
         }
 
         try
         {
             var client = await GetGraphClientAsync();
-            var drive = await GetDocumentLibraryDriveAsync(client);
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
 
-            var stream = await client.Drives[drive.Id]
-                .Items[driveItemId]
-                .Content
-                .GetAsync();
+            if (site?.Id == null)
+                throw new InvalidOperationException("Unable to get SharePoint site");
 
-            return stream ?? new MemoryStream();
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
+
+            if (drive?.Id == null)
+                throw new InvalidOperationException($"Document library '{settings.DocumentLibrary}' not found");
+
+            var fileStream = await client.Drives[drive.Id].Items[driveItemId].Content.GetAsync();
+
+            if (fileStream == null)
+                throw new InvalidOperationException("File not found or unable to download");
+
+            return fileStream;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error downloading file {DriveItemId}", driveItemId);
+            _logger.LogError(ex, "Failed to download file {DriveItemId} for company {CompanyId}",
+                driveItemId, _tenantService.GetCurrentCompanyId());
             throw;
         }
     }
 
     public async Task<bool> DeleteFileAsync(string driveItemId)
     {
-        if (_settings.UseMockData)
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
         {
+            return false;
+        }
+
+        if (settings.UseMockData)
+        {
+            _logger.LogInformation("Mock mode: File {DriveItemId} deleted", driveItemId);
             return true;
         }
 
         try
         {
             var client = await GetGraphClientAsync();
-            var drive = await GetDocumentLibraryDriveAsync(client);
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
 
-            await client.Drives[drive.Id]
-                .Items[driveItemId]
-                .DeleteAsync();
+            if (site?.Id == null)
+                return false;
 
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
+
+            if (drive?.Id == null)
+                return false;
+
+            await client.Drives[drive.Id].Items[driveItemId].DeleteAsync();
+
+            _logger.LogInformation("File {DriveItemId} deleted successfully for company {CompanyId}",
+                driveItemId, _tenantService.GetCurrentCompanyId());
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting file {DriveItemId}", driveItemId);
+            _logger.LogError(ex, "Failed to delete file {DriveItemId} for company {CompanyId}",
+                driveItemId, _tenantService.GetCurrentCompanyId());
             return false;
         }
     }
 
     public async Task<SharePointFolderInfo> CreateRevisionFolderAsync(string takeoffNumber, string revisionCode)
     {
-        if (_settings.UseMockData)
-        {
-            return new SharePointFolderInfo
-            {
-                Id = Guid.NewGuid().ToString(),
-                Name = $"Rev-{revisionCode}",
-                Path = $"{_settings.TakeoffsRootFolder}/Takeoff-{takeoffNumber}/Rev-{revisionCode}",
-                WebUrl = $"https://mock.sharepoint.com/sites/fabos/{_settings.TakeoffsRootFolder}/Takeoff-{takeoffNumber}/Rev-{revisionCode}",
-                CreatedDateTime = DateTime.UtcNow,
-                RevisionCode = revisionCode
-            };
-        }
-
-        try
-        {
-            var client = await GetGraphClientAsync();
-            var drive = await GetDocumentLibraryDriveAsync(client);
-
-            var revisionFolderPath = $"{_settings.TakeoffsRootFolder}/Takeoff-{takeoffNumber}/Rev-{revisionCode}";
-            var revisionFolder = await CreateFolderAsync(client, drive.Id, revisionFolderPath);
-
-            return new SharePointFolderInfo
-            {
-                Id = revisionFolder.Id ?? string.Empty,
-                Name = revisionFolder.Name ?? string.Empty,
-                Path = revisionFolderPath,
-                WebUrl = revisionFolder.WebUrl ?? string.Empty,
-                CreatedDateTime = revisionFolder.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
-                RevisionCode = revisionCode
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating revision folder for {TakeoffNumber} Rev-{RevisionCode}", takeoffNumber, revisionCode);
-            throw;
-        }
+        return await EnsureTakeoffFolderExistsAsync(takeoffNumber, revisionCode);
     }
 
     public async Task<string> GetFileWebUrlAsync(string driveItemId)
     {
-        if (_settings.UseMockData)
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
         {
-            return $"https://mock.sharepoint.com/preview/{driveItemId}";
+            return string.Empty;
+        }
+
+        if (settings.UseMockData)
+        {
+            return $"https://mock.sharepoint.com/sites/mock/_layouts/15/Doc.aspx?sourcedoc={driveItemId}";
         }
 
         try
         {
             var client = await GetGraphClientAsync();
-            var drive = await GetDocumentLibraryDriveAsync(client);
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
 
-            var item = await client.Drives[drive.Id]
-                .Items[driveItemId]
-                .GetAsync();
+            if (site?.Id == null)
+                return string.Empty;
 
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
+
+            if (drive?.Id == null)
+                return string.Empty;
+
+            var item = await client.Drives[drive.Id].Items[driveItemId].GetAsync();
             return item?.WebUrl ?? string.Empty;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting web URL for file {DriveItemId}", driveItemId);
+            _logger.LogError(ex, "Failed to get web URL for file {DriveItemId} in company {CompanyId}",
+                driveItemId, _tenantService.GetCurrentCompanyId());
             return string.Empty;
         }
     }
 
-    private async Task<Drive> GetDocumentLibraryDriveAsync(GraphServiceClient client)
-    {
-        var site = await client.Sites[_settings.GetSiteId()].GetAsync();
-        if (site?.Id == null)
-        {
-            throw new InvalidOperationException("Unable to get SharePoint site");
-        }
-
-        var drives = await client.Sites[site.Id].Drives.GetAsync();
-        var drive = drives?.Value?.FirstOrDefault(d => d.Name == _settings.DocumentLibrary)
-            ?? drives?.Value?.FirstOrDefault();
-
-        if (drive == null)
-        {
-            throw new InvalidOperationException($"Document library '{_settings.DocumentLibrary}' not found");
-        }
-
-        return drive;
-    }
-
-    private async Task<DriveItem> CreateFolderAsync(GraphServiceClient client, string driveId, string folderPath)
-    {
-        var pathSegments = folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        DriveItem? currentFolder = null;
-        var currentPath = "";
-
-        foreach (var segment in pathSegments)
-        {
-            currentPath = string.IsNullOrEmpty(currentPath) ? segment : $"{currentPath}/{segment}";
-
-            try
-            {
-                currentFolder = await client.Drives[driveId]
-                    .Root
-                    .ItemWithPath(currentPath)
-                    .GetAsync();
-            }
-            catch (ServiceException ex) when (ex.ResponseStatusCode == 404)
-            {
-                // Folder doesn't exist, create it
-                var parentPath = currentPath.Contains('/')
-                    ? currentPath.Substring(0, currentPath.LastIndexOf('/'))
-                    : "";
-
-                var newFolder = new DriveItem
-                {
-                    Name = segment,
-                    Folder = new Folder()
-                };
-
-                if (string.IsNullOrEmpty(parentPath))
-                {
-                    var rootItem = await client.Drives[driveId].Root.GetAsync();
-                    currentFolder = await client.Drives[driveId]
-                        .Items[rootItem?.Id]
-                        .Children
-                        .PostAsync(newFolder);
-                }
-                else
-                {
-                    var parentFolder = await client.Drives[driveId]
-                        .Root
-                        .ItemWithPath(parentPath)
-                        .GetAsync();
-
-                    currentFolder = await client.Drives[driveId]
-                        .Items[parentFolder?.Id]
-                        .Children
-                        .PostAsync(newFolder);
-                }
-            }
-        }
-
-        return currentFolder ?? throw new InvalidOperationException("Failed to create folder");
-    }
-
-    private async Task<DriveItem> UploadLargeFileAsync(GraphServiceClient client, string driveId, string path, Stream stream)
-    {
-        // Create upload session
-        var uploadSession = await client.Drives[driveId]
-            .Root
-            .ItemWithPath(path)
-            .CreateUploadSession
-            .PostAsync(new Microsoft.Graph.Drives.Item.Items.Item.CreateUploadSession.CreateUploadSessionPostRequestBody());
-
-        if (uploadSession?.UploadUrl == null)
-        {
-            throw new InvalidOperationException("Failed to create upload session");
-        }
-
-        // Upload file in chunks
-        var maxChunkSize = 320 * 1024 * 10; // 3.2MB chunks
-        var buffer = new byte[maxChunkSize];
-        var bytesRead = 0;
-        var offset = 0L;
-        var size = stream.Length;
-
-        using var httpClient = new HttpClient();
-
-        while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-        {
-            using var content = new ByteArrayContent(buffer, 0, bytesRead);
-            content.Headers.Add("Content-Range", $"bytes {offset}-{offset + bytesRead - 1}/{size}");
-
-            var response = await httpClient.PutAsync(uploadSession.UploadUrl, content);
-            response.EnsureSuccessStatusCode();
-
-            offset += bytesRead;
-        }
-
-        // Get the uploaded file
-        var uploadedFile = await client.Drives[driveId]
-            .Root
-            .ItemWithPath(path)
-            .GetAsync();
-
-        return uploadedFile ?? throw new InvalidOperationException("Failed to get uploaded file");
-    }
-
     public async Task<SharePointFolderContents> GetFolderContentsAsync(string folderPath)
     {
-        if (_settings.UseMockData)
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
         {
-            // Return mock data for testing
-            return new SharePointFolderContents
-            {
-                CurrentPath = folderPath,
-                ParentPath = string.IsNullOrEmpty(folderPath) ? null : Path.GetDirectoryName(folderPath)?.Replace('\\', '/'),
-                IsRoot = string.IsNullOrEmpty(folderPath) || folderPath == "/",
-                Folders = new List<SharePointFolderInfo>
-                {
-                    new SharePointFolderInfo
-                    {
-                        Id = "mock-folder-1",
-                        Name = "Subfolder1",
-                        Path = Path.Combine(folderPath, "Subfolder1").Replace('\\', '/'),
-                        WebUrl = "https://mock.sharepoint.com/folders/subfolder1",
-                        CreatedDateTime = DateTime.UtcNow.AddDays(-10)
-                    }
-                },
-                Files = new List<SharePointFileInfo>
-                {
-                    new SharePointFileInfo
-                    {
-                        Id = "mock-file-1",
-                        Name = "Document.pdf",
-                        Size = 1024000,
-                        ContentType = "application/pdf",
-                        WebUrl = "https://mock.sharepoint.com/files/document.pdf",
-                        CreatedDateTime = DateTime.UtcNow.AddDays(-5),
-                        LastModifiedDateTime = DateTime.UtcNow.AddDays(-2),
-                        CreatedBy = "Mock User",
-                        ModifiedBy = "Mock User"
-                    }
-                }
-            };
+            return new SharePointFolderContents { CurrentPath = folderPath };
+        }
+
+        if (settings.UseMockData)
+        {
+            return CreateMockFolderContents(folderPath);
         }
 
         try
         {
             var client = await GetGraphClientAsync();
-            var drive = await GetDocumentLibraryDriveAsync(client);
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
 
-            // Get the folder
-            DriveItem? folder;
-            if (string.IsNullOrEmpty(folderPath) || folderPath == "/")
-            {
-                folder = await client.Drives[drive.Id].Root.GetAsync();
-            }
-            else
-            {
-                folder = await client.Drives[drive.Id]
-                    .Root
-                    .ItemWithPath(folderPath)
-                    .GetAsync();
-            }
+            if (site?.Id == null)
+                return new SharePointFolderContents { CurrentPath = folderPath };
 
-            if (folder == null)
-            {
-                throw new InvalidOperationException($"Folder not found: {folderPath}");
-            }
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
 
-            // Get children (folders and files)
-            var children = await client.Drives[drive.Id]
-                .Items[folder.Id]
-                .Children
-                .GetAsync();
+            if (drive?.Id == null)
+                return new SharePointFolderContents { CurrentPath = folderPath };
 
             var contents = new SharePointFolderContents
             {
                 CurrentPath = folderPath,
-                ParentPath = string.IsNullOrEmpty(folderPath) ? null : Path.GetDirectoryName(folderPath)?.Replace('\\', '/'),
                 IsRoot = string.IsNullOrEmpty(folderPath) || folderPath == "/"
             };
 
-            if (children?.Value != null)
+            // Set parent path
+            if (!contents.IsRoot)
             {
-                foreach (var item in children.Value)
+                var pathParts = folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                if (pathParts.Length > 1)
+                {
+                    contents.ParentPath = string.Join("/", pathParts.Take(pathParts.Length - 1));
+                }
+                else
+                {
+                    contents.ParentPath = "/";
+                }
+            }
+
+            DriveItemCollectionResponse? items;
+
+            if (string.IsNullOrEmpty(folderPath) || folderPath == "/")
+            {
+                items = await client.Drives[drive.Id].Items["root"].Children.GetAsync();
+            }
+            else
+            {
+                items = await client.Drives[drive.Id].Root
+                    .ItemWithPath(folderPath)
+                    .Children
+                    .GetAsync();
+            }
+
+            if (items?.Value != null)
+            {
+                foreach (var item in items.Value)
                 {
                     if (item.Folder != null)
                     {
@@ -757,9 +904,9 @@ public class SharePointService : ISharePointService
                         {
                             Id = item.Id ?? string.Empty,
                             Name = item.Name ?? string.Empty,
-                            Path = Path.Combine(folderPath, item.Name ?? string.Empty).Replace('\\', '/'),
                             WebUrl = item.WebUrl ?? string.Empty,
-                            CreatedDateTime = item.CreatedDateTime?.DateTime ?? DateTime.MinValue
+                            Path = string.IsNullOrEmpty(folderPath) ? item.Name ?? string.Empty : $"{folderPath}/{item.Name}",
+                            CreatedDateTime = item.CreatedDateTime?.DateTime ?? DateTime.UtcNow
                         });
                     }
                     else if (item.File != null)
@@ -769,13 +916,15 @@ public class SharePointService : ISharePointService
                             Id = item.Id ?? string.Empty,
                             Name = item.Name ?? string.Empty,
                             Size = item.Size ?? 0,
-                            ContentType = item.File.MimeType ?? "application/octet-stream",
+                            ContentType = item.File.MimeType ?? string.Empty,
                             WebUrl = item.WebUrl ?? string.Empty,
-                            CreatedDateTime = item.CreatedDateTime?.DateTime ?? DateTime.MinValue,
-                            LastModifiedDateTime = item.LastModifiedDateTime?.DateTime ?? DateTime.MinValue,
+                            CreatedDateTime = item.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
+                            LastModifiedDateTime = item.LastModifiedDateTime?.DateTime ?? DateTime.UtcNow,
                             CreatedBy = item.CreatedBy?.User?.DisplayName ?? "Unknown",
                             ModifiedBy = item.LastModifiedBy?.User?.DisplayName ?? "Unknown",
-                            ETag = item.ETag
+                            ETag = item.ETag,
+                            DownloadUrl = item.AdditionalData?.ContainsKey("@microsoft.graph.downloadUrl") == true ?
+                                item.AdditionalData["@microsoft.graph.downloadUrl"]?.ToString() : null
                         });
                     }
                 }
@@ -785,78 +934,55 @@ public class SharePointService : ISharePointService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting folder contents for path: {FolderPath}", folderPath);
-            throw;
+            _logger.LogError(ex, "Failed to get folder contents for {FolderPath} in company {CompanyId}",
+                folderPath, _tenantService.GetCurrentCompanyId());
+            return new SharePointFolderContents { CurrentPath = folderPath };
         }
     }
 
     public async Task<SharePointFolderInfo> CreateFolderAsync(string parentPath, string folderName)
     {
-        if (_settings.UseMockData)
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
         {
-            return new SharePointFolderInfo
-            {
-                Id = $"mock-folder-{Guid.NewGuid()}",
-                Name = folderName,
-                Path = Path.Combine(parentPath, folderName).Replace('\\', '/'),
-                WebUrl = $"https://mock.sharepoint.com/folders/{folderName}",
-                CreatedDateTime = DateTime.UtcNow
-            };
+            throw new InvalidOperationException($"SharePoint not configured for company {_tenantService.GetCurrentCompanyId()}");
+        }
+
+        if (settings.UseMockData)
+        {
+            return CreateMockFolderInfo(folderName, null);
         }
 
         try
         {
             var client = await GetGraphClientAsync();
-            var drive = await GetDocumentLibraryDriveAsync(client);
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
 
-            // Get parent folder
-            DriveItem? parentFolder;
-            if (string.IsNullOrEmpty(parentPath) || parentPath == "/")
-            {
-                parentFolder = await client.Drives[drive.Id].Root.GetAsync();
-            }
-            else
-            {
-                parentFolder = await client.Drives[drive.Id]
-                    .Root
-                    .ItemWithPath(parentPath)
-                    .GetAsync();
-            }
+            if (site?.Id == null)
+                throw new InvalidOperationException("Unable to get SharePoint site");
 
-            if (parentFolder == null)
-            {
-                throw new InvalidOperationException($"Parent folder not found: {parentPath}");
-            }
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
 
-            // Create the new folder
-            var newFolder = new DriveItem
-            {
-                Name = folderName,
-                Folder = new Folder()
-            };
+            if (drive?.Id == null)
+                throw new InvalidOperationException($"Document library '{settings.DocumentLibrary}' not found");
 
-            var createdFolder = await client.Drives[drive.Id]
-                .Items[parentFolder.Id]
-                .Children
-                .PostAsync(newFolder);
-
-            if (createdFolder == null)
-            {
-                throw new InvalidOperationException($"Failed to create folder: {folderName}");
-            }
+            var fullPath = string.IsNullOrEmpty(parentPath) ? folderName : $"{parentPath}/{folderName}";
+            var createdFolder = await CreateFolderHierarchyAsync(client, drive.Id, fullPath);
 
             return new SharePointFolderInfo
             {
                 Id = createdFolder.Id ?? string.Empty,
-                Name = createdFolder.Name ?? string.Empty,
-                Path = Path.Combine(parentPath, folderName).Replace('\\', '/'),
+                Name = createdFolder.Name ?? folderName,
                 WebUrl = createdFolder.WebUrl ?? string.Empty,
+                Path = fullPath,
                 CreatedDateTime = createdFolder.CreatedDateTime?.DateTime ?? DateTime.UtcNow
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating folder {FolderName} in {ParentPath}", folderName, parentPath);
+            _logger.LogError(ex, "Failed to create folder {FolderName} in {ParentPath} for company {CompanyId}",
+                folderName, parentPath, _tenantService.GetCurrentCompanyId());
             throw;
         }
     }
@@ -876,183 +1002,406 @@ public class SharePointService : ISharePointService
 
         if (!string.IsNullOrEmpty(folderPath) && folderPath != "/")
         {
-            var parts = folderPath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+            var pathParts = folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
             var currentPath = "";
 
-            for (int i = 0; i < parts.Length; i++)
+            for (int i = 0; i < pathParts.Length; i++)
             {
-                currentPath = string.IsNullOrEmpty(currentPath)
-                    ? parts[i]
-                    : currentPath + "/" + parts[i];
-
+                currentPath = string.IsNullOrEmpty(currentPath) ? pathParts[i] : $"{currentPath}/{pathParts[i]}";
                 breadcrumbs.Add(new SharePointBreadcrumbItem
                 {
-                    Name = parts[i],
+                    Name = pathParts[i],
                     Path = currentPath,
                     IsRoot = false,
-                    IsCurrent = i == parts.Length - 1
+                    IsCurrent = i == pathParts.Length - 1
                 });
             }
         }
 
-        return await Task.FromResult(breadcrumbs);
+        return breadcrumbs;
     }
 
     public async Task<List<SharePointFileInfo>> UploadMultipleFilesAsync(string folderPath, List<(Stream stream, string fileName, string contentType)> files)
     {
-        if (_settings.UseMockData)
+        var uploadedFiles = new List<SharePointFileInfo>();
+
+        foreach (var file in files)
         {
-            var mockResults = new List<SharePointFileInfo>();
-            foreach (var file in files)
+            try
             {
-                mockResults.Add(new SharePointFileInfo
-                {
-                    Id = $"mock-file-{Guid.NewGuid()}",
-                    Name = file.fileName,
-                    Size = file.stream.Length,
-                    ContentType = file.contentType,
-                    WebUrl = $"https://mock.sharepoint.com/files/{file.fileName}",
-                    CreatedDateTime = DateTime.UtcNow,
-                    LastModifiedDateTime = DateTime.UtcNow,
-                    CreatedBy = "Mock User",
-                    ModifiedBy = "Mock User"
-                });
+                // Extract takeoff number from folder path if possible
+                var pathParts = folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var takeoffNumber = pathParts.Length > 1 ? pathParts[1] : "General";
+
+                var uploadedFile = await UploadFileToPathAsync(folderPath, file.stream, file.fileName, file.contentType);
+                uploadedFiles.Add(uploadedFile);
             }
-            return mockResults;
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to upload file {FileName} to {FolderPath}", file.fileName, folderPath);
+            }
         }
 
-        try
-        {
-            var uploadedFiles = new List<SharePointFileInfo>();
-            var client = await GetGraphClientAsync();
-            var drive = await GetDocumentLibraryDriveAsync(client);
-
-            // Get target folder
-            DriveItem? folder;
-            if (string.IsNullOrEmpty(folderPath) || folderPath == "/")
-            {
-                folder = await client.Drives[drive.Id].Root.GetAsync();
-            }
-            else
-            {
-                folder = await client.Drives[drive.Id]
-                    .Root
-                    .ItemWithPath(folderPath)
-                    .GetAsync();
-            }
-
-            if (folder == null)
-            {
-                throw new InvalidOperationException($"Folder not found: {folderPath}");
-            }
-
-            // Upload each file
-            foreach (var (stream, fileName, contentType) in files)
-            {
-                try
-                {
-                    DriveItem? uploadedItem;
-
-                    // For all files, use the simple upload method
-                    // Note: In production, implement chunked upload for large files (> 4MB)
-                    // using the Graph SDK's LargeFileUploadTask
-                    uploadedItem = await UploadSmallFileAsync(client, drive.Id!, folder.Id!, fileName, stream);
-
-                    if (uploadedItem != null)
-                    {
-                        uploadedFiles.Add(new SharePointFileInfo
-                        {
-                            Id = uploadedItem.Id ?? string.Empty,
-                            Name = uploadedItem.Name ?? string.Empty,
-                            Size = uploadedItem.Size ?? 0,
-                            ContentType = contentType,
-                            WebUrl = uploadedItem.WebUrl ?? string.Empty,
-                            CreatedDateTime = uploadedItem.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
-                            LastModifiedDateTime = uploadedItem.LastModifiedDateTime?.DateTime ?? DateTime.UtcNow,
-                            CreatedBy = uploadedItem.CreatedBy?.User?.DisplayName ?? "Unknown",
-                            ModifiedBy = uploadedItem.LastModifiedBy?.User?.DisplayName ?? "Unknown",
-                            ETag = uploadedItem.ETag
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error uploading file {FileName}", fileName);
-                    // Continue with other files even if one fails
-                }
-            }
-
-            return uploadedFiles;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading multiple files to {FolderPath}", folderPath);
-            throw;
-        }
+        return uploadedFiles;
     }
 
     public async Task<bool> DeleteMultipleFilesAsync(List<string> driveItemIds)
     {
-        if (_settings.UseMockData)
+        var allSuccessful = true;
+
+        foreach (var driveItemId in driveItemIds)
         {
-            _logger.LogInformation("Mock: Deleted {Count} files", driveItemIds.Count);
+            var result = await DeleteFileAsync(driveItemId);
+            if (!result)
+            {
+                allSuccessful = false;
+            }
+        }
+
+        return allSuccessful;
+    }
+
+    // Helper method to upload file to a specific path
+    private async Task<SharePointFileInfo> UploadFileToPathAsync(string folderPath, Stream fileStream, string fileName, string contentType)
+    {
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
+        {
+            throw new InvalidOperationException($"SharePoint not configured for company {_tenantService.GetCurrentCompanyId()}");
+        }
+
+        if (settings.UseMockData)
+        {
+            return CreateMockFileInfo(fileName, fileStream.Length, contentType);
+        }
+
+        try
+        {
+            var client = await GetGraphClientAsync();
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
+
+            if (site?.Id == null)
+                throw new InvalidOperationException("Unable to get SharePoint site");
+
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
+
+            if (drive?.Id == null)
+                throw new InvalidOperationException($"Document library '{settings.DocumentLibrary}' not found");
+
+            // Ensure folder exists
+            await CreateFolderHierarchyAsync(client, drive.Id, folderPath);
+
+            var filePath = $"{folderPath}/{fileName}";
+            DriveItem uploadedFile;
+
+            // For large files (> 4MB), use upload session
+            if (fileStream.Length > 4 * 1024 * 1024)
+            {
+                var uploadSessionRequestBody = new Microsoft.Graph.Drives.Item.Items.Item.CreateUploadSession.CreateUploadSessionPostRequestBody();
+                var uploadSession = await client.Drives[drive.Id].Root
+                    .ItemWithPath(filePath)
+                    .CreateUploadSession
+                    .PostAsync(uploadSessionRequestBody);
+
+                if (uploadSession?.UploadUrl == null)
+                    throw new InvalidOperationException("Failed to create upload session");
+
+                var fileUploadTask = new LargeFileUploadTask<DriveItem>(uploadSession, fileStream);
+                var uploadResult = await fileUploadTask.UploadAsync();
+
+                if (!uploadResult.UploadSucceeded || uploadResult.ItemResponse == null)
+                    throw new InvalidOperationException("File upload failed");
+
+                uploadedFile = uploadResult.ItemResponse;
+            }
+            else
+            {
+                uploadedFile = await client.Drives[drive.Id].Root
+                    .ItemWithPath(filePath)
+                    .Content
+                    .PutAsync(fileStream);
+            }
+
+            if (uploadedFile == null)
+                throw new InvalidOperationException("Upload completed but file information not returned");
+
+            return new SharePointFileInfo
+            {
+                Id = uploadedFile.Id ?? string.Empty,
+                Name = uploadedFile.Name ?? fileName,
+                Size = uploadedFile.Size ?? fileStream.Length,
+                ContentType = contentType,
+                WebUrl = uploadedFile.WebUrl ?? string.Empty,
+                CreatedDateTime = uploadedFile.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
+                LastModifiedDateTime = uploadedFile.LastModifiedDateTime?.DateTime ?? DateTime.UtcNow,
+                CreatedBy = uploadedFile.CreatedBy?.User?.DisplayName ?? "Unknown",
+                ModifiedBy = uploadedFile.LastModifiedBy?.User?.DisplayName ?? "Unknown",
+                ETag = uploadedFile.ETag,
+                DownloadUrl = uploadedFile.AdditionalData?.ContainsKey("@microsoft.graph.downloadUrl") == true ?
+                    uploadedFile.AdditionalData["@microsoft.graph.downloadUrl"]?.ToString() : null
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload file {FileName} to {FolderPath}", fileName, folderPath);
+            throw;
+        }
+    }
+
+    // Helper method to create folder hierarchy
+    private async Task<DriveItem> CreateFolderHierarchyAsync(GraphServiceClient client, string driveId, string folderPath)
+    {
+        var pathParts = folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        DriveItem? currentFolder = null;
+        string currentPath = "";
+
+        foreach (var part in pathParts)
+        {
+            currentPath = string.IsNullOrEmpty(currentPath) ? part : $"{currentPath}/{part}";
+
+            try
+            {
+                // Try to get the folder first
+                currentFolder = await client.Drives[driveId].Root
+                    .ItemWithPath(currentPath)
+                    .GetAsync();
+            }
+            catch
+            {
+                // Folder doesn't exist, create it
+                var newFolder = new DriveItem
+                {
+                    Name = part,
+                    Folder = new Folder()
+                };
+
+                if (string.IsNullOrEmpty(currentPath) || currentPath == part)
+                {
+                    // Create at root
+                    currentFolder = await client.Drives[driveId].Items["root"].Children.PostAsync(newFolder);
+                }
+                else
+                {
+                    // Create under parent path
+                    var parentPath = currentPath.Substring(0, currentPath.LastIndexOf('/'));
+                    currentFolder = await client.Drives[driveId].Root
+                        .ItemWithPath(parentPath)
+                        .Children
+                        .PostAsync(newFolder);
+                }
+            }
+        }
+
+        return currentFolder ?? throw new InvalidOperationException("Failed to create folder hierarchy");
+    }
+
+    // Package-level folder operations
+    public async Task<string> GetPackageFolderPathAsync(string takeoffNumber, string revisionCode, string packageNumber)
+    {
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
+        {
+            throw new InvalidOperationException($"SharePoint not configured for company {_tenantService.GetCurrentCompanyId()}");
+        }
+
+        return $"{settings.TakeoffsRootFolder}/{takeoffNumber}/{revisionCode}/PKG-{packageNumber}";
+    }
+
+    public async Task<SharePointFolderInfo> EnsurePackageFolderExistsAsync(string takeoffNumber, string revisionCode, string packageNumber)
+    {
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
+        {
+            throw new InvalidOperationException($"SharePoint not configured for company {_tenantService.GetCurrentCompanyId()}");
+        }
+
+        if (settings.UseMockData)
+        {
+            return CreateMockFolderInfo($"PKG-{packageNumber}", revisionCode);
+        }
+
+        try
+        {
+            var client = await GetGraphClientAsync();
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
+
+            if (site?.Id == null)
+            {
+                throw new InvalidOperationException("Unable to get SharePoint site");
+            }
+
+            // Get the document library drive
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
+
+            if (drive?.Id == null)
+            {
+                throw new InvalidOperationException($"Document library '{settings.DocumentLibrary}' not found");
+            }
+
+            // Build the complete folder path including package level
+            var folderPath = $"{settings.TakeoffsRootFolder}/{takeoffNumber}/{revisionCode}/PKG-{packageNumber}";
+
+            // Try to get the folder first
+            try
+            {
+                var existingFolder = await client.Drives[drive.Id].Root
+                    .ItemWithPath(folderPath)
+                    .GetAsync();
+
+                if (existingFolder != null)
+                {
+                    _logger.LogInformation("Package folder already exists: {FolderPath}", folderPath);
+                    return new SharePointFolderInfo
+                    {
+                        Id = existingFolder.Id ?? string.Empty,
+                        Name = $"PKG-{packageNumber}",
+                        WebUrl = existingFolder.WebUrl ?? string.Empty,
+                        Path = folderPath,
+                        CreatedDateTime = existingFolder.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
+                        RevisionCode = revisionCode
+                    };
+                }
+            }
+            catch
+            {
+                // Folder doesn't exist, create it
+            }
+
+            // Create the complete folder hierarchy (Takeoffs -> TakeoffNumber -> RevisionCode -> Package)
+            var createdFolder = await CreateFolderHierarchyAsync(client, drive.Id, folderPath);
+
+            _logger.LogInformation("Created package folder: {FolderPath} for company {CompanyId}",
+                folderPath, _tenantService.GetCurrentCompanyId());
+
+            return new SharePointFolderInfo
+            {
+                Id = createdFolder.Id ?? string.Empty,
+                Name = $"PKG-{packageNumber}",
+                WebUrl = createdFolder.WebUrl ?? string.Empty,
+                Path = folderPath,
+                CreatedDateTime = createdFolder.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
+                RevisionCode = revisionCode
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to ensure package folder exists for {TakeoffNumber}/{RevisionCode}/PKG-{PackageNumber} in company {CompanyId}",
+                takeoffNumber, revisionCode, packageNumber, _tenantService.GetCurrentCompanyId());
+            throw;
+        }
+    }
+
+    public async Task<bool> PackageFolderExistsAsync(string takeoffNumber, string revisionCode, string packageNumber)
+    {
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
+        {
+            return false;
+        }
+
+        if (settings.UseMockData)
+        {
             return true;
         }
 
         try
         {
             var client = await GetGraphClientAsync();
-            var drive = await GetDocumentLibraryDriveAsync(client);
-            var failedDeletes = new List<string>();
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
 
-            foreach (var itemId in driveItemIds)
+            if (site?.Id == null)
+                return false;
+
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
+
+            if (drive?.Id == null)
+                return false;
+
+            var folderPath = $"{settings.TakeoffsRootFolder}/{takeoffNumber}/{revisionCode}/PKG-{packageNumber}";
+
+            try
             {
-                try
-                {
-                    await client.Drives[drive.Id]
-                        .Items[itemId]
-                        .DeleteAsync();
+                var folder = await client.Drives[drive.Id].Root
+                    .ItemWithPath(folderPath)
+                    .GetAsync();
 
-                    _logger.LogInformation("Deleted file with ID: {ItemId}", itemId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to delete file with ID: {ItemId}", itemId);
-                    failedDeletes.Add(itemId);
-                }
+                return folder != null;
             }
-
-            if (failedDeletes.Any())
+            catch
             {
-                _logger.LogWarning("Failed to delete {Count} files: {FileIds}",
-                    failedDeletes.Count, string.Join(", ", failedDeletes));
                 return false;
             }
-
-            return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting multiple files");
+            _logger.LogError(ex, "Failed to check if package folder exists for {TakeoffNumber}/{RevisionCode}/PKG-{PackageNumber} in company {CompanyId}",
+                takeoffNumber, revisionCode, packageNumber, _tenantService.GetCurrentCompanyId());
             return false;
         }
     }
 
-    private async Task<DriveItem> UploadSmallFileAsync(GraphServiceClient client, string driveId, string folderId, string fileName, Stream stream)
+    // Mock data helper methods
+    private SharePointFolderInfo CreateMockFolderInfo(string name, string? revisionCode)
     {
-        // Reset stream position
-        if (stream.CanSeek)
+        return new SharePointFolderInfo
         {
-            stream.Position = 0;
-        }
+            Id = Guid.NewGuid().ToString(),
+            Name = name,
+            WebUrl = $"https://mock.sharepoint.com/sites/mock/Takeoffs/{name}",
+            Path = $"Takeoffs/{name}",
+            CreatedDateTime = DateTime.UtcNow.AddDays(-5),
+            RevisionCode = revisionCode
+        };
+    }
 
-        // Upload the file
-        var uploadedItem = await client.Drives[driveId]
-            .Items[folderId]
-            .ItemWithPath(fileName)
-            .Content
-            .PutAsync(stream);
+    private SharePointFileInfo CreateMockFileInfo(string fileName, long size, string contentType)
+    {
+        return new SharePointFileInfo
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = fileName,
+            Size = size,
+            ContentType = contentType,
+            WebUrl = $"https://mock.sharepoint.com/sites/mock/_layouts/15/Doc.aspx?sourcedoc={Guid.NewGuid()}",
+            CreatedDateTime = DateTime.UtcNow.AddHours(-2),
+            LastModifiedDateTime = DateTime.UtcNow.AddHours(-1),
+            CreatedBy = "Mock User",
+            ModifiedBy = "Mock User",
+            ETag = $"\"{Guid.NewGuid()}\"",
+            DownloadUrl = $"https://mock.sharepoint.com/_api/download/{Guid.NewGuid()}"
+        };
+    }
 
-        return uploadedItem ?? throw new InvalidOperationException($"Failed to upload {fileName}");
+    private List<SharePointFileInfo> CreateMockFileList(string takeoffNumber)
+    {
+        return new List<SharePointFileInfo>
+        {
+            CreateMockFileInfo($"{takeoffNumber}_drawing.pdf", 2048000, "application/pdf"),
+            CreateMockFileInfo($"{takeoffNumber}_specs.docx", 512000, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            CreateMockFileInfo($"{takeoffNumber}_estimate.xlsx", 256000, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        };
+    }
+
+    private SharePointFolderContents CreateMockFolderContents(string folderPath)
+    {
+        var contents = new SharePointFolderContents
+        {
+            CurrentPath = folderPath,
+            IsRoot = string.IsNullOrEmpty(folderPath) || folderPath == "/"
+        };
+
+        // Add mock folders
+        contents.Folders.Add(CreateMockFolderInfo("Takeoff001", null));
+        contents.Folders.Add(CreateMockFolderInfo("Takeoff002", null));
+        contents.Folders.Add(CreateMockFolderInfo("Archives", null));
+
+        // Add mock files
+        contents.Files.Add(CreateMockFileInfo("general_specs.pdf", 1024000, "application/pdf"));
+        contents.Files.Add(CreateMockFileInfo("readme.txt", 1024, "text/plain"));
+
+        return contents;
     }
 }

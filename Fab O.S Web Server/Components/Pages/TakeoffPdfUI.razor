@@ -78,16 +78,6 @@
                 </div>
 
                 <div class="tool-group">
-                    <label>Scale</label>
-                    <div class="scale-display">
-                        <button class="tool-btn" @onclick="OpenScaleCalibration">
-                            <i class="fas fa-balance-scale"></i>
-                            <span>1:@currentScale</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="tool-group">
                     <button class="btn btn-success" @onclick="SaveAllMeasurements">
                         <i class="fas fa-save"></i>
                         Save All
@@ -456,7 +446,7 @@
             var dx = currentMeasurement.Points[1].X - currentMeasurement.Points[0].X;
             var dy = currentMeasurement.Points[1].Y - currentMeasurement.Points[0].Y;
             var pixelDistance = Math.Sqrt(dx * dx + dy * dy);
-            currentMeasurement.Value = (decimal)(pixelDistance * currentScale); // Convert to real-world mm
+            currentMeasurement.Value = (decimal)(pixelDistance * (double)currentScale); // Convert to real-world mm
             currentMeasurement.Unit = "mm";
         }
     }
@@ -571,12 +561,6 @@
     {
         selectedCatalogueItem = item;
         showCatalogueModal = false;
-    }
-
-    private void OpenScaleCalibration()
-    {
-        // TODO: Implement scale calibration dialog
-        JS.InvokeVoidAsync("alert", "Scale calibration coming soon!");
     }
 
     private void CalculateTotalWeight()

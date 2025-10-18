@@ -26,6 +26,7 @@ public class ApplicationDbContext : DbContext
 
     // Steel estimation entities
     public DbSet<TraceDrawing> TraceDrawings { get; set; }
+    public DbSet<TakeoffRevision> TakeoffRevisions { get; set; }
     public DbSet<TraceMeasurement> TraceMeasurements { get; set; }
     public DbSet<TraceBeamDetection> TraceBeamDetections { get; set; }
     public DbSet<TraceTakeoffItem> TraceTakeoffItems { get; set; }
@@ -65,6 +66,12 @@ public class ApplicationDbContext : DbContext
     // NEW: View Preferences entities
     public DbSet<SavedViewPreference> SavedViewPreferences { get; set; }
 
+    // Configuration and Settings entities
+    public DbSet<NumberSeries> NumberSeries { get; set; }
+    public DbSet<ModuleSettings> ModuleSettings { get; set; }
+    public DbSet<GlobalSettings> GlobalSettings { get; set; }
+    public DbSet<CompanySharePointSettings> CompanySharePointSettings { get; set; }
+
     // Manufacturing entities
     public DbSet<WorkCenter> WorkCenters { get; set; }
     public DbSet<MachineCenter> MachineCenters { get; set; }
@@ -79,6 +86,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<InventoryTransaction> InventoryTransactions { get; set; }
     public DbSet<Assembly> Assemblies { get; set; }
     public DbSet<AssemblyComponent> AssemblyComponents { get; set; }
+
+    // NEW: PDF Annotation entities (Calibration & Annotations persistence)
+    public DbSet<PdfScaleCalibration> PdfScaleCalibrations { get; set; }
+    public DbSet<PdfAnnotation> PdfAnnotations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -418,6 +429,95 @@ public class ApplicationDbContext : DbContext
             .HasOne(ac => ac.ComponentAssembly)
             .WithMany()
             .HasForeignKey(ac => ac.ComponentAssemblyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // CompanySharePointSettings configurations
+        modelBuilder.Entity<CompanySharePointSettings>()
+            .Property(csps => csps.CreatedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<CompanySharePointSettings>()
+            .Property(csps => csps.LastModifiedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<CompanySharePointSettings>()
+            .HasIndex(csps => csps.CompanyId)
+            .IsUnique();
+
+        modelBuilder.Entity<CompanySharePointSettings>()
+            .HasOne(csps => csps.Company)
+            .WithMany()
+            .HasForeignKey(csps => csps.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CompanySharePointSettings>()
+            .HasOne(csps => csps.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(csps => csps.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CompanySharePointSettings>()
+            .HasOne(csps => csps.LastModifiedByUser)
+            .WithMany()
+            .HasForeignKey(csps => csps.LastModifiedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // TEMPORARY: Ignore Order->Project relationship until migration is ready
+        modelBuilder.Entity<Order>()
+            .Ignore(o => o.Projects);
+
+        // PDF Annotation entity configurations
+
+        // PdfScaleCalibration configurations
+        modelBuilder.Entity<PdfScaleCalibration>()
+            .Property(psc => psc.CreatedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<PdfScaleCalibration>()
+            .HasIndex(psc => psc.PackageDrawingId);
+
+        modelBuilder.Entity<PdfScaleCalibration>()
+            .HasOne(psc => psc.PackageDrawing)
+            .WithMany()
+            .HasForeignKey(psc => psc.PackageDrawingId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PdfScaleCalibration>()
+            .HasOne(psc => psc.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(psc => psc.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // PdfAnnotation configurations
+        modelBuilder.Entity<PdfAnnotation>()
+            .Property(pa => pa.CreatedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<PdfAnnotation>()
+            .HasIndex(pa => new { pa.PackageDrawingId, pa.AnnotationId });
+
+        modelBuilder.Entity<PdfAnnotation>()
+            .HasIndex(pa => pa.PackageDrawingId);
+
+        modelBuilder.Entity<PdfAnnotation>()
+            .HasIndex(pa => pa.TraceTakeoffMeasurementId);
+
+        modelBuilder.Entity<PdfAnnotation>()
+            .HasOne(pa => pa.PackageDrawing)
+            .WithMany()
+            .HasForeignKey(pa => pa.PackageDrawingId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PdfAnnotation>()
+            .HasOne(pa => pa.TraceTakeoffMeasurement)
+            .WithMany()
+            .HasForeignKey(pa => pa.TraceTakeoffMeasurementId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<PdfAnnotation>()
+            .HasOne(pa => pa.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(pa => pa.CreatedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

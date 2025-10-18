@@ -1,0 +1,231 @@
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Services.Interfaces
+@inject IDatabaseService DatabaseService
+@inject ILogger<CustomerLookup> Logger
+@inject NavigationManager NavigationManager
+
+<div class="customer-lookup-container">
+    <div class="customer-lookup-controls">
+        <select class="customer-select @CssClass" @onchange="OnCustomerChanged" disabled="@Disabled">
+            <option value="">-- Select Customer --</option>
+            @if (customers != null)
+            {
+                @foreach (var customer in customers)
+                {
+                    <option value="@customer.Id" selected="@(customer.Id == SelectedCustomerId)">
+                        @customer.Name @(!string.IsNullOrEmpty(customer.Code) ? $"({customer.Code})" : "")
+                    </option>
+                }
+            }
+            <option value="create-new" class="create-new-option">➕ Create New Customer...</option>
+        </select>
+
+        @if (SelectedCustomerId > 0)
+        {
+            <button type="button" class="btn btn-sm btn-info" @onclick="ViewCustomer" title="View Customer Details">
+                <i class="fas fa-eye"></i> View
+            </button>
+        }
+    </div>
+</div>
+
+
+<style>
+    .customer-lookup-container {
+        width: 100%;
+    }
+
+    .customer-lookup-controls {
+        display: flex;
+        gap: 0.75rem;
+        align-items: stretch;
+    }
+
+    /* Match the takeoff-form-control styling */
+    .customer-select {
+        flex: 1;
+        padding: 1rem 1.2rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 1.05rem;
+        color: #1f2937;
+        min-height: 48px;
+        background: white;
+        transition: all 0.2s ease;
+        font-weight: 400;
+        cursor: pointer;
+    }
+
+    .customer-select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.08);
+        background: white;
+    }
+
+    .customer-select:disabled {
+        background-color: #f9fafb;
+        color: #9ca3af;
+        cursor: not-allowed;
+        opacity: 0.7;
+        border-color: #e5e7eb;
+    }
+
+    .create-new-option {
+        font-weight: 600;
+        color: #3b82f6;
+        border-top: 2px solid #e5e7eb;
+        padding-top: 0.5rem;
+        margin-top: 0.5rem;
+    }
+
+    /* Modern button styling to match takeoff card */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.25rem;
+        font-size: 1rem;
+        font-weight: 500;
+        line-height: 1.5;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: middle;
+        cursor: pointer;
+        user-select: none;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        min-height: 48px;
+    }
+
+    .btn-info {
+        color: #ffffff;
+        background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+        border-color: #3b82f6;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    }
+
+    .btn-info:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+        border-color: #2563eb;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transform: translateY(-1px);
+    }
+
+    .btn-info:active {
+        transform: translateY(0);
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    }
+
+    .btn-info:disabled {
+        background: #e5e7eb;
+        border-color: #e5e7eb;
+        color: #9ca3af;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .btn-sm {
+        padding: 0.625rem 1rem;
+        font-size: 0.95rem;
+    }
+
+    /* Icon styling */
+    .btn i {
+        font-size: 0.875rem;
+    }
+</style>
+
+@code {
+    [Parameter] public int? SelectedCustomerId { get; set; }
+    [Parameter] public EventCallback<int?> SelectedCustomerIdChanged { get; set; }
+    [Parameter] public EventCallback<Customer> OnCustomerSelected { get; set; }
+    [Parameter] public bool Disabled { get; set; } = false;
+    [Parameter] public string CssClass { get; set; } = "";
+    [Parameter] public bool LoadOnInit { get; set; } = true;
+
+    private List<Customer> customers = new();
+    private Customer? selectedCustomer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (LoadOnInit)
+        {
+            await LoadCustomers();
+        }
+    }
+
+    public async Task LoadCustomers()
+    {
+        try
+        {
+            customers = await DatabaseService.GetCustomersAsync();
+
+            // If there's a selected customer ID, find and set the customer
+            if (SelectedCustomerId.HasValue && SelectedCustomerId.Value > 0)
+            {
+                selectedCustomer = customers.FirstOrDefault(c => c.Id == SelectedCustomerId.Value);
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load customers");
+        }
+    }
+
+    private async Task OnCustomerChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+
+        if (value == "create-new")
+        {
+            // Navigate to new customer page with return URL
+            var currentUri = NavigationManager.Uri;
+            var encodedReturnUrl = System.Net.WebUtility.UrlEncode(currentUri);
+            NavigationManager.NavigateTo($"/customers/0?returnUrl={encodedReturnUrl}");
+        }
+        else if (int.TryParse(value, out var customerId))
+        {
+            // Select the customer
+            SelectedCustomerId = customerId;
+            selectedCustomer = customers.FirstOrDefault(c => c.Id == customerId);
+
+            await SelectedCustomerIdChanged.InvokeAsync(customerId);
+            if (selectedCustomer != null)
+            {
+                await OnCustomerSelected.InvokeAsync(selectedCustomer);
+            }
+        }
+        else
+        {
+            // Clear selection
+            SelectedCustomerId = null;
+            selectedCustomer = null;
+            await SelectedCustomerIdChanged.InvokeAsync(null);
+        }
+    }
+
+    private void ViewCustomer()
+    {
+        if (SelectedCustomerId.HasValue && SelectedCustomerId.Value > 0)
+        {
+            // Get the current page URL to pass as a return parameter
+            var currentUri = NavigationManager.Uri;
+            var encodedReturnUrl = System.Net.WebUtility.UrlEncode(currentUri);
+
+            // Navigate to the customer card page with return URL
+            NavigationManager.NavigateTo($"/customers/{SelectedCustomerId.Value}?returnUrl={encodedReturnUrl}");
+        }
+    }
+
+
+    // Public method to allow parent components to refresh the list
+    public async Task RefreshCustomers()
+    {
+        await LoadCustomers();
+    }
+}

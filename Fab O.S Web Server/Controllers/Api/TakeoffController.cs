@@ -66,13 +66,7 @@ namespace FabOS.WebServer.Controllers.Api
 
                             if (weightCalc != null)
                             {
-                                calc.Weight = new WeightCalculationDto
-                                {
-                                    Weight = weightCalc.Weight,
-                                    Unit = weightCalc.WeightUnit,
-                                    UnitWeight = weightCalc.UnitWeight,
-                                    CalculationMethod = weightCalc.CalculationMethod
-                                };
+                                calc.Weight = weightCalc;
                             }
 
                             calc.ItemCode = measurement.CatalogueItem.ItemCode;

@@ -1,5 +1,6 @@
 using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Services.Interfaces;
+using FabOS.WebServer.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using Microsoft.Data.SqlClient;
@@ -118,4 +119,238 @@ public class DatabaseService : IDatabaseService
             throw;
         }
     }
+
+    #region Customer Methods
+
+    public async Task<List<Customer>> GetCustomersAsync()
+    {
+        try
+        {
+            return await _context.Customers
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.Name)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving customers");
+            throw;
+        }
+    }
+
+    public async Task<Customer> GetCustomerByIdAsync(int id)
+    {
+        try
+        {
+            var customer = await _context.Customers
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (customer == null)
+                throw new KeyNotFoundException($"Customer with ID {id} not found");
+
+            return customer;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving customer with ID: {Id}", id);
+            throw;
+        }
+    }
+
+    public async Task<Customer> CreateCustomerAsync(Customer customer)
+    {
+        try
+        {
+            _context.Customers.Add(customer);
+            await _context.SaveChangesAsync();
+            return customer;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating customer");
+            throw;
+        }
+    }
+
+    public async Task<Customer> UpdateCustomerAsync(Customer customer)
+    {
+        try
+        {
+            _context.Customers.Update(customer);
+            await _context.SaveChangesAsync();
+            return customer;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating customer with ID: {Id}", customer.Id);
+            throw;
+        }
+    }
+
+    public async Task<bool> DeleteCustomerAsync(int id)
+    {
+        try
+        {
+            var customer = await _context.Customers.FindAsync(id);
+            if (customer == null)
+                return false;
+
+            // Soft delete
+            customer.IsActive = false;
+            customer.LastModified = DateTime.Now;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting customer with ID: {Id}", id);
+            throw;
+        }
+    }
+
+    #endregion
+
+    #region Customer Contact Methods
+
+    public async Task<List<CustomerContact>> GetCustomerContactsAsync(int customerId)
+    {
+        try
+        {
+            return await _context.CustomerContacts
+                .Where(c => c.CustomerId == customerId && c.IsActive)
+                .OrderBy(c => c.IsPrimary ? 0 : 1)
+                .ThenBy(c => c.LastName)
+                .ThenBy(c => c.FirstName)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving contacts for customer ID: {CustomerId}", customerId);
+            throw;
+        }
+    }
+
+    public async Task<CustomerContact> CreateCustomerContactAsync(CustomerContact contact)
+    {
+        try
+        {
+            _context.CustomerContacts.Add(contact);
+            await _context.SaveChangesAsync();
+            return contact;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating customer contact");
+            throw;
+        }
+    }
+
+    public async Task<CustomerContact> UpdateCustomerContactAsync(CustomerContact contact)
+    {
+        try
+        {
+            _context.CustomerContacts.Update(contact);
+            await _context.SaveChangesAsync();
+            return contact;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating customer contact with ID: {Id}", contact.Id);
+            throw;
+        }
+    }
+
+    public async Task<bool> DeleteCustomerContactAsync(int id)
+    {
+        try
+        {
+            var contact = await _context.CustomerContacts.FindAsync(id);
+            if (contact == null)
+                return false;
+
+            // Soft delete
+            contact.IsActive = false;
+            contact.LastModified = DateTime.Now;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting customer contact with ID: {Id}", id);
+            throw;
+        }
+    }
+
+    #endregion
+
+    #region Customer Address Methods
+
+    public async Task<List<CustomerAddress>> GetCustomerAddressesAsync(int customerId)
+    {
+        try
+        {
+            return await _context.CustomerAddresses
+                .Where(a => a.CustomerId == customerId && a.IsActive)
+                .OrderBy(a => a.AddressType)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving addresses for customer ID: {CustomerId}", customerId);
+            throw;
+        }
+    }
+
+    public async Task<CustomerAddress> CreateCustomerAddressAsync(CustomerAddress address)
+    {
+        try
+        {
+            _context.CustomerAddresses.Add(address);
+            await _context.SaveChangesAsync();
+            return address;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating customer address");
+            throw;
+        }
+    }
+
+    public async Task<CustomerAddress> UpdateCustomerAddressAsync(CustomerAddress address)
+    {
+        try
+        {
+            _context.CustomerAddresses.Update(address);
+            await _context.SaveChangesAsync();
+            return address;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating customer address with ID: {Id}", address.Id);
+            throw;
+        }
+    }
+
+    public async Task<bool> DeleteCustomerAddressAsync(int id)
+    {
+        try
+        {
+            var address = await _context.CustomerAddresses.FindAsync(id);
+            if (address == null)
+                return false;
+
+            // Soft delete
+            address.IsActive = false;
+            address.LastModified = DateTime.Now;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting customer address with ID: {Id}", id);
+            throw;
+        }
+    }
+
+    #endregion
 }

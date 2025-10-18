@@ -1,0 +1,16 @@
+{
+  "ribbon": {
+    "text": "Esporta"
+  },
+  "button-tooltip": {
+    "title": "Esporta dati del modulo"
+  },
+  "export": {
+    "xml": "Verso un file XML",
+    "fdf": "Verso un file FDF",
+    "xfdf": "Verso un file XFDF",
+    "csv": "Su un file CSV",
+    "txt": "In un file TXT",
+    "xdp": "Verso un file XDP"
+  }
+}

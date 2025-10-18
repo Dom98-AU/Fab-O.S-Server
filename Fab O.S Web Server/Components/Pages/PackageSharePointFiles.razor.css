@@ -1,0 +1,56 @@
+.sharepoint-files-container {
+    padding: 1.5rem;
+    width: 100%;
+    margin: 0;
+}
+
+.loading-container, .error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+}
+
+.alert {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+}
+
+.alert-warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.alert-danger {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.alert-info {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.alert-content {
+    flex: 1;
+}
+
+.alert-content h4 {
+    margin: 0 0 0.5rem 0;
+}
+
+.files-content {
+    margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+    .sharepoint-files-container {
+        padding: 1rem;
+    }
+}

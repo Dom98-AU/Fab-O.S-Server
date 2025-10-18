@@ -1,0 +1,31 @@
+{
+  "buttons": {
+    "title": "Für Schwärzung markieren",
+    "redact_text_image": "Text & Bilder",
+    "redact_area": "Bereich markieren",
+    "redact_page": "Seiten",
+    "redact_auto": "Automatisch Schwärzen",
+    "redact_search": "Suchen und schwärzen",
+    "apply": "Wenden Sie Schwärzungen an",
+    "whiteout": "Whiteout",
+    "ok": "OK",
+    "cancel": "Abbrechen"
+  },
+  "tooltips": {
+    "redaction": "Inhalt für Schwärzung markieren",
+    "apply": "Markierten Inhalt dauerhaft entfernen",
+    "auto_redaction": "Foxit Smart Redact \n\n Lassen Sie Ihre Dokumente automatisch von „Foxit Smart Redact“ schwärzen.",
+    "whiteout": "Löschen Sie den/die ausgewählten Bereich/Bereiche des Dokuments."
+  },
+  "dialog": {
+    "apply_alert": "Sie sind im Begriff, die für die Schwärzung ausgewählten Inhalte dauerhaft zu schwärzen. Wenn Sie „Anwenden“ auswählen, kann der Vorgang nicht mehr rückgängig gemacht werden.\nMöchten Sie den Vorgang wirklich fortsetzen?\nWICHTIG! Es wird empfohlen, vor dem Anwenden von Schwärzungen eine Sicherungskopie des Dokuments zu speichern.",
+    "redaction_page": {
+      "mark_current_page": "Aktuelle Seite für Schwärzung markieren",
+      "mark_specific_page": "Markieren Sie die ausgewählten Seiten zum Schwärzen",
+      "page_range": "Seitenbereich"
+    },
+    "readaction_page_max": "Max.: ",
+    "pageRange": "Seitenbereich",
+    "apply_whiteout_alert": "Bitte beachten Sie, dass \"Whiteout\" nach dem Speichern des PDF nicht rückgängig gemacht werden kann. Sind Sie sicher, dass Sie fortfahren möchten?"
+  }
+}

@@ -6,6 +6,7 @@ using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models;
 using FabOS.WebServer.Services.Interfaces;
+using FabOS.WebServer.Services;
 using FabOS.WebServer.Components.Shared;
 
 namespace FabOS.WebServer.Components.Pages;
@@ -34,13 +35,14 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
     [Inject] private ISharePointService? SharePointService { get; set; }
     [Inject] private ILogger<TakeoffCard> Logger { get; set; } = default!;
     [Inject] private FabOS.WebServer.Services.BreadcrumbService BreadcrumbService { get; set; } = default!;
+    [Inject] private NumberSeriesService NumberSeriesService { get; set; } = default!;
 
     private TraceDrawing? takeoff = null;
     private bool isLoading = true;
     private string errorMessage = "";
 
     // Customer and Contact selection
-    private List<Customer> customers = new();
+    private CustomerLookup? customerLookup;
     private List<CustomerContact> customerContacts = new();
     private Customer? selectedCustomer;
     private CustomerAddress? selectedAddress;
@@ -80,15 +82,41 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
     private string setupSiteUrl = string.Empty;
     private bool isConfiguringSharePoint = false;
 
+    // Missing fields for TakeoffCard.razor
+    private DateTime? bidDate;
+    private TraceDrawing? selectedTakeoff;
+
     protected override async Task OnInitializedAsync()
     {
         fileActionProvider = fileActions;
         await LoadData();
         LoadSampleFiles();
+        await UpdateBreadcrumbAsync();
+    }
 
-        // Set breadcrumb in main layout
-        var breadcrumbText = Id == 0 ? "Takeoffs / New Takeoff" : $"Takeoffs / {takeoff?.DrawingNumber ?? $"Takeoff #{Id}"}";
-        BreadcrumbService.SetBreadcrumb(breadcrumbText);
+    private async Task UpdateBreadcrumbAsync()
+    {
+        if (Id == 0)
+        {
+            // For new takeoffs, use custom label
+            await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
+                "Takeoffs",
+                "/takeoffs",
+                "Takeoff",
+                null,
+                takeoff?.TakeoffNumber ?? "New Takeoff"
+            );
+        }
+        else
+        {
+            // For existing takeoffs, use the breadcrumb builder to load the actual takeoff number
+            await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
+                "Takeoffs",
+                "/takeoffs",
+                "Takeoff",
+                Id
+            );
+        }
     }
 
     private async Task LoadData()
@@ -98,11 +126,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             isLoading = true;
             StateHasChanged();
 
-            // Load customers first
-            customers = await DbContext.Customers
-                .Where(c => c.IsActive)
-                .OrderBy(c => c.Name)
-                .ToListAsync();
+            // CustomerLookup component will load customers internally
 
 
             // Load or create takeoff
@@ -126,6 +150,11 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                     ScaleUnit = "mm",
                     Scale = 100
                 };
+
+                // Auto-generate takeoff number immediately for new takeoffs
+                await GenerateTakeoffNumber();
+                await UpdateBreadcrumbAsync();
+
                 isEditMode = true;
             }
             else
@@ -138,33 +167,57 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                 {
                     errorMessage = $"Takeoff with ID {Id} not found.";
                 }
-                else if (takeoff.CustomerId != null)
+                else
                 {
-                    // Load customer contacts if customer is selected
-                    await LoadCustomerContacts(takeoff.CustomerId.Value);
-
-                    // Load selected contact if exists
-                    if (takeoff.ContactId != null)
+                    // Generate takeoff number for existing records that don't have one
+                    if (string.IsNullOrEmpty(takeoff.TakeoffNumber))
                     {
-                        selectedContact = customerContacts.FirstOrDefault(c => c.Id == takeoff.ContactId);
-                        if (selectedContact != null)
+                        try
                         {
-                            selectedContactEmail = selectedContact.Email ?? "";
-                            selectedContactPhone = selectedContact.PhoneNumber ?? "";
+                            takeoff.TakeoffNumber = await NumberSeriesService.GetNextNumberAsync("Takeoff", takeoff.CompanyId);
+                            DbContext.TraceDrawings.Update(takeoff);
+                            await DbContext.SaveChangesAsync();
+                            Logger.LogInformation($"Generated takeoff number {takeoff.TakeoffNumber} for existing takeoff ID {Id}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogError(ex, $"Failed to generate takeoff number for existing takeoff ID {Id}");
+                            // Continue without number generation if it fails
                         }
                     }
 
-                    // Load selected customer details
-                    selectedCustomer = customers.FirstOrDefault(c => c.Id == takeoff.CustomerId.Value);
-                    if (selectedCustomer != null)
+                    if (takeoff.CustomerId != null)
                     {
-                        selectedAddress = await DbContext.CustomerAddresses
-                            .FirstOrDefaultAsync(a => a.CustomerId == selectedCustomer.Id && a.IsPrimary);
+                        // Load customer contacts if customer is selected
+                        await LoadCustomerContacts(takeoff.CustomerId.Value);
+
+                        // Load selected contact if exists
+                        if (takeoff.ContactId != null)
+                        {
+                            selectedContact = customerContacts.FirstOrDefault(c => c.Id == takeoff.ContactId);
+                            if (selectedContact != null)
+                            {
+                                selectedContactEmail = selectedContact.Email ?? "";
+                                selectedContactPhone = selectedContact.PhoneNumber ?? "";
+                            }
+                        }
+
+                        // Load selected customer details
+                        selectedCustomer = await DbContext.Customers
+                            .FirstOrDefaultAsync(c => c.Id == takeoff.CustomerId.Value);
+                        if (selectedCustomer != null)
+                        {
+                            selectedAddress = await DbContext.CustomerAddresses
+                                .FirstOrDefaultAsync(a => a.CustomerId == selectedCustomer.Id && a.IsPrimary);
+                        }
                     }
                 }
 
                 // Set edit mode as default for existing takeoffs
                 isEditMode = true;
+
+                // Update breadcrumb with loaded takeoff number
+                await UpdateBreadcrumbAsync();
             }
         }
         catch (Exception ex)
@@ -187,34 +240,41 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             .ToListAsync();
     }
 
-    private async Task OnCustomerChanged(ChangeEventArgs e)
+    private async Task OnCustomerIdChanged(int? customerId)
     {
         if (takeoff == null) return;
 
-        if (int.TryParse(e.Value?.ToString(), out int customerId))
+        takeoff.CustomerId = customerId;
+        if (!customerId.HasValue)
         {
-            takeoff.CustomerId = customerId;
-            takeoff.ContactId = null; // Reset contact when customer changes
-            selectedContact = null;
-            selectedContactEmail = "";
-            selectedContactPhone = "";
-
-            await LoadCustomerContacts(customerId);
-
-            selectedCustomer = customers.FirstOrDefault(c => c.Id == customerId);
-            if (selectedCustomer != null)
-            {
-                selectedAddress = await DbContext.CustomerAddresses
-                    .FirstOrDefaultAsync(a => a.CustomerId == selectedCustomer.Id && a.IsPrimary);
-            }
-        }
-        else
-        {
-            takeoff.CustomerId = null;
             takeoff.ContactId = null;
             customerContacts.Clear();
             selectedCustomer = null;
             selectedAddress = null;
+            selectedContact = null;
+            selectedContactEmail = "";
+            selectedContactPhone = "";
+        }
+        else
+        {
+            takeoff.ContactId = null; // Reset contact when customer changes
+            selectedContact = null;
+            selectedContactEmail = "";
+            selectedContactPhone = "";
+            await LoadCustomerContacts(customerId.Value);
+        }
+    }
+
+    private async Task OnCustomerSelected(Customer customer)
+    {
+        selectedCustomer = customer;
+        if (customer != null)
+        {
+            selectedAddress = await DbContext.CustomerAddresses
+                .FirstOrDefaultAsync(a => a.CustomerId == customer.Id && a.IsPrimary);
+
+            // Address field has been removed from TraceDrawing entity
+            // The address is now handled through the CustomerAddress relationship
         }
 
         StateHasChanged();
@@ -245,15 +305,21 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
     private async Task GenerateTakeoffNumber()
     {
-        if (takeoff != null && !takeoffNumberGenerated && string.IsNullOrEmpty(takeoff.DrawingNumber))
+        if (takeoff != null && !takeoffNumberGenerated)
         {
-            var lastTakeoff = await DbContext.TraceDrawings
-                .OrderByDescending(t => t.Id)
-                .FirstOrDefaultAsync();
-
-            int nextNumber = (lastTakeoff?.Id ?? 0) + 1;
-            takeoff.DrawingNumber = $"TO-{DateTime.Now.Year}-{nextNumber:D5}";
-            takeoffNumberGenerated = true;
+            try
+            {
+                // Use the NumberSeriesService to generate a new takeoff number
+                takeoff.TakeoffNumber = await NumberSeriesService.GetNextNumberAsync("Takeoff", takeoff.CompanyId);
+                takeoffNumberGenerated = true;
+                StateHasChanged(); // Ensure UI updates
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to generate takeoff number");
+                errorMessage = "Failed to generate takeoff number. Please try again.";
+                StateHasChanged();
+            }
         }
     }
 
@@ -271,13 +337,53 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
         return sectionStates.ContainsKey(sectionName) && sectionStates[sectionName];
     }
 
+    // Missing methods for TakeoffCard.razor
+    private void OnSearchChanged(string searchTerm)
+    {
+        // Search functionality placeholder
+        StateHasChanged();
+    }
 
+    private string GetStatusClass(string? status)
+    {
+        return status?.ToLower() switch
+        {
+            "pending" => "badge bg-warning",
+            "in progress" => "badge bg-info",
+            "completed" => "badge bg-success",
+            "cancelled" => "badge bg-danger",
+            _ => "badge bg-secondary"
+        };
+    }
+
+    private async Task SaveChanges()
+    {
+        if (takeoff != null)
+        {
+            try
+            {
+                DbContext.TraceDrawings.Update(takeoff);
+                await DbContext.SaveChangesAsync();
+                Logger.LogInformation($"Saved changes to takeoff {takeoff.Id}");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, $"Failed to save takeoff {takeoff?.Id}");
+                errorMessage = "Failed to save changes. Please try again.";
+            }
+        }
+    }
+
+    private void CancelChanges()
+    {
+        Navigation.NavigateTo("/takeoffs");
+    }
 
     private int GetProgressPercentage()
     {
         if (takeoff == null) return 0;
 
-        int totalFields = 10;
+        int totalFields = 9; // Reduced from 10 after removing ProjectNumber
         int completedFields = 0;
 
         if (!string.IsNullOrEmpty(takeoff.DrawingNumber)) completedFields++;
@@ -286,7 +392,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
         if (takeoff.ContactId != null) completedFields++;
         if (!string.IsNullOrEmpty(takeoff.DrawingType)) completedFields++;
         if (!string.IsNullOrEmpty(takeoff.Status)) completedFields++;
-        if (!string.IsNullOrEmpty(takeoff.ProjectNumber)) completedFields++;
+        // if (!string.IsNullOrEmpty(takeoff.ProjectNumber)) completedFields++; // ProjectNumber removed
         if (!string.IsNullOrEmpty(takeoff.Revision)) completedFields++;
         if (!string.IsNullOrEmpty(takeoff.TraceName)) completedFields++;
         if (takeoff.Scale != null && takeoff.Scale > 0) completedFields++;
@@ -326,6 +432,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                 // New takeoff - show Save as primary
                 actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
+                    Label = "Save",
                     Text = "Save",
                     Icon = "fas fa-save",
                     Action = EventCallback.Factory.Create(this, SaveTakeoff),
@@ -346,6 +453,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                 actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = "New",
+                    Label = "New",
                     Icon = "fas fa-plus",
                     Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo("/takeoffs/0"))
                 });
@@ -370,6 +478,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                 // Edit mode - show Save and Cancel
                 actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
+                    Label = "Save",
                     Text = "Save",
                     Icon = "fas fa-save",
                     Action = EventCallback.Factory.Create(this, SaveTakeoff),
@@ -408,13 +517,6 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                     Action = EventCallback.Factory.Create(this, () => StartMeasuring(takeoff))
                 });
 
-                actionGroup.MenuActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
-                    Text = "Generate Number",
-                    Icon = "fas fa-magic",
-                    Action = EventCallback.Factory.Create(this, GenerateTakeoffNumber),
-                    IsDisabled = takeoffNumberGenerated || !isEditMode
-                });
             }
 
             // Related Actions (Related dropdown)
@@ -430,6 +532,14 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                 Text = "View All Takeoffs",
                 Icon = "fas fa-list",
                 Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo("/takeoffs"))
+            });
+
+            actionGroup.RelatedActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+            {
+                Text = "Revisions",
+                Icon = "fas fa-code-branch",
+                Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/takeoffs/{Id}/revisions")),
+                Tooltip = "View and manage revisions"
             });
 
             actionGroup.RelatedActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
@@ -483,7 +593,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
     private void NavigateToPackages()
     {
-        Navigation.NavigateTo($"/takeoffs/{Id}/packages");
+        Navigation.NavigateTo($"/packages?takeoffId={Id}");
     }
 
     private async Task SaveTakeoff()
@@ -492,6 +602,13 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
         try
         {
+            // TakeoffNumber should already be generated for new takeoffs,
+            // but generate if missing
+            if (takeoff.Id == 0 && string.IsNullOrEmpty(takeoff.TakeoffNumber))
+            {
+                await GenerateTakeoffNumber();
+            }
+
             if (takeoff.Id == 0)
             {
                 DbContext.TraceDrawings.Add(takeoff);
@@ -508,6 +625,8 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                 isEditMode = false;
             }
 
+            // Update breadcrumb after save
+            await UpdateBreadcrumbAsync();
             StateHasChanged();
         }
         catch (Exception ex)

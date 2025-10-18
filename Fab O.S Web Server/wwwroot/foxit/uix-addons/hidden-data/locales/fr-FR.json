@@ -1,0 +1,50 @@
+{
+  "button-tooltip": {
+    "title": "Données masquées",
+    "tooltip": "Données masquées"
+  },
+  "sanitizeDocument": {
+    "title": "Nettoyer le document",
+    "tooltip": "Nettoyer le document",
+    "dialog": {
+      "title": "La fonction Nettoyer le document permet de supprimer d'un document PDF les métadonnées et autres données masquées susceptibles de contenir des informations sensibles. Elle supprime :",
+      "content": {
+        "metadata": "Métadonnées",
+        "embeddedAttached": "Contenu incorporé et fichiers joints",
+        "scripts": "Scripts",
+        "hiddenLayers": "Calques masqués",
+        "embeddedSearchIndexes": "Index de recherche incorporés",
+        "storedFormData": "Données des formulaires stockées",
+        "reviewComment": "Données de révision et de commentaires",
+        "hiddenDataPreDocSave": "Données masquées des enregistrements précédents du document",
+        "obscuredTextAndImage": "Texte et images censurés",
+        "commentsHidden": "Commentaires masqués dans le corps du fichier PDF",
+        "unreferencedData": "Données non référencées",
+        "linksActionsJavascripts": "Liens, actions et codes Javascript",
+        "overlappingObjects": "Objets superposés"
+      },
+      "notShowAgain": "Ne plus afficher ce message"
+    }
+  },
+  "removeHiddenInformation": {
+    "title": "Supprimer les informations masquées",
+    "tooltip": "Supprimer les informations masquées",
+    "dialog": {
+      "title": "La fonction Supprimer les informations masquées recherchera et supprimera les informations suivantes sur le document",
+      "checkboxes": {
+        "metadata": "Métadonnées",
+        "fileAttachments": "Pièces jointes",
+        "bookmarks": "Signets",
+        "embeddedSearchIndexes": "Index de recherche incorporé",
+        "commentsAndMarkups": "Commentaires et marquages",
+        "formFields": "Champs du formulaire",
+        "hiddenText": "Texte masqué",
+        "hiddenLayers": "Calques masqués",
+        "deletedOrCroppedContent": "Contenu supprimé ou rogné",
+        "linksActionsJavascripts": "Liens, actions et codes Javascript",
+        "overlappingObjects": "Objets superposés"
+      },
+      "noCheckedAlert": "Sélectionnez au moins un élément à supprimer."
+    }
+  }
+}

@@ -8,15 +8,9 @@
             @foreach (var item in Items)
             {
                 <div class="card-wrapper">
-                    <GenericCard TItem="TItem"
+                    <GenericCard TItem="TItem" 
                                  Item="@item"
                                  Config="@CardConfig"
-                                 TitleSelector="@TitleSelector"
-                                 SubtitleSelector="@SubtitleSelector"
-                                 DescriptionSelector="@DescriptionSelector"
-                                 ImageUrlSelector="@ImageUrlSelector"
-                                 StatusSelector="@StatusSelector"
-                                 BadgeSelector="@BadgeSelector"
                                  IsSelected="@(IsItemSelected(item))"
                                  IsSelectable="@AllowSelection"
                                  OnClick="@OnItemClick"

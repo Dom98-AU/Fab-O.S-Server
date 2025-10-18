@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "playwright": "^1.56.0",
+    "pspdfkit": "^2024.8.2"
+  }
+}

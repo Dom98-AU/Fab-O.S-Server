@@ -6,7 +6,7 @@
 @using FabOS.WebServer.Models.Entities
 @using Microsoft.EntityFrameworkCore
 
-<PageTitle>@(Id == 0 ? "New Package" : package?.PackageName ?? "Package Details") - Fab.OS</PageTitle>
+<PageTitle>@(Id == 0 ? "New Package" : package?.PackageNumber ?? "Package Details") - Fab.OS</PageTitle>
 
 <!-- Standard Toolbar -->
 <StandardToolbar ActionProvider="@this" PageType="PageType.Card" />
@@ -15,13 +15,15 @@
 <div class="package-layout">
     @if (isLoading)
     {
+        <!-- Loading State -->
         <div class="package-loading">
-            <div class="spinner"></div>
+            <div class="package-spinner"></div>
             <p>Loading package details...</p>
         </div>
     }
     else if (!string.IsNullOrEmpty(errorMessage))
     {
+        <!-- Error State -->
         <div class="package-error">
             <i class="fas fa-exclamation-triangle"></i>
             <div>@errorMessage</div>
@@ -29,97 +31,123 @@
     }
     else if (package != null)
     {
+        <!-- Container Wrapper -->
         <div class="package-container">
-            <div class="package-card package-info-card">
-                <div class="package-card-header">
-                    <div class="package-card-icon">
-                        <i class="fas fa-box"></i>
+            <!-- Collapsible Sections -->
+            <div class="package-sections">
+
+                <!-- General Section (Basic Info) -->
+                <div class="package-section">
+                    <div class="package-section-header @(IsSectionExpanded("general") ? "expanded" : "")" @onclick="@(() => ToggleSection("general"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-info-circle section-icon"></i>
+                            <span class="section-title">General</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
                     </div>
-                    <h2 class="package-card-title">Package Information</h2>
-                </div>
-                <div class="package-card-body">
-                    <div class="package-form-grid two-column">
-                        <!-- Package Number -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">Package Number</label>
-                            @if (isEditMode)
-                            {
-                                <input type="text" class="package-form-control" @bind="package.PackageNumber" />
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">@package.PackageNumber</p>
-                            }
+                    <div class="package-section-content @(IsSectionExpanded("general") ? "expanded" : "collapsed")">
+                        <div class="package-form-grid two-column">
+                            <!-- Package Number (Auto-generated) -->
+                            <div class="package-form-group">
+                                <label class="package-form-label">Package Number</label>
+                                @if (isEditMode && package.Id == 0)
+                                {
+                                    <input type="text" class="package-form-control" value="@package.PackageNumber"
+                                           placeholder="Will be auto-generated on save" readonly />
+                                }
+                                else
+                                {
+                                    <p class="package-form-control-plaintext">@(package.PackageNumber ?? "Not set")</p>
+                                }
                         </div>
 
-                        <!-- Package Name -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">Package Name</label>
-                            @if (isEditMode)
-                            {
-                                <input type="text" class="package-form-control" @bind="package.PackageName" />
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">@package.PackageName</p>
-                            }
+                            <!-- Package Name -->
+                            <div class="package-form-group">
+                                <label class="package-form-label">Package Name</label>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" class="package-form-control" @bind="package.PackageName"
+                                           placeholder="Enter package name" />
+                                }
+                                else
+                                {
+                                    <p class="package-form-control-plaintext">@(package.PackageName ?? "Not set")</p>
+                                }
                         </div>
 
-                        <!-- Description -->
-                        <div class="package-form-group full-width">
-                            <label class="package-form-label">Description</label>
-                            @if (isEditMode)
-                            {
-                                <textarea class="package-form-control" rows="3" @bind="package.Description"></textarea>
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">@(package.Description ?? "No description")</p>
-                            }
+                            <!-- Description -->
+                            <div class="package-form-group full-width">
+                                <label class="package-form-label">Description</label>
+                                @if (isEditMode)
+                                {
+                                    <textarea class="package-form-control" rows="3" @bind="package.Description"
+                                              placeholder="Enter package description"></textarea>
+                                }
+                                else
+                                {
+                                    <p class="package-form-control-plaintext">@(package.Description ?? "No description")</p>
+                                }
                         </div>
 
-                        <!-- Status -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">Status</label>
-                            @if (isEditMode)
-                            {
-                                <select class="package-form-control" @bind="package.Status">
-                                    <option value="Planning">Planning</option>
-                                    <option value="Active">Active</option>
-                                    <option value="Completed">Completed</option>
-                                    <option value="On Hold">On Hold</option>
-                                    <option value="Cancelled">Cancelled</option>
-                                </select>
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">
-                                    <span class="badge bg-info">@(package.Status ?? "Active")</span>
-                                </p>
-                            }
+                            <!-- Status -->
+                            <div class="package-form-group">
+                                <label class="package-form-label">Status</label>
+                                @if (isEditMode)
+                                {
+                                    <select class="package-form-control" @bind="package.Status">
+                                        <option value="Planning">Planning</option>
+                                        <option value="In Progress">In Progress</option>
+                                        <option value="Review">Review</option>
+                                        <option value="Complete">Complete</option>
+                                        <option value="On Hold">On Hold</option>
+                                        <option value="Cancelled">Cancelled</option>
+                                    </select>
+                                }
+                                else
+                                {
+                                    <p class="package-form-control-plaintext">
+                                        <span class="package-badge @GetStatusBadgeClass(package.Status)">
+                                            @(package.Status ?? "Not set")
+                                        </span>
+                                    </p>
+                                }
                         </div>
 
-                        <!-- Package Source -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">Package Source</label>
-                            @if (isEditMode)
-                            {
-                                <select class="package-form-control" @bind="package.PackageSource">
-                                    <option value="Project">Project</option>
-                                    <option value="Takeoff">Takeoff</option>
-                                    <option value="Estimation">Estimation</option>
-                                    <option value="Order">Order</option>
-                                </select>
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">@(package.PackageSource ?? "Project")</p>
-                            }
+                            <!-- Package Source -->
+                            <div class="package-form-group">
+                                <label class="package-form-label">Package Source</label>
+                                @if (isEditMode)
+                                {
+                                    <select class="package-form-control" @bind="package.PackageSource">
+                                        <option value="Project">Project</option>
+                                        <option value="Takeoff">Takeoff</option>
+                                        <option value="Estimation">Estimation</option>
+                                        <option value="Order">Order</option>
+                                    </select>
+                                }
+                                else
+                                {
+                                    <p class="package-form-control-plaintext">@(package.PackageSource ?? "Project")</p>
+                                }
+                            </div>
+                        </div> <!-- End of form-grid -->
+                    </div> <!-- End of General section content -->
+                </div> <!-- End of General section -->
+
+                <!-- Schedule & Costing Section -->
+                <div class="package-section">
+                    <div class="package-section-header @(IsSectionExpanded("schedule") ? "expanded" : "")" @onclick="@(() => ToggleSection("schedule"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-calendar-alt section-icon"></i>
+                            <span class="section-title">Schedule & Costing</span>
                         </div>
+                        <i class="fas @(IsSectionExpanded("schedule") ? "fa-chevron-up" : "fa-chevron-down") toggle-icon"></i>
                     </div>
 
-                    <h3 class="package-section-header">Schedule & Costing</h3>
-                    <div class="package-form-grid two-column">
+                    @if (IsSectionExpanded("schedule"))
+                    {
+                        <div class="package-section-content">
+                            <div class="package-form-grid two-column">
                         <!-- Start Date -->
                         <div class="package-form-group">
                             <label class="package-form-label">Start Date</label>
@@ -198,66 +226,92 @@
                             }
                         </div>
 
-                        <!-- Labor Rate per Hour -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">Labor Rate per Hour</label>
-                            @if (isEditMode)
-                            {
-                                <input type="number" class="package-form-control" @bind="package.LaborRatePerHour" step="0.01" />
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">$@package.LaborRatePerHour.ToString("N2")</p>
-                            }
-                        </div>
+                                <!-- Labor Rate per Hour -->
+                                <div class="package-form-group">
+                                    <label class="package-form-label">Labor Rate per Hour</label>
+                                    @if (isEditMode)
+                                    {
+                                        <input type="number" class="package-form-control" @bind="package.LaborRatePerHour" step="0.01" />
+                                    }
+                                    else
+                                    {
+                                        <p class="package-form-control-plaintext">$@package.LaborRatePerHour.ToString("N2")</p>
+                                    }
+                                </div>
 
-                        <!-- Processing Efficiency -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">Processing Efficiency (%)</label>
-                            @if (isEditMode)
-                            {
-                                <input type="number" class="package-form-control" @bind="package.ProcessingEfficiency" step="0.1" min="0" max="200" />
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">@((package.ProcessingEfficiency ?? 100m).ToString("N1"))%</p>
-                            }
-                        </div>
-                    </div>
-                </div>
+                                <!-- Processing Efficiency -->
+                                <div class="package-form-group">
+                                    <label class="package-form-label">Processing Efficiency (%)</label>
+                                    @if (isEditMode)
+                                    {
+                                        <input type="number" class="package-form-control" @bind="package.ProcessingEfficiency" step="0.1" min="0" max="200" />
+                                    }
+                                    else
+                                    {
+                                        <p class="package-form-control-plaintext">@((package.ProcessingEfficiency ?? 100m).ToString("N1"))%</p>
+                                    }
+                                </div>
+                            </div> <!-- End of form-grid -->
+                        </div> <!-- End of Schedule section content -->
+                    }
+                </div> <!-- End of Schedule section -->
 
                 <!-- Related Section -->
                 <div class="package-section">
-                    <h3 class="package-section-header">Related</h3>
-                    <div class="package-section-content">
-                        <div class="related-links">
-                            <button class="related-link-button" @onclick="NavigateToSharePointFiles">
-                                <div class="link-icon">
-                                    <i class="fas fa-file-pdf"></i>
-                                </div>
-                                <div class="link-content">
-                                    <span class="link-title">Package SharePoint Files</span>
-                                    <span class="link-description">View and manage drawings stored in SharePoint</span>
-                                    @if (fileCount > 0)
-                                    {
-                                        <span class="file-count">@fileCount file@(fileCount != 1 ? "s" : "")</span>
-                                    }
-                                </div>
-                                <div class="link-arrow">
-                                    <i class="fas fa-arrow-right"></i>
-                                </div>
-                            </button>
+                    <div class="package-section-header @(IsSectionExpanded("related") ? "expanded" : "")" @onclick="@(() => ToggleSection("related"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-link section-icon"></i>
+                            <span class="section-title">Related</span>
                         </div>
+                        <i class="fas @(IsSectionExpanded("related") ? "fa-chevron-up" : "fa-chevron-down") toggle-icon"></i>
                     </div>
-                </div>
-            </div>
-        </div>
+
+                    @if (IsSectionExpanded("related"))
+                    {
+                        <div class="package-section-content">
+                            <div class="related-links">
+                                <button class="related-link-button" @onclick="NavigateToTakeoffs">
+                                    <div class="link-icon">
+                                        <i class="fas fa-ruler"></i>
+                                    </div>
+                                    <div class="link-content">
+                                        <span class="link-title">Package Takeoffs</span>
+                                        <span class="link-description">View and manage takeoffs for this package</span>
+                                    </div>
+                                    <div class="link-arrow">
+                                        <i class="fas fa-arrow-right"></i>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div> <!-- End of Related section -->
+
+            </div> <!-- End of package-sections -->
+        </div> <!-- End of package-container -->
     }
     else
     {
+        <!-- No Data State -->
         <div class="package-error">
             <i class="fas fa-exclamation-triangle"></i>
             <div>No package found</div>
         </div>
     }
 </div>
+
+@code {
+    private string GetStatusBadgeClass(string? status)
+    {
+        return status?.ToLower() switch
+        {
+            "planning" => "status-planning",
+            "in progress" => "status-progress",
+            "review" => "status-review",
+            "complete" => "status-complete",
+            "on hold" => "status-hold",
+            "cancelled" => "status-cancelled",
+            _ => "status-default"
+        };
+    }
+}

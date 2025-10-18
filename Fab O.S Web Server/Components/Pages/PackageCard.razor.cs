@@ -4,6 +4,7 @@ using FabOS.WebServer.Components.Shared.Interfaces;
 using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models;
+using FabOS.WebServer.Services;
 
 namespace FabOS.WebServer.Components.Pages;
 
@@ -11,23 +12,63 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
 {
     [Parameter] public int Id { get; set; }
 
+    // Query parameters
+    [SupplyParameterFromQuery(Name = "takeoffId")]
+    public int? TakeoffIdFromQuery { get; set; }
+
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private FabOS.WebServer.Services.BreadcrumbService BreadcrumbService { get; set; } = default!;
+    [Inject] private ILogger<PackageCard> Logger { get; set; } = default!;
+    [Inject] private NumberSeriesService NumberSeriesService { get; set; } = default!;
+    [Inject] private FabOS.WebServer.Services.Interfaces.ITakeoffRevisionService RevisionService { get; set; } = default!;
 
     private Package? package = null;
     private bool isLoading = true;
     private string errorMessage = "";
     private int fileCount = 0;
 
-    // Default to edit mode as requested
+    // For new packages
     private bool isEditMode = true;
+
+    // Section collapse management
+    private Dictionary<string, bool> sectionStates = new Dictionary<string, bool>
+    {
+        { "general", true },  // General section expanded by default
+        { "schedule", true }, // Schedule section expanded by default
+        { "related", false }  // Related section collapsed by default
+    };
+    private bool packageNumberGenerated = false;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadPackage();
-        var breadcrumbText = Id == 0 ? "Packages / New Package" : $"Packages / {package?.PackageName ?? $"Package #{Id}"}";
-        BreadcrumbService.SetBreadcrumb(breadcrumbText);
+        await UpdateBreadcrumbAsync();
+    }
+
+    private async Task UpdateBreadcrumbAsync()
+    {
+        if (Id == 0)
+        {
+            // For new packages, use custom label
+            await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
+                "Packages",
+                "/packages",
+                "Package",
+                null,
+                package?.PackageNumber ?? "New Package"
+            );
+        }
+        else
+        {
+            // For existing packages, use the breadcrumb builder to load the actual package number
+            await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
+                "Packages",
+                "/packages",
+                "Package",
+                Id
+            );
+        }
     }
 
     private async Task LoadPackage()
@@ -40,15 +81,13 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
             if (Id == 0)
             {
                 // Create new package
-                var packageCount = await DbContext.Packages.CountAsync();
                 package = new Package
                 {
                     Id = 0,
-                    PackageNumber = $"PKG-{DateTime.Now:yyyyMMdd}-{(packageCount + 1):D4}",
-                    PackageName = $"New Package",
+                    PackageName = "New Package",
                     Description = "",
                     Status = "Planning",
-                    PackageSource = "Project",
+                    PackageSource = TakeoffIdFromQuery.HasValue ? "Takeoff" : "Project",
                     EstimatedHours = 0,
                     EstimatedCost = 0,
                     ActualHours = 0,
@@ -56,11 +95,31 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                     LaborRatePerHour = 150,
                     ProcessingEfficiency = 100,
                     ProjectId = 1,
-                    // CompanyId removed - not part of Package model
                     CreatedDate = DateTime.UtcNow,
                     LastModified = DateTime.UtcNow,
                     IsDeleted = false
                 };
+
+                // If creating from a takeoff, link to the active revision
+                if (TakeoffIdFromQuery.HasValue)
+                {
+                    try
+                    {
+                        var activeRevision = await RevisionService.GetOrCreateActiveRevisionAsync(TakeoffIdFromQuery.Value);
+                        package.RevisionId = activeRevision.Id;
+                        Logger.LogInformation($"Linking new package to revision {activeRevision.RevisionCode} (ID: {activeRevision.Id}) for takeoff {TakeoffIdFromQuery.Value}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, $"Failed to get or create active revision for takeoff {TakeoffIdFromQuery.Value}");
+                        errorMessage = $"Error linking package to takeoff: {ex.Message}";
+                    }
+                }
+
+                // Auto-generate package number immediately for new packages
+                await GeneratePackageNumber();
+                await UpdateBreadcrumbAsync();
+
                 isEditMode = true;
             }
             else
@@ -76,10 +135,27 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 }
                 else
                 {
+                    // Generate package number for existing records that don't have one
+                    if (string.IsNullOrEmpty(package.PackageNumber))
+                    {
+                        try
+                        {
+                            package.PackageNumber = await NumberSeriesService.GetNextNumberAsync("Package", 1);
+                            DbContext.Packages.Update(package);
+                            await DbContext.SaveChangesAsync();
+                            Logger.LogInformation($"Generated package number {package.PackageNumber} for existing package ID {Id}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogError(ex, $"Failed to generate package number for existing package ID {Id}");
+                            // Continue without number generation if it fails
+                        }
+                    }
+
                     // Count SharePoint files
                     fileCount = package.PackageDrawings?.Count(d => d.IsActive) ?? 0;
 
-                    // Set edit mode as default for existing packages too
+                    // Set edit mode as default for existing packages
                     isEditMode = true;
                 }
             }
@@ -95,6 +171,27 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
         }
     }
 
+    private async Task GeneratePackageNumber()
+    {
+        if (!packageNumberGenerated && package != null)
+        {
+            try
+            {
+                package.PackageNumber = await NumberSeriesService.GetNextNumberAsync("Package", 1);
+                packageNumberGenerated = true;
+                Logger.LogInformation($"Generated package number: {package.PackageNumber}");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to generate package number");
+                // Fallback to timestamp-based number
+                var packageCount = await DbContext.Packages.CountAsync();
+                package.PackageNumber = $"PKG-{DateTime.Now:yyyyMMdd}-{(packageCount + 1):D4}";
+                packageNumberGenerated = true;
+            }
+        }
+    }
+
     private async Task SavePackage()
     {
         if (!isEditMode || package == null) return;
@@ -105,6 +202,12 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
 
             if (package.Id == 0)
             {
+                // Ensure package number is generated before saving
+                if (!packageNumberGenerated)
+                {
+                    await GeneratePackageNumber();
+                }
+
                 package.CreatedDate = DateTime.UtcNow;
                 DbContext.Packages.Add(package);
             }
@@ -183,6 +286,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = "New",
+                    Label = "New",
                     Icon = "fas fa-plus",
                     ActionFunc = () => { Navigation.NavigateTo("/packages/0"); return Task.CompletedTask; },
                     IsDisabled = false,
@@ -191,6 +295,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = isEditMode ? "Save" : "Edit",
+                    Label = isEditMode ? "Save" : "Edit",
                     Icon = isEditMode ? "fas fa-save" : "fas fa-edit",
                     ActionFunc = () => { if (isEditMode) return SavePackage(); else { EditPackage(); return Task.CompletedTask; } },
                     IsDisabled = package == null,
@@ -199,6 +304,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = "Delete",
+                    Label = "Delete",
                     Icon = "fas fa-trash",
                     ActionFunc = () => DeletePackage(),
                     IsDisabled = package == null || package.Id == 0,
@@ -207,6 +313,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = "Cancel",
+                    Label = "Cancel",
                     Icon = "fas fa-times",
                     ActionFunc = () => CancelEdit(),
                     IsDisabled = !isEditMode,
@@ -249,14 +356,40 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                     ActionFunc = () => { Navigation.NavigateTo("/takeoffs"); return Task.CompletedTask; },
                     IsDisabled = false,
                     Tooltip = "View all takeoffs"
+                },
+                new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+                {
+                    Text = "SharePoint Takeoff Files",
+                    Icon = "fas fa-folder-open",
+                    ActionFunc = () => { Navigation.NavigateTo($"/packages/{Id}/sharepoint-files"); return Task.CompletedTask; },
+                    IsDisabled = Id == 0,
+                    Tooltip = "View SharePoint takeoff files for this package"
                 }
             }
         };
     }
 
-    private void NavigateToSharePointFiles()
+    private void NavigateToTakeoffs()
     {
-        Navigation.NavigateTo($"/packages/{Id}/sharepoint-files");
+        Navigation.NavigateTo($"/takeoffs?packageId={Id}");
+    }
+
+    private bool IsSectionExpanded(string section)
+    {
+        return sectionStates.ContainsKey(section) && sectionStates[section];
+    }
+
+    private void ToggleSection(string section)
+    {
+        if (sectionStates.ContainsKey(section))
+        {
+            sectionStates[section] = !sectionStates[section];
+        }
+        else
+        {
+            sectionStates[section] = true;
+        }
+        StateHasChanged();
     }
 
     public void Dispose()

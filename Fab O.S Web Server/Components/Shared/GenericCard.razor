@@ -6,7 +6,7 @@
 <div class="fabos-generic-card @(IsSelected ? "selected" : "") @AdditionalCssClass" 
      @onclick="HandleClick">
     
-    @if (IsSelectable)
+    @if (ShowSelection)
     {
         <div class="fabos-card-selection" @onclick:stopPropagation="true">
             <input type="checkbox" class="form-check-input" @bind="IsSelected" @bind:after="() => HandleSelectionChange(IsSelected)" />
@@ -82,14 +82,6 @@
         {
             <div class="fabos-custom-content">
                 @CustomContent(Item!)
-            </div>
-        }
-
-        <!-- Child Content -->
-        @if (ChildContent != null)
-        {
-            <div class="fabos-child-content">
-                @ChildContent
             </div>
         }
     </div>

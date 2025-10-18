@@ -10,38 +10,24 @@ export function setBodyModalOpen(isOpen) {
 }
 
 export function initializeModalPositioning() {
-    const sidebar = document.querySelector('.fabos-sidebar');
-    const modal = document.querySelector('.fullscreen-modal-content');
+    const modal = document.querySelector('.modal-fullscreen');
 
-    if (!sidebar || !modal) {
+    if (!modal) {
+        console.log('[Modal Positioning] Modal not found');
         return null;
     }
 
-    // Function to update modal position
-    const updatePosition = () => {
-        const isCollapsed = sidebar.classList.contains('collapsed');
-        const isExpanded = sidebar.classList.contains('expanded');
+    console.log('[Modal Positioning] Initialized - using CSS-only positioning');
 
-        let leftOffset = 300; // default standard width + gap
-        if (isCollapsed) leftOffset = 80;  // collapsed width + gap
-        else if (isExpanded) leftOffset = 440; // expanded width + gap
+    // Clear any inline left style to allow CSS rules to take effect
+    // The modal positioning is now handled entirely by CSS in modal-infrastructure.css
+    // based on body classes: modal-open, sidebar-collapsed, sidebar-expanded,
+    // catalogue-sidebar-open, catalogue-sidebar-expanded, catalogue-sidebar-full
+    modal.style.left = '';
 
-        modal.style.left = leftOffset + 'px';
-    };
-
-    // Create MutationObserver to watch for sidebar changes
-    const observer = new MutationObserver(updatePosition);
-
-    observer.observe(sidebar, {
-        attributes: true,
-        attributeFilter: ['class']
-    });
-
-    // Set initial position
-    updatePosition();
-
-    // Return observer for later cleanup
-    return observer;
+    // Return null as we don't need the observer anymore
+    // CSS handles all positioning dynamically
+    return null;
 }
 
 export function disposeModalPositioning(observer) {

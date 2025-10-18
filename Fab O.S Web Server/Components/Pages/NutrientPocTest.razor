@@ -1,0 +1,334 @@
+@page "/nutrient-poc"
+@rendermode InteractiveServer
+@using System.Text.Json
+@inject IJSRuntime JS
+@inject ILogger<NutrientPocTest> Logger
+
+<PageTitle>Nutrient POC Test</PageTitle>
+
+<div class="nutrient-poc-container">
+    <h1>Nutrient (PSPDFKit) - Proof of Concept</h1>
+
+    <div class="poc-info">
+        <h3>Status</h3>
+        <ul>
+            <li><strong>License Key:</strong> @(string.IsNullOrEmpty(licenseKey) ? "❌ Not Set" : "✅ Set (" + licenseKey.Length + " chars)")</li>
+            <li><strong>PSPDFKit Loaded:</strong> @(pspdfKitLoaded ? "✅ Yes" : "⏳ Checking...")</li>
+            <li><strong>PDF Document:</strong> @(pdfLoaded ? "✅ Loaded (" + totalPages + " pages)" : errorMessage != null ? "❌ Error" : "⏳ Not loaded")</li>
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <li class="error"><strong>Error:</strong> @errorMessage</li>
+            }
+            @if (!string.IsNullOrEmpty(detailedError))
+            {
+                <li class="error"><strong>Detailed Error:</strong><br/>@detailedError</li>
+            }
+        </ul>
+    </div>
+
+    <div class="poc-controls">
+        <button class="btn btn-primary" @onclick="LoadSamplePdf" disabled="@(!pspdfKitLoaded || pdfLoaded)">
+            <i class="fas fa-file-pdf"></i>
+            Load Sample PDF
+        </button>
+
+        <button class="btn btn-secondary" @onclick="UnloadPdf" disabled="@(!pdfLoaded)">
+            <i class="fas fa-times"></i>
+            Unload PDF
+        </button>
+    </div>
+
+    @if (pdfLoaded)
+    {
+        <div class="alert alert-info">
+            <h4>📏 Measurement Tools Available</h4>
+            <p>Look for these tools in the PDF viewer toolbar:</p>
+            <ul>
+                <li><strong>Distance</strong> - Measure linear distances</li>
+                <li><strong>Perimeter</strong> - Measure perimeter of shapes</li>
+                <li><strong>Rectangle Area</strong> - Measure rectangular areas</li>
+                <li><strong>Ellipse Area</strong> - Measure circular/elliptical areas</li>
+                <li><strong>Polygon Area</strong> - Measure custom polygon areas</li>
+            </ul>
+            <p><em>Click any measurement tool in the toolbar, then draw on the PDF to create measurements.</em></p>
+        </div>
+    }
+
+    @if (measurementCreated)
+    {
+        <div class="alert alert-success">
+            <h4>✅ Measurement Created!</h4>
+            <pre>@measurementDataJson</pre>
+        </div>
+    }
+
+    <!-- PDF Container -->
+    <div class="pdf-container-wrapper">
+        <div id="nutrient-poc-container" class="nutrient-pdf-container"></div>
+    </div>
+</div>
+
+@code {
+    // License key from Nutrient
+    private string licenseKey = "kIWJ7Z65U46HANFYmxhYcEV_XdecTT4ItT3yM8tikpHaYexs5MsGGCk0qIcU0u2TcK-7ZLP1MGJjcsNH51NpdXGYARz1PZjjb2IfM4rpRkH90_U-gGHsp-44s6xxvUWDkM31P_LhRAICpTzY08JOKBx91KPowQD0EulaxHmE2iMLhIcvlNCKDu0YRzeWQBlx3HAz_tqqBQJnFbjX1_3kyaitoe_fUBM9u5ZzGor4mECUEyBEh9MfhYgl696PzDzHUAxo8fJjQhs2yAts-uzQVK6awTI8IBDUVdFzBAZQjgWwluNQqPTacuIpdCaZ4HCHQkwEcvRFtcOUbKm--_aXhQL0zmQqbrhCO9R0A8uVIz_azX6n5XZ3GdqYg6jM0ZY7_QuNJU5x2dprLxvdDiT63pLZmY4Tyq6XGiYov5dyyl1h8CmPQ9D9st-wibH_LWg6ijxvf_Esk0-Ap7ebTe0UewuEDekDGfCRuSMeWQp8_Vl00VHmF4BSLDXqrreLVxib90HIXL2guzx4VD2A9god1KjttfU85j4FAG_PpMdMP5juaFaVkrEgpKng8SUCdSd5VjFWa_m8GO1-NfCTrDkj_tA7jybuyrtN__wTXGJ0QhawiMfYGk_00auSuZw5IekM";
+
+    private bool pspdfKitLoaded = false;
+    private bool pdfLoaded = false;
+    private int totalPages = 0;
+    private string? errorMessage = null;
+    private string? detailedError = null;
+    private bool measurementCreated = false;
+    private string? measurementDataJson = null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                // Initialize Nutrient
+                Logger.LogInformation("Initializing Nutrient POC");
+                var result = await JS.InvokeAsync<bool>("nutrientPoc.initialize",
+                    "nutrient-poc-container",
+                    licenseKey,
+                    DotNetObjectReference.Create(this));
+
+                pspdfKitLoaded = result;
+                StateHasChanged();
+
+                Logger.LogInformation($"Nutrient initialized: {result}");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error initializing Nutrient");
+                errorMessage = $"Initialization error: {ex.Message}";
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task LoadSamplePdf()
+    {
+        try
+        {
+            errorMessage = null;
+            Logger.LogInformation("Loading sample PDF");
+
+            // Use a sample PDF URL - trying multiple sources for CORS compatibility
+            // Adobe's sample PDF (more reliable for testing)
+            var samplePdfUrl = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+
+            // Alternative sources (uncomment to try):
+            // var samplePdfUrl = "https://pdfobject.com/pdf/sample.pdf";
+            // var samplePdfUrl = "/api/packagedrawings/1/content";
+
+            var result = await JS.InvokeAsync<bool>("nutrientPoc.loadPdf",
+                samplePdfUrl,
+                "nutrient-poc-container");
+
+            if (!result)
+            {
+                errorMessage = "Failed to load PDF - check browser console for details";
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading PDF");
+            errorMessage = $"Load error: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private async Task UnloadPdf()
+    {
+        try
+        {
+            Logger.LogInformation("Unloading PDF");
+            await JS.InvokeVoidAsync("nutrientPoc.unload");
+
+            pdfLoaded = false;
+            totalPages = 0;
+            measurementCreated = false;
+            measurementDataJson = null;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error unloading PDF");
+            errorMessage = $"Unload error: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+
+    // Called from JavaScript when PDF loads
+    [JSInvokable]
+    public void OnPdfLoaded(int pageCount)
+    {
+        Logger.LogInformation($"PDF loaded with {pageCount} pages");
+        pdfLoaded = true;
+        totalPages = pageCount;
+        errorMessage = null;
+        StateHasChanged();
+    }
+
+    // Called from JavaScript when PDF load fails
+    [JSInvokable]
+    public void OnPdfLoadError(string error)
+    {
+        Logger.LogError($"PDF load error: {error}");
+        pdfLoaded = false;
+        errorMessage = "Failed to load PDF - check browser console for details";
+        detailedError = error;
+        StateHasChanged();
+    }
+
+    // Called from JavaScript when measurement is created
+    [JSInvokable]
+    public void OnMeasurementCreated(JsonElement measurementData)
+    {
+        Logger.LogInformation("Measurement created");
+        measurementCreated = true;
+        measurementDataJson = JsonSerializer.Serialize(measurementData, new JsonSerializerOptions { WriteIndented = true });
+        StateHasChanged();
+    }
+}
+
+<style>
+    .nutrient-poc-container {
+        padding: 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .poc-info {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+
+    .poc-info h3 {
+        margin-top: 0;
+        color: #495057;
+    }
+
+    .poc-info ul {
+        list-style: none;
+        padding: 0;
+        margin: 0.5rem 0 0 0;
+    }
+
+    .poc-info li {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .poc-info li:last-child {
+        border-bottom: none;
+    }
+
+    .poc-info li.error {
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    .poc-controls {
+        display: flex;
+        gap: 1rem;
+        margin: 2rem 0;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-primary {
+        background: #0d6efd;
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        background: #0b5ed7;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+        background: #5c636a;
+    }
+
+    .btn-info {
+        background: #0dcaf0;
+        color: #000;
+    }
+
+    .btn-info:hover:not(:disabled) {
+        background: #31d2f2;
+    }
+
+    .alert {
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 6px;
+        border: 1px solid;
+    }
+
+    .alert-info {
+        background: #cff4fc;
+        border-color: #b6effb;
+        color: #055160;
+    }
+
+    .alert-success {
+        background: #d1e7dd;
+        border-color: #badbcc;
+        color: #0f5132;
+    }
+
+    .alert h4 {
+        margin-top: 0;
+    }
+
+    .alert pre {
+        background: white;
+        padding: 1rem;
+        border-radius: 4px;
+        overflow-x: auto;
+        margin: 0.5rem 0 0 0;
+    }
+
+    .pdf-container-wrapper {
+        margin-top: 2rem;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #f8f9fa;
+    }
+
+    .nutrient-pdf-container {
+        height: 800px;
+        width: 100%;
+        background: white;
+    }
+</style>

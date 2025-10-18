@@ -1,0 +1,844 @@
+/**
+ * Takeoff Catalogue System Styles
+ * Includes: Catalogue Sidebar, Measurement Panel, and shared components
+ */
+
+/* ========================================
+   CATALOGUE SIDEBAR
+   ======================================== */
+
+.takeoff-catalogue-sidebar {
+    position: fixed;
+    left: -320px;
+    top: 0;
+    width: 320px;
+    height: 100vh;
+    background: #ffffff;
+    border-right: 1px solid #e0e0e0;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    transition: left 0.3s ease, width 0.3s ease;
+    z-index: 1042; /* Above modal (1041) so it appears in front */
+}
+
+/* Width variants */
+.takeoff-catalogue-sidebar.width-expanded {
+    width: 480px;
+    left: -480px;
+}
+
+.takeoff-catalogue-sidebar.width-full {
+    width: calc(100vw - 280px);
+    left: calc(-100vw + 280px);
+}
+
+.takeoff-catalogue-sidebar.width-expanded.visible {
+    left: 280px;
+}
+
+.takeoff-catalogue-sidebar.width-full.visible {
+    left: 280px;
+}
+
+body.sidebar-collapsed .takeoff-catalogue-sidebar.width-full {
+    width: calc(100vw - 60px);
+}
+
+body.sidebar-collapsed .takeoff-catalogue-sidebar.width-full.visible {
+    left: 60px;
+}
+
+/* Position catalogue sidebar after main navigation sidebar */
+.takeoff-catalogue-sidebar.visible {
+    left: 280px; /* Standard main sidebar width */
+}
+
+/* Adjust position when main sidebar is collapsed */
+body.sidebar-collapsed .takeoff-catalogue-sidebar.visible {
+    left: 60px;
+}
+
+/* Adjust position when main sidebar is expanded */
+body.sidebar-expanded .takeoff-catalogue-sidebar.visible {
+    left: 420px;
+}
+
+.takeoff-catalogue-sidebar .sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    background: linear-gradient(135deg, #3144CD 0%, #0D1A80 100%);
+    border-bottom: none;
+    box-shadow: 0 4px 12px rgba(49, 68, 205, 0.15);
+}
+
+.takeoff-catalogue-sidebar .sidebar-header h3 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.takeoff-catalogue-sidebar .sidebar-header h3 i {
+    font-size: 1.25rem;
+}
+
+.takeoff-catalogue-sidebar .header-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.takeoff-catalogue-sidebar .btn-close,
+.takeoff-catalogue-sidebar .btn-expand {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 0.5rem;
+    cursor: pointer;
+    color: white;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+}
+
+.takeoff-catalogue-sidebar .btn-close:hover,
+.takeoff-catalogue-sidebar .btn-expand:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-2px);
+}
+
+/* Search Bar */
+.takeoff-catalogue-sidebar .sidebar-search {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    background: linear-gradient(135deg, rgba(49, 68, 205, 0.03) 0%, rgba(13, 26, 128, 0.03) 100%);
+}
+
+.takeoff-catalogue-sidebar .search-input-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.takeoff-catalogue-sidebar .search-input-group i.fa-search {
+    position: absolute;
+    left: 1rem;
+    color: rgba(49, 68, 205, 0.6);
+    font-size: 14px;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.takeoff-catalogue-sidebar .search-input-group .form-control {
+    width: 100%;
+    padding: 12px 40px 12px 40px;
+    border: 2px solid rgba(49, 68, 205, 0.15);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.95);
+    color: #333;
+    font-size: 14px;
+    font-weight: 400;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+}
+
+.takeoff-catalogue-sidebar .search-input-group .form-control::placeholder {
+    color: rgba(49, 68, 205, 0.5);
+    font-weight: 400;
+}
+
+.takeoff-catalogue-sidebar .search-input-group .form-control:focus {
+    border-color: #3144CD;
+    background: white;
+    box-shadow: 0 4px 16px rgba(49, 68, 205, 0.15);
+    transform: translateY(-1px);
+}
+
+.takeoff-catalogue-sidebar .search-input-group .btn-clear {
+    position: absolute;
+    right: 0.75rem;
+    background: rgba(49, 68, 205, 0.1);
+    border: none;
+    border-radius: 6px;
+    padding: 0.375rem 0.5rem;
+    cursor: pointer;
+    color: #3144CD;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.takeoff-catalogue-sidebar .search-input-group .btn-clear:hover {
+    background: rgba(49, 68, 205, 0.2);
+    transform: scale(1.1);
+}
+
+/* Content Area */
+.takeoff-catalogue-sidebar .sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+
+/* Loading/Error States */
+.takeoff-catalogue-sidebar .loading-state,
+.takeoff-catalogue-sidebar .error-state,
+.takeoff-catalogue-sidebar .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-align: center;
+    color: #666;
+}
+
+.takeoff-catalogue-sidebar .spinner-border {
+    width: 2rem;
+    height: 2rem;
+    border: 0.25rem solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border 0.75s linear infinite;
+}
+
+/* Materials List */
+.takeoff-catalogue-sidebar .materials-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.takeoff-catalogue-sidebar .material-group {
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #e0e0e0;
+}
+
+.takeoff-catalogue-sidebar .material-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, #3144CD 0%, #0D1A80 100%);
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.takeoff-catalogue-sidebar .material-header:hover {
+    opacity: 0.9;
+}
+
+.takeoff-catalogue-sidebar .material-header.expanded {
+    background: linear-gradient(135deg, #0D1A80 0%, #3144CD 100%);
+}
+
+.takeoff-catalogue-sidebar .material-name {
+    flex: 1;
+}
+
+.takeoff-catalogue-sidebar .material-categories {
+    background: #f8f9fa;
+    padding: 0.5rem;
+}
+
+/* Categories List */
+.takeoff-catalogue-sidebar .categories-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.takeoff-catalogue-sidebar .category-group {
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.takeoff-catalogue-sidebar .category-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: background 0.2s;
+    user-select: none;
+}
+
+.takeoff-catalogue-sidebar .category-header:hover {
+    background: #e9ecef;
+}
+
+.takeoff-catalogue-sidebar .category-header.expanded {
+    background: #e3f2fd;
+    border-bottom: 1px solid #90caf9;
+}
+
+.takeoff-catalogue-sidebar .category-name {
+    flex: 1;
+    font-weight: 500;
+    color: #333;
+}
+
+.takeoff-catalogue-sidebar .badge {
+    background: #6c757d;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Category Items */
+.takeoff-catalogue-sidebar .category-items {
+    background: #fff;
+    border-left: 3px solid #90caf9;
+}
+
+.takeoff-catalogue-sidebar .loading-items,
+.takeoff-catalogue-sidebar .empty-items {
+    padding: 1rem;
+    text-align: center;
+    color: #999;
+    font-size: 0.875rem;
+}
+
+.takeoff-catalogue-sidebar .loading-items {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+/* Catalogue Item Cards */
+.takeoff-catalogue-sidebar .catalogue-item {
+    padding: 1rem;
+    margin: 0.375rem 0.75rem;
+    background: white;
+    border: 2px solid rgba(49, 68, 205, 0.1);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.takeoff-catalogue-sidebar .catalogue-item:hover {
+    background: rgba(49, 68, 205, 0.02);
+    border-color: #3144CD;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(49, 68, 205, 0.15);
+}
+
+.takeoff-catalogue-sidebar .catalogue-item.selected {
+    background: linear-gradient(135deg, rgba(49, 68, 205, 0.08) 0%, rgba(13, 26, 128, 0.08) 100%);
+    border-color: #3144CD;
+    box-shadow: 0 4px 16px rgba(49, 68, 205, 0.25);
+}
+
+/* NEW: Description is now primary */
+.takeoff-catalogue-sidebar .catalogue-item .item-description {
+    font-size: 0.938rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.375rem;
+    line-height: 1.4;
+}
+
+/* NEW: Item code is now secondary */
+.takeoff-catalogue-sidebar .catalogue-item .item-code {
+    font-weight: 400;
+    color: #999;
+    font-size: 0.75rem;
+    margin-bottom: 0.625rem;
+    font-family: 'Courier New', monospace;
+}
+
+.takeoff-catalogue-sidebar .catalogue-item .item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+}
+
+.takeoff-catalogue-sidebar .category-badge,
+.takeoff-catalogue-sidebar .weight-badge {
+    font-size: 0.688rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.takeoff-catalogue-sidebar .category-badge {
+    background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+    color: #000;
+}
+
+.takeoff-catalogue-sidebar .weight-badge {
+    background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+    color: white;
+}
+
+/* Full-width layout adjustments */
+.takeoff-catalogue-sidebar.width-full .catalogue-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1rem;
+    align-items: center;
+}
+
+.takeoff-catalogue-sidebar.width-full .catalogue-item .item-meta {
+    justify-content: flex-end;
+}
+
+/* Selected Item Footer */
+.takeoff-catalogue-sidebar .sidebar-footer {
+    border-top: 2px solid #2196f3;
+    background: #e3f2fd;
+    padding: 0.75rem;
+}
+
+.takeoff-catalogue-sidebar .selected-item-preview .preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.takeoff-catalogue-sidebar .selected-item-preview strong {
+    color: #2196f3;
+    font-size: 0.875rem;
+}
+
+.takeoff-catalogue-sidebar .btn-clear-selection {
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    color: #666;
+}
+
+.takeoff-catalogue-sidebar .preview-code {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.875rem;
+}
+
+.takeoff-catalogue-sidebar .preview-description {
+    font-size: 0.75rem;
+    color: #666;
+}
+
+/* ========================================
+   MEASUREMENT PANEL
+   ======================================== */
+
+.takeoff-measurement-panel {
+    position: fixed;
+    right: -400px;
+    top: 0;
+    width: 400px;
+    height: 100vh;
+    background: #ffffff;
+    border-left: 1px solid #e0e0e0;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    transition: right 0.3s ease;
+    z-index: 1000;
+}
+
+.takeoff-measurement-panel.visible {
+    right: 0;
+}
+
+.takeoff-measurement-panel .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.takeoff-measurement-panel .panel-header h3 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Current Measurement */
+.takeoff-measurement-panel .current-measurement {
+    border-bottom: 2px solid #4caf50;
+    background: #f1f8f4;
+}
+
+.takeoff-measurement-panel .section-header {
+    padding: 0.75rem 1rem;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.takeoff-measurement-panel .section-header h4 {
+    margin: 0;
+    font-size: 0.938rem;
+    font-weight: 600;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.takeoff-measurement-panel .measurement-card {
+    padding: 1rem;
+    margin: 0.5rem;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+}
+
+.takeoff-measurement-panel .measurement-card.active {
+    border-color: #4caf50;
+    box-shadow: 0 2px 12px rgba(76, 175, 80, 0.2);
+}
+
+.takeoff-measurement-panel .measurement-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.takeoff-measurement-panel .measurement-item:last-child {
+    border-bottom: none;
+}
+
+.takeoff-measurement-panel .measurement-item label {
+    font-size: 0.813rem;
+    color: #666;
+    font-weight: 500;
+    margin: 0;
+}
+
+.takeoff-measurement-panel .measurement-item.highlight {
+    background: #f1f8f4;
+    margin: 0.5rem -0.5rem;
+    padding: 0.75rem 0.5rem;
+    border-radius: 4px;
+}
+
+.takeoff-measurement-panel .item-code {
+    color: #2196f3;
+    font-weight: 600;
+}
+
+.takeoff-measurement-panel .item-desc {
+    font-size: 0.875rem;
+    color: #666;
+}
+
+.takeoff-measurement-panel .value,
+.takeoff-measurement-panel .quantity {
+    font-weight: 600;
+    color: #333;
+}
+
+.takeoff-measurement-panel .weight {
+    font-weight: 700;
+    color: #4caf50;
+    font-size: 1.125rem;
+}
+
+.takeoff-measurement-panel .badge-type {
+    background: #9c27b0;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.takeoff-measurement-panel .calculation-formula {
+    background: #fff8e1;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    padding: 0.75rem;
+    margin-top: 0.75rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.takeoff-measurement-panel .calculation-formula i {
+    color: #ff9800;
+    margin-top: 0.25rem;
+}
+
+.takeoff-measurement-panel .calculation-formula span {
+    flex: 1;
+    font-size: 0.875rem;
+    color: #666;
+    line-height: 1.4;
+}
+
+.takeoff-measurement-panel .measurement-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.takeoff-measurement-panel .btn {
+    flex: 1;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+
+.takeoff-measurement-panel .btn-primary {
+    background: #4caf50;
+    color: white;
+}
+
+.takeoff-measurement-panel .btn-primary:hover {
+    background: #45a049;
+}
+
+.takeoff-measurement-panel .btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.takeoff-measurement-panel .btn-secondary:hover {
+    background: #5a6268;
+}
+
+.takeoff-measurement-panel .btn-danger {
+    background: #f44336;
+    color: white;
+}
+
+.takeoff-measurement-panel .btn-danger:hover {
+    background: #d32f2f;
+}
+
+/* Measurements List */
+.takeoff-measurement-panel .measurements-list {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 1rem;
+}
+
+.takeoff-measurement-panel .summary-card {
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 0.5rem;
+}
+
+.takeoff-measurement-panel .summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.25rem 0;
+}
+
+.takeoff-measurement-panel .summary-item label {
+    font-size: 0.875rem;
+    color: #666;
+    margin: 0;
+}
+
+.takeoff-measurement-panel .summary-item.highlight {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 2px solid #2196f3;
+}
+
+.takeoff-measurement-panel .summary-item.highlight .weight {
+    font-size: 1.25rem;
+}
+
+/* Category Groups in Measurements */
+.takeoff-measurement-panel .category-group {
+    margin: 0.5rem;
+}
+
+.takeoff-measurement-panel .category-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.takeoff-measurement-panel .category-header:hover {
+    background: #e9ecef;
+}
+
+.takeoff-measurement-panel .category-header.expanded {
+    background: #e3f2fd;
+}
+
+.takeoff-measurement-panel .category-measurements {
+    margin-top: 0.5rem;
+}
+
+.takeoff-measurement-panel .measurement-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.takeoff-measurement-panel .measurement-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.takeoff-measurement-panel .detail-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.813rem;
+}
+
+.takeoff-measurement-panel .detail-row.weight {
+    color: #4caf50;
+    font-weight: 600;
+}
+
+.takeoff-measurement-panel .detail-row.timestamp {
+    color: #999;
+    font-size: 0.75rem;
+}
+
+.takeoff-measurement-panel .btn-icon {
+    background: none;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    color: #999;
+    transition: color 0.2s;
+}
+
+.takeoff-measurement-panel .btn-icon:hover {
+    color: #f44336;
+}
+
+.takeoff-measurement-panel .panel-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0 0.5rem;
+    margin-top: 1rem;
+}
+
+.takeoff-measurement-panel .btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.813rem;
+}
+
+/* ========================================
+   RESPONSIVE DESIGN
+   ======================================== */
+
+@media (max-width: 768px) {
+    .takeoff-catalogue-sidebar,
+    .takeoff-measurement-panel {
+        width: 280px;
+    }
+
+    .takeoff-catalogue-sidebar {
+        left: -280px;
+    }
+
+    /* On mobile, catalogue sidebar can overlap (full-width behavior) */
+    .takeoff-catalogue-sidebar.visible {
+        left: 0;
+    }
+
+    body.sidebar-collapsed .takeoff-catalogue-sidebar.visible,
+    body.sidebar-expanded .takeoff-catalogue-sidebar.visible {
+        left: 0;
+    }
+
+    .takeoff-measurement-panel {
+        right: -280px;
+    }
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+@keyframes spinner-border {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ========================================
+   SCROLLBAR STYLING
+   ======================================== */
+
+.takeoff-catalogue-sidebar .sidebar-content::-webkit-scrollbar,
+.takeoff-measurement-panel .measurements-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.takeoff-catalogue-sidebar .sidebar-content::-webkit-scrollbar-track,
+.takeoff-measurement-panel .measurements-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.takeoff-catalogue-sidebar .sidebar-content::-webkit-scrollbar-thumb,
+.takeoff-measurement-panel .measurements-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.takeoff-catalogue-sidebar .sidebar-content::-webkit-scrollbar-thumb:hover,
+.takeoff-measurement-panel .measurements-list::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* ========================================
+   MODAL INTERACTIONS
+   ======================================== */
+
+/* Note: Modal positioning is handled in modal-infrastructure.css
+   via body.catalogue-sidebar-open classes */

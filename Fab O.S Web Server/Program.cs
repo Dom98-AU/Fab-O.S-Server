@@ -5,6 +5,7 @@ using FabOS.WebServer.Services.Implementations;
 using FabOS.WebServer.Services;
 using FabOS.WebServer.Authentication;
 using FabOS.WebServer.Middleware;
+using FabOS.WebServer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -12,6 +13,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using FabOS.WebServer.Components;
+using AutoMapper;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,9 +21,40 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Add Entity Framework
+// Configure SignalR (Blazor Server) with increased timeouts for large PDF transfers
+builder.Services.AddServerSideBlazor()
+    .AddCircuitOptions(options =>
+    {
+        options.DetailedErrors = builder.Environment.IsDevelopment();
+        options.DisconnectedCircuitMaxRetained = 100;
+        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(10); // Keep disconnected circuits for 10 minutes
+        options.JSInteropDefaultCallTimeout = TimeSpan.FromMinutes(2); // Increased from 30s default to 2min for PDF export
+        options.MaxBufferedUnacknowledgedRenderBatches = 10;
+    })
+    .AddHubOptions(options =>
+    {
+        options.ClientTimeoutInterval = TimeSpan.FromMinutes(10); // Server waits 10 minutes for client pings before disconnecting
+        options.HandshakeTimeout = TimeSpan.FromMinutes(1); // Allow 1 minute for initial handshake
+        options.KeepAliveInterval = TimeSpan.FromSeconds(15); // Send keep-alive pings every 15 seconds
+        options.MaximumReceiveMessageSize = 32 * 1024 * 1024; // 32 MB max message size for large PDF transfers
+    });
+
+// Add Pooled DbContext Factory for scenarios requiring separate DbContext instances (e.g., breadcrumb builders)
+// This must come BEFORE AddDbContext to avoid scoped options conflict
+builder.Services.AddPooledDbContextFactory<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),
+        sqlServerOptions => sqlServerOptions.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null)));
+
+// Add Entity Framework with connection resiliency for components and services
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),
+        sqlServerOptions => sqlServerOptions.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null)));
 
 // Add HTTP Context Accessor
 builder.Services.AddHttpContextAccessor();
@@ -135,9 +168,18 @@ builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 
 // Add custom services
 builder.Services.AddScoped<IDatabaseService, DatabaseService>();
+
+// Register Breadcrumb Builder Services
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilder, FabOS.WebServer.Services.Implementations.BreadcrumbBuilders.TakeoffBreadcrumbBuilder>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilder, FabOS.WebServer.Services.Implementations.BreadcrumbBuilders.PackageBreadcrumbBuilder>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilder, FabOS.WebServer.Services.Implementations.BreadcrumbBuilders.CustomerBreadcrumbBuilder>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Implementations.BreadcrumbBuilderService>();
 builder.Services.AddScoped<FabOS.WebServer.Services.BreadcrumbService>();
+
 builder.Services.AddScoped<IViewPreferencesService, ViewPreferencesService>();
 builder.Services.AddScoped<IViewStateManager, ViewStateManager>();
+builder.Services.AddScoped<NumberSeriesService>();
+builder.Services.AddScoped<ISettingsService, SettingsService>();
 
 // Add Tenant Service for multi-tenancy
 builder.Services.AddScoped<ITenantService, TenantService>();
@@ -155,20 +197,27 @@ builder.Services.AddHttpClient<IGooglePlacesService, GooglePlacesService>();
 builder.Services.Configure<FabOS.WebServer.Models.Configuration.SharePointSettings>(
     builder.Configuration.GetSection("SharePoint"));
 builder.Services.AddScoped<ISharePointService, SharePointService>();
+builder.Services.AddScoped<ISharePointSyncService, SharePointSyncService>();
 
 // Register Trace and Takeoff services
 builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 builder.Services.AddScoped<ITraceService, TraceService>();
 builder.Services.AddScoped<IPdfProcessingService, PdfProcessingService>();
 builder.Services.AddScoped<ITakeoffService, TakeoffService>();
+builder.Services.AddScoped<ITakeoffRevisionService, TakeoffRevisionService>();
 builder.Services.AddScoped<IPackageDrawingService, PackageDrawingService>();
 builder.Services.AddScoped<IScaleCalibrationService, ScaleCalibrationService>();
+builder.Services.AddScoped<ITakeoffCatalogueService, TakeoffCatalogueService>();
+builder.Services.AddScoped<IPdfCalibrationService, PdfCalibrationService>();
 
 // Add MVC services (includes controllers, views, and all necessary services)
 builder.Services.AddMvc();
 
-// Add AutoMapper
-builder.Services.AddAutoMapper(typeof(Program));
+// Add AutoMapper - using explicit configuration to avoid ambiguity
+builder.Services.AddSingleton(provider => new MapperConfiguration(cfg =>
+{
+    cfg.AddMaps(AppDomain.CurrentDomain.GetAssemblies());
+}).CreateMapper());
 
 // Add Swagger/OpenAPI documentation
 builder.Services.AddEndpointsApiExplorer();
@@ -211,14 +260,30 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 
-    // Enable annotations
-    c.EnableAnnotations();
+    // Enable annotations (commented out - requires Swashbuckle.AspNetCore.Annotations package)
+    // c.EnableAnnotations();
 });
 
 // Add logging
 builder.Services.AddLogging();
 
 var app = builder.Build();
+
+// Apply pending migrations (one-time operation) - COMPLETED
+// TakeoffRevisionSystem migration applied successfully on 2025-10-05
+/*
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var migrationRunner = new MigrationRunner(context);
+
+    // First, sync migration history for earlier migrations
+    await migrationRunner.SyncMigrationHistoryAsync();
+
+    // Then apply the TakeoffRevisionSystem migration
+    await migrationRunner.ApplyRevisionMigrationAsync();
+}
+*/
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -237,7 +302,42 @@ app.UseSwaggerUI(c =>
 });
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+
+// Disable caching for static files in development to ensure JavaScript updates are loaded
+var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+// Add MIME type mapping for Foxit SDK .brotli files (precompressed WASM files)
+provider.Mappings[".brotli"] = "application/wasm";
+provider.Mappings[".wasm"] = "application/wasm";
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = provider,
+    OnPrepareResponse = ctx =>
+    {
+        if (app.Environment.IsDevelopment())
+        {
+            // Aggressive cache-busting in development for JavaScript, CSS, and WASM files
+            var path = ctx.Context.Request.Path.Value?.ToLower() ?? "";
+            if (path.EndsWith(".js") || path.EndsWith(".css") || path.EndsWith(".wasm") || path.EndsWith(".brotli"))
+            {
+                ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+                ctx.Context.Response.Headers.Append("Pragma", "no-cache");
+                ctx.Context.Response.Headers.Append("Expires", "0");
+                // Add ETag removal to force fresh content
+                ctx.Context.Response.Headers.Remove("ETag");
+            }
+        }
+        else
+        {
+            // In production, use long cache for versioned files
+            var path = ctx.Context.Request.Path.Value?.ToLower() ?? "";
+            if (path.Contains("?v="))
+            {
+                ctx.Context.Response.Headers.Append("Cache-Control", "public, max-age=31536000, immutable");
+            }
+        }
+    }
+});
 
 // Add Session middleware before Authentication
 app.UseSession();

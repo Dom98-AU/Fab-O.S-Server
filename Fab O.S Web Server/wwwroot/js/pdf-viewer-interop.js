@@ -21,12 +21,41 @@ window.pdfViewerInterop = {
     calibrationScale: 1,
 
     // Initialize the PDF viewer
-    initialize: function(canvasId, overlayCanvasId, dotNetReference) {
-        this.canvas = document.getElementById(canvasId);
-        this.overlayCanvas = document.getElementById(overlayCanvasId);
+    initialize: async function(canvasId, overlayCanvasId, dotNetReference) {
+        console.log('[pdfViewerInterop] ========================================');
+        console.log('[pdfViewerInterop] Initializing PDF viewer');
+        console.log('[pdfViewerInterop] Canvas ID:', canvasId);
+        console.log('[pdfViewerInterop] Overlay Canvas ID:', overlayCanvasId);
+        console.log('[pdfViewerInterop] DotNetReference:', dotNetReference ? 'Provided' : 'NULL');
 
-        if (!this.canvas || !this.overlayCanvas) {
-            console.error('Canvas elements not found');
+        // Wait for canvas elements to be available (retry up to 30 times = 3 seconds)
+        let attempts = 0;
+        const maxAttempts = 30;
+
+        while (attempts < maxAttempts) {
+            this.canvas = document.getElementById(canvasId);
+            this.overlayCanvas = document.getElementById(overlayCanvasId);
+
+            if (this.canvas && this.overlayCanvas) {
+                console.log('[pdfViewerInterop] Canvas elements found after', attempts, 'attempts');
+                break;
+            }
+
+            console.log('[pdfViewerInterop] Waiting for canvas elements... attempt', attempts + 1);
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+
+        console.log('[pdfViewerInterop] Canvas element found:', this.canvas ? 'YES' : 'NO');
+        console.log('[pdfViewerInterop] Overlay canvas element found:', this.overlayCanvas ? 'YES' : 'NO');
+
+        if (!this.canvas) {
+            console.error('[pdfViewerInterop] Canvas element not found after', maxAttempts, 'attempts:', canvasId);
+            return false;
+        }
+
+        if (!this.overlayCanvas) {
+            console.error('[pdfViewerInterop] Overlay canvas element not found after', maxAttempts, 'attempts:', overlayCanvasId);
             return false;
         }
 
@@ -34,9 +63,14 @@ window.pdfViewerInterop = {
         this.overlayCtx = this.overlayCanvas.getContext('2d');
         this.dotNetRef = dotNetReference;
 
+        console.log('[pdfViewerInterop] Canvas context:', this.ctx ? 'OK' : 'FAILED');
+        console.log('[pdfViewerInterop] Overlay context:', this.overlayCtx ? 'OK' : 'FAILED');
+
         // Set up overlay canvas events
         this.setupOverlayEvents();
 
+        console.log('[pdfViewerInterop] Initialized successfully');
+        console.log('[pdfViewerInterop] ========================================');
         return true;
     },
 

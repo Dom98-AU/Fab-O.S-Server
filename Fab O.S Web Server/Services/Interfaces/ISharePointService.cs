@@ -1,4 +1,5 @@
 using Microsoft.Graph.Models;
+using FabOS.WebServer.Models.Entities;
 
 namespace FabOS.WebServer.Services.Interfaces;
 
@@ -8,14 +9,40 @@ namespace FabOS.WebServer.Services.Interfaces;
 public interface ISharePointService
 {
     /// <summary>
-    /// Checks if SharePoint is configured and connected
+    /// Checks if SharePoint is configured and connected for the current tenant
     /// </summary>
     Task<SharePointConnectionStatus> GetConnectionStatusAsync();
 
     /// <summary>
-    /// Validates and saves SharePoint configuration
+    /// Gets SharePoint settings for a specific tenant (for admin purposes)
+    /// </summary>
+    Task<CompanySharePointSettings?> GetSettingsForTenantAsync(int companyId);
+
+    /// <summary>
+    /// Checks if the current tenant has SharePoint configured
+    /// </summary>
+    Task<bool> IsTenantConfiguredAsync();
+
+    /// <summary>
+    /// Validates and saves SharePoint configuration for the current tenant
     /// </summary>
     Task<bool> ConfigureSharePointAsync(string tenantId, string clientId, string clientSecret, string siteUrl);
+
+    /// <summary>
+    /// Checks if the document library exists (cannot create - requires SharePoint admin)
+    /// </summary>
+    Task<DocumentLibraryCheckResult> CheckDocumentLibraryAsync();
+
+    /// <summary>
+    /// Ensures the document library exists, creates if it doesn't
+    /// </summary>
+    [Obsolete("Use CheckDocumentLibraryAsync instead - libraries cannot be created programmatically")]
+    Task<bool> EnsureDocumentLibraryExistsAsync();
+
+    /// <summary>
+    /// Ensures takeoff folder structure exists (lazy creation), creates if it doesn't
+    /// </summary>
+    Task<SharePointFolderInfo> EnsureTakeoffFolderExistsAsync(string takeoffNumber, string revisionCode = "A");
 
     /// <summary>
     /// Checks if a folder exists for a takeoff
@@ -86,6 +113,29 @@ public interface ISharePointService
     /// Deletes multiple files by their drive item IDs
     /// </summary>
     Task<bool> DeleteMultipleFilesAsync(List<string> driveItemIds);
+
+    /// <summary>
+    /// Gets the complete folder path for a package within the SharePoint hierarchy
+    /// </summary>
+    /// <param name="takeoffNumber">The takeoff number (e.g., "TK-2025-001")</param>
+    /// <param name="revisionCode">The revision code (e.g., "A", "B")</param>
+    /// <param name="packageNumber">The package number (e.g., "PKG-001")</param>
+    /// <returns>Full folder path: Takeoffs/{TakeoffNumber}/{RevisionCode}/PKG-{PackageNumber}</returns>
+    Task<string> GetPackageFolderPathAsync(string takeoffNumber, string revisionCode, string packageNumber);
+
+    /// <summary>
+    /// Ensures the complete folder hierarchy exists for a package (Takeoff > Revision > Package)
+    /// </summary>
+    /// <param name="takeoffNumber">The takeoff number</param>
+    /// <param name="revisionCode">The revision code</param>
+    /// <param name="packageNumber">The package number</param>
+    /// <returns>Folder information for the package folder</returns>
+    Task<SharePointFolderInfo> EnsurePackageFolderExistsAsync(string takeoffNumber, string revisionCode, string packageNumber);
+
+    /// <summary>
+    /// Checks if a package folder exists in SharePoint
+    /// </summary>
+    Task<bool> PackageFolderExistsAsync(string takeoffNumber, string revisionCode, string packageNumber);
 }
 
 /// <summary>
@@ -152,4 +202,15 @@ public class SharePointBreadcrumbItem
     public string Path { get; set; } = string.Empty;
     public bool IsRoot { get; set; }
     public bool IsCurrent { get; set; }
+}
+
+/// <summary>
+/// Result of document library existence check
+/// </summary>
+public class DocumentLibraryCheckResult
+{
+    public bool Exists { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string LibraryName { get; set; } = string.Empty;
+    public bool CanCreate { get; set; } = false; // Always false - requires SharePoint admin
 }

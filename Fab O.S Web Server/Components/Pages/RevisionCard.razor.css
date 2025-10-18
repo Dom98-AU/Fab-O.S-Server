@@ -1,0 +1,424 @@
+/* RevisionCard Component - Modern Light Design System */
+
+/* ==========================================
+   MODERN COLOR VARIABLES - LIGHT THEME
+   ========================================== */
+:root {
+    /* Primary Colors - Much Lighter Blues */
+    --modern-primary: #E0F2FE;
+    --modern-primary-light: #F0F9FF;
+    --modern-primary-dark: #BAE6FD;
+
+    /* Accent Colors - Lighter */
+    --modern-accent: #E0E7FF;
+    --modern-accent-light: #EEF2FF;
+
+    /* Text Colors */
+    --modern-text-primary: #2D3748;
+    --modern-text-secondary: #718096;
+    --modern-text-light: #A0AEC0;
+    --modern-text-dark: #1A202C;
+
+    /* Background Colors */
+    --modern-bg-primary: #FFFFFF;
+    --modern-bg-secondary: #FAFBFC;
+    --modern-bg-tertiary: #F5F7FA;
+
+    /* Border Colors */
+    --modern-border-light: #E2E8F0;
+    --modern-border: #CBD5E0;
+
+    /* Status Colors */
+    --modern-success: #48BB78;
+    --modern-warning: #F6AD55;
+    --modern-danger: #FC8181;
+    --modern-info: #63B3ED;
+
+    /* Shadows - Soft and Light */
+    --modern-shadow-xs: 0 0 0 1px rgba(0, 0, 0, 0.05);
+    --modern-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --modern-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    --modern-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --modern-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --modern-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* ==========================================
+   MAIN LAYOUT - MODERN GRID
+   ========================================== */
+.revision-layout {
+    display: flex;
+    justify-content: center;
+    padding: 2rem 1rem;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #F5F7FA 0%, #FFFFFF 100%);
+    min-height: calc(100vh - 80px);
+    position: relative;
+}
+
+/* Container wrapper for all cards */
+.revision-container {
+    width: 100%;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--modern-border-light);
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+}
+
+/* ==========================================
+   LOADING & ERROR STATES
+   ========================================== */
+.revision-loading,
+.revision-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+    background: var(--modern-bg-secondary);
+    border-radius: 16px;
+    padding: 3rem;
+}
+
+.revision-error {
+    background: linear-gradient(135deg, #FFF5F5 0%, #FED7D7 100%);
+}
+
+.revision-error i {
+    font-size: 3rem;
+    color: var(--modern-danger);
+    margin-bottom: 1rem;
+}
+
+.revision-spinner {
+    width: 3rem;
+    height: 3rem;
+    border: 3px solid var(--modern-border-light);
+    border-top: 3px solid var(--modern-primary);
+    border-radius: 50%;
+    animation: revision-spin 0.8s linear infinite;
+}
+
+@keyframes revision-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ==========================================
+   COLLAPSIBLE SECTIONS STYLES
+   ========================================== */
+.revision-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.revision-section {
+    background: white;
+    border: 1px solid var(--modern-border-light);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.revision-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 1.5rem;
+    background: linear-gradient(135deg, var(--modern-primary-light) 0%, var(--modern-primary) 100%);
+    border-bottom: 3px solid #0284c7;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    user-select: none;
+}
+
+.revision-section-header:hover {
+    background: linear-gradient(135deg, var(--modern-primary) 0%, var(--modern-primary-dark) 100%);
+}
+
+.section-header-content {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.section-icon {
+    font-size: 1.2rem;
+    color: var(--modern-text-dark);
+}
+
+.section-title {
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--modern-text-dark);
+}
+
+.section-chevron {
+    font-size: 1rem;
+    color: var(--modern-text-dark);
+    transition: transform 0.3s ease;
+}
+
+.revision-section-header.expanded .section-chevron {
+    transform: rotate(180deg);
+}
+
+.revision-section-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease;
+    padding: 0;
+}
+
+.revision-section-content.expanded {
+    max-height: 5000px;
+    padding: 2rem 1.5rem;
+}
+
+.revision-section-content.collapsed {
+    max-height: 0;
+    padding: 0;
+}
+
+/* ==========================================
+   MODERN FORM STYLING
+   ========================================== */
+.revision-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.revision-form-grid.two-column {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 2rem;
+    row-gap: 1.5rem;
+}
+
+.revision-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    position: relative;
+}
+
+.revision-form-label {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #374151;
+    letter-spacing: 0.025em;
+    margin-bottom: 0.5rem;
+}
+
+.revision-form-control {
+    padding: 1rem 1.2rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 1.05rem;
+    color: #1f2937;
+    min-height: 48px;
+    background: white;
+    transition: all 0.2s ease;
+    font-weight: 400;
+}
+
+.revision-form-control:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.08);
+    background: white;
+}
+
+.revision-form-control:disabled {
+    background-color: #f9fafb;
+    color: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.7;
+    border-color: #e5e7eb;
+}
+
+.revision-form-control-plaintext {
+    padding: 1rem 1.2rem;
+    font-size: 1.05rem;
+    color: #1f2937;
+    background: #fafbfc;
+    border: 1px solid transparent;
+    min-height: 48px;
+    border-radius: 8px;
+    margin: 0;
+    font-weight: 400;
+}
+
+.revision-form-text-muted {
+    color: var(--modern-text-light);
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+/* ==========================================
+   MODERN BADGES
+   ========================================== */
+.revision-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 20px;
+    letter-spacing: 0.025em;
+    box-shadow: var(--modern-shadow-sm);
+}
+
+.status-active {
+    background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+    color: #065F46;
+    border: 1px solid #6EE7B7;
+}
+
+.status-inactive {
+    background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+    color: #991B1B;
+    border: 1px solid #F87171;
+}
+
+/* ==========================================
+   PACKAGES LIST STYLING
+   ========================================== */
+.revision-packages-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.revision-package-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, var(--modern-bg-secondary) 0%, var(--modern-bg-tertiary) 100%);
+    border: 1px solid var(--modern-border-light);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.revision-package-item:hover {
+    background: linear-gradient(135deg, var(--modern-primary-light) 0%, var(--modern-primary) 100%);
+    border-color: var(--modern-primary-dark);
+    transform: translateX(4px);
+    box-shadow: var(--modern-shadow-md);
+}
+
+.package-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.package-number {
+    font-weight: 600;
+    color: #3B82F6;
+    font-size: 1rem;
+}
+
+.package-name {
+    font-size: 0.875rem;
+    color: var(--modern-text-secondary);
+}
+
+.revision-package-item i {
+    color: var(--modern-text-secondary);
+    font-size: 1.125rem;
+}
+
+/* ==========================================
+   EMPTY STATE
+   ========================================== */
+.revision-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    text-align: center;
+    color: var(--modern-text-light);
+}
+
+.revision-empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.revision-empty-state p {
+    font-size: 1rem;
+    font-style: italic;
+}
+
+/* ==========================================
+   RESPONSIVE DESIGN
+   ========================================== */
+@media (max-width: 1024px) {
+    .revision-layout {
+        padding: 1.5rem;
+    }
+
+    .revision-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .revision-form-grid.two-column {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .revision-layout {
+        padding: 1rem 0.5rem;
+    }
+
+    .revision-container {
+        border-radius: 8px;
+        padding: 0;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.03);
+    }
+
+    .revision-sections {
+        padding: 0.5rem;
+        gap: 0.5rem;
+    }
+
+    .revision-section-header {
+        padding: 1rem;
+    }
+
+    .revision-section-content.expanded {
+        padding: 1.5rem 1rem;
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+    }
+}
+
+/* ==========================================
+   SECTION ANIMATION
+   ========================================== */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

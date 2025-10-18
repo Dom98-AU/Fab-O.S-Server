@@ -1,0 +1,33 @@
+{
+  "dialog": {
+    "title": "Suche",
+    "close": "Schließen",
+    "cancel": "Abbrechen",
+    "ok": "OK",
+    "replaceAllConfirm": "Dieser Vorgang kann nicht rückgängig gemacht werden. Möchten Sie die Änderungen speichern und fortfahren?",
+    "notFound": "Foxit PDF Editor hat die Dokumentensuche abgeschlossen. Keine Treffer gefunden.",
+    "replaceAllComplete": "{{count}} Vorkommen ersetzt.",
+    "replaceAllNotFound": "Der folgende angegebene Text wurde nicht gefunden: ",
+    "DoNotShowAgain": "Nicht mehr anzeigen",
+    "dialogTile": "Suchen und Ersetzen",
+    "labels": {
+      "find": "Suchen",
+      "replace": "Ersetzen durch"
+    },
+    "findReplaceBtn": {
+      "replace": "Ersetzen",
+      "replaceNext": "Nächsten ersetzen",
+      "replaceAll": "Alle ersetzen",
+      "prev": "Vorherige",
+      "next": "Weiter"
+    },
+    "options": {
+      "wholeWords": "Nur ganze Wörter",
+      "caseSensitive": "Groß-/Kleinschreibung beachten"
+    },
+    "progress": {
+      "searchFor": "Suchen nach: ",
+      "cancel": "Abbrechen"
+    }
+  }
+}

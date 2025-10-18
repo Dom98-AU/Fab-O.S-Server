@@ -1,0 +1,1108 @@
+@namespace FabOS.WebServer.Components.Shared
+@rendermode InteractiveServer
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Services.Implementations
+@using FabOS.WebServer.Services.Interfaces
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using Microsoft.Extensions.DependencyInjection
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JS
+@inject ILogger<NutrientPdfViewer> Logger
+@inject IPdfCalibrationService CalibrationService
+@inject ISharePointService SharePointService
+@inject IServiceScopeFactory ScopeFactory
+@implements IDisposable
+
+<div class="nutrient-pdf-viewer">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner-border"></div>
+            <p>Loading PDF viewer...</p>
+        </div>
+    }
+    else if (drawing == null)
+    {
+        <div class="error-container">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Drawing not found</h3>
+            @if (OnClose.HasDelegate)
+            {
+                <button class="btn btn-primary" @onclick="() => OnClose.InvokeAsync()">
+                    <i class="fas fa-times"></i>
+                    Close
+                </button>
+            }
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="error-container">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Error Loading PDF</h3>
+            <p>@errorMessage</p>
+            @if (OnClose.HasDelegate)
+            {
+                <button class="btn btn-primary" @onclick="() => OnClose.InvokeAsync()">
+                    <i class="fas fa-times"></i>
+                    Close
+                </button>
+            }
+        </div>
+    }
+    else
+    {
+        <!-- Catalogue Sidebar (Left) -->
+        <TakeoffCatalogueSidebar IsVisible="@sidebarVisible"
+                                IsVisibleChanged="@((bool v) => sidebarVisible = v)"
+                                SelectedItem="@selectedCatalogueItem"
+                                SelectedItemChanged="@OnCatalogueItemSelected" />
+
+        <!-- Top Toolbar -->
+        <div class="nutrient-toolbar">
+            <div class="toolbar-section">
+                <button class="tool-btn" @onclick="ToggleSidebar" title="Toggle Catalogue">
+                    <i class="fas fa-boxes"></i>
+                    Catalogue
+                </button>
+                <h3>@drawing.DrawingNumber - @drawing.DrawingTitle</h3>
+            </div>
+
+            <div class="toolbar-section tools">
+                <div class="tool-group">
+                    <button class="tool-btn" @onclick="ToggleMeasurementPanel" title="Toggle Measurements">
+                        <i class="fas fa-calculator"></i>
+                        Measurements
+                    </button>
+                </div>
+
+                <div class="tool-group">
+                    @if (OnClose.HasDelegate)
+                    {
+                        <button class="btn btn-secondary" @onclick="@(async () => { Logger.LogInformation("[NutrientPdfViewer] *** CLOSE BUTTON CLICKED ***"); await HandleCloseAsync(); })">
+                            <i class="fas fa-times"></i>
+                            Close
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Nutrient PDF Container -->
+        <div class="nutrient-container-wrapper">
+            <div id="@containerId" class="nutrient-pdf-container"></div>
+        </div>
+
+        <!-- Measurement Panel (Right) -->
+        <TakeoffMeasurementPanel PackageDrawingId="@PackageDrawingId"
+                                IsVisible="@measurementPanelVisible"
+                                IsVisibleChanged="@((bool v) => measurementPanelVisible = v)"
+                                OnMeasurementSaved="@OnMeasurementSaved"
+                                @ref="measurementPanel" />
+    }
+</div>
+
+@code {
+    [Parameter] public int PackageDrawingId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    // OCR support parameters (for FileUploadModal scenario)
+    [Parameter] public string? PdfDataUrl { get; set; }
+    [Parameter] public OcrAnalysisResult? OcrResult { get; set; }
+    [Parameter] public bool ShowOcrOverlay { get; set; } = false;
+
+    private PackageDrawing? drawing;
+    private bool isLoading = true;
+    private string? errorMessage = null;
+    private string containerId = $"nutrient-container-{Guid.NewGuid():N}";
+
+    // Nutrient license key - Development license with full features including Document Editor for calibration saving
+    // License includes: Webviewer + Annotation + Comments & Replies + Content Editor + Document Editor + Measurement tools
+    private string licenseKey = "0D8AjKw9jGNdbWXn4JuDDwXVzN6ZSL76NEVWU-A4Y99C8w3THXzIxgncCIBrePSL8qVAFiwszAUotFXjPkfwAr2A1y5hq_Tj-poiQNtLJVhnUudMaeGTVuIG_fbRc5KHQpUFBKnlaBnpXfVlopPjmKa8oDdG_tYfvSIv7Cv802oIRjjEwXfSjw0w8vAFnSqhgMO65NT-df7pljLwhHCkGSgXXQte3vTzi4xzhWJxGBUSDko1iE37nLLwJoZtdLJRxIZAQOJR85LkCnZ9GZXJkZDGciMbam2H3w9wD_50wDB3oGQFSm8aXEZCKS-hsRNV_6dHjSHcAU3xpihrzrrcAzuRDY6ilO5xQvQP";
+
+    private DotNetObjectReference<NutrientPdfViewer>? dotNetRef;
+    private bool hasRendered = false;
+    private bool initializationAttempted = false;
+    private bool needsToLoadPdf = false;
+    private string? pdfUrlToLoad = null;
+
+    // Catalogue integration
+    private bool sidebarVisible = true;
+    private bool measurementPanelVisible = true;
+    private CatalogueItem? selectedCatalogueItem = null;
+    private TakeoffMeasurementPanel? measurementPanel;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("[NutrientPdfViewer] OnInitializedAsync started for PackageDrawingId {PackageDrawingId}", PackageDrawingId);
+
+        // Skip database loading if using data URL (upload modal scenario)
+        if (!string.IsNullOrEmpty(PdfDataUrl))
+        {
+            Logger.LogInformation("[NutrientPdfViewer] Using PdfDataUrl - skipping database drawing load");
+            // Create a dummy drawing object for upload modal
+            drawing = new PackageDrawing
+            {
+                DrawingNumber = "Upload Preview",
+                DrawingTitle = "File Upload"
+            };
+        }
+        else
+        {
+            await LoadDrawing();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            hasRendered = true;
+            Logger.LogInformation("[NutrientPdfViewer] OnAfterRenderAsync firstRender - drawing={DrawingExists}", drawing != null);
+
+            // If drawing already loaded, initialize now
+            if (drawing != null && !initializationAttempted)
+            {
+                Logger.LogInformation("[NutrientPdfViewer] Drawing ready, initializing viewer");
+                await InitializeViewer();
+            }
+            else if (drawing == null)
+            {
+                Logger.LogInformation("[NutrientPdfViewer] Waiting for drawing to load...");
+            }
+        }
+        else if (needsToLoadPdf && !string.IsNullOrEmpty(pdfUrlToLoad))
+        {
+            // DOM has been updated after StateHasChanged, now we can safely load the PDF
+            Logger.LogInformation("[NutrientPdfViewer] OnAfterRenderAsync - DOM updated, loading PDF now");
+            needsToLoadPdf = false;
+
+            try
+            {
+                var loadResult = await JS.InvokeAsync<JsonElement>("nutrientViewer.loadPdf",
+                    containerId,
+                    pdfUrlToLoad);
+
+                // Check if load failed immediately (not async failure)
+                if (loadResult.TryGetProperty("success", out var loadSuccess) && !loadSuccess.GetBoolean())
+                {
+                    if (loadResult.TryGetProperty("error", out var errorProp))
+                    {
+                        errorMessage = errorProp.GetString();
+                        Logger.LogError("[NutrientPdfViewer] PDF load failed: {Error}", errorMessage);
+                    }
+                    StateHasChanged();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "[NutrientPdfViewer] Error loading PDF in OnAfterRenderAsync");
+                errorMessage = $"Error loading PDF: {ex.Message}";
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task InitializeViewer()
+    {
+        if (initializationAttempted)
+        {
+            Logger.LogWarning("[NutrientPdfViewer] Initialization already attempted, skipping");
+            return;
+        }
+
+        initializationAttempted = true;
+        Logger.LogInformation("[NutrientPdfViewer] Starting viewer initialization");
+
+        try
+        {
+            // Create DotNet reference for JavaScript callbacks
+            dotNetRef = DotNetObjectReference.Create(this);
+            Logger.LogInformation("[NutrientPdfViewer] DotNetObjectReference created");
+
+            // Initialize Nutrient viewer (lightweight - just stores license key and dotNetRef)
+            Logger.LogInformation("[NutrientPdfViewer] Calling nutrientViewer.initialize with containerId={ContainerId}", containerId);
+            var initResult = await JS.InvokeAsync<JsonElement>("nutrientViewer.initialize",
+                containerId,
+                licenseKey,
+                dotNetRef);
+
+            if (initResult.TryGetProperty("success", out var successProp) && successProp.GetBoolean())
+            {
+                Logger.LogInformation("[NutrientPdfViewer] Nutrient initialized successfully");
+
+                // Set loading to false to render the container div
+                isLoading = false;
+
+                // Determine PDF source: Data URL (upload modal) or API endpoint (normal drawings)
+                if (!string.IsNullOrEmpty(PdfDataUrl))
+                {
+                    pdfUrlToLoad = PdfDataUrl;
+                    Logger.LogInformation("[NutrientPdfViewer] Using data URL for PDF (upload modal scenario)");
+                }
+                else if (PackageDrawingId > 0)
+                {
+                    pdfUrlToLoad = $"/api/packagedrawings/{PackageDrawingId}/content";
+                    Logger.LogInformation("[NutrientPdfViewer] Using API endpoint for PDF (drawing {DrawingId})", PackageDrawingId);
+                }
+
+                needsToLoadPdf = true;
+
+                Logger.LogInformation("[NutrientPdfViewer] Triggering StateHasChanged to render container");
+                StateHasChanged();
+
+                // OnAfterRenderAsync will be called after the DOM updates, and will load the PDF
+            }
+            else
+            {
+                if (initResult.TryGetProperty("error", out var errorProp))
+                {
+                    errorMessage = errorProp.GetString();
+                }
+                else
+                {
+                    errorMessage = "Failed to initialize Nutrient viewer";
+                }
+                Logger.LogError("[NutrientPdfViewer] Initialization failed: {Error}", errorMessage);
+                isLoading = false;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error initializing Nutrient viewer");
+            errorMessage = $"Error initializing PDF viewer: {ex.Message}";
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadDrawing()
+    {
+        try
+        {
+            drawing = await DbContext.PackageDrawings
+                .Include(pd => pd.Package)
+                .FirstOrDefaultAsync(pd => pd.Id == PackageDrawingId);
+
+            if (drawing != null)
+            {
+                Logger.LogInformation("[NutrientPdfViewer] Drawing loaded: {DrawingNumber}", drawing.DrawingNumber);
+
+                // If we've already rendered, initialize now
+                if (hasRendered && !initializationAttempted)
+                {
+                    Logger.LogInformation("[NutrientPdfViewer] Drawing loaded after render, initializing now");
+                    await InitializeViewer();
+                }
+            }
+            else
+            {
+                Logger.LogWarning("[NutrientPdfViewer] Drawing not found for ID: {PackageDrawingId}", PackageDrawingId);
+                errorMessage = "Drawing not found";
+                isLoading = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error loading drawing");
+            errorMessage = $"Error loading drawing: {ex.Message}";
+            isLoading = false;
+        }
+    }
+
+    // Panel toggle methods
+    private void ToggleSidebar()
+    {
+        Logger.LogInformation("[NutrientPdfViewer] ToggleSidebar CALLED - Current sidebarVisible: {Current}", sidebarVisible);
+        sidebarVisible = !sidebarVisible;
+        Logger.LogInformation("[NutrientPdfViewer] ToggleSidebar - New sidebarVisible: {New}", sidebarVisible);
+        StateHasChanged(); // CRITICAL: Force re-render to pass new value to child component
+    }
+
+    private void ToggleMeasurementPanel()
+    {
+        measurementPanelVisible = !measurementPanelVisible;
+        Logger.LogInformation("[NutrientPdfViewer] Measurement panel toggled: {Visible}", measurementPanelVisible);
+        StateHasChanged();
+    }
+
+    // Catalogue event handlers
+    private async Task OnCatalogueItemSelected(CatalogueItem? item)
+    {
+        selectedCatalogueItem = item;
+        Logger.LogInformation("[NutrientPdfViewer] Catalogue item selected: {ItemCode} - Category: {Category}",
+            item?.ItemCode, item?.Category);
+
+        // Pass selected item to JavaScript so it knows what to calculate when measurement is made
+        // AND to auto-select the trace color based on category
+        if (item != null && dotNetRef != null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("nutrientViewer.setSelectedCatalogueItem",
+                    containerId, item.Id, item.ItemCode, item.Description, item.Category);
+
+                Logger.LogInformation("[NutrientPdfViewer] Sent catalogue item to JavaScript with category '{Category}' for color mapping",
+                    item.Category);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "[NutrientPdfViewer] Error setting selected catalogue item in JavaScript");
+            }
+        }
+        else if (item == null && dotNetRef != null)
+        {
+            // Clear selection
+            try
+            {
+                await JS.InvokeVoidAsync("nutrientViewer.clearSelectedCatalogueItem", containerId);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "[NutrientPdfViewer] Error clearing selected catalogue item in JavaScript");
+            }
+        }
+    }
+
+    private async Task OnMeasurementSaved()
+    {
+        Logger.LogInformation("[NutrientPdfViewer] Measurement saved, refreshing data");
+        // Additional refresh logic if needed
+    }
+
+    // JavaScript callbacks
+    [JSInvokable]
+    public async Task OnPdfLoaded(int pageCount)
+    {
+        Logger.LogInformation("[NutrientPdfViewer] PDF loaded successfully with {PageCount} pages", pageCount);
+        isLoading = false;
+
+        // Render OCR overlay if provided (upload modal scenario)
+        if (ShowOcrOverlay && OcrResult != null)
+        {
+            Logger.LogInformation("[NutrientPdfViewer] Rendering OCR overlay with {Count} fields", OcrResult.ExtractedFields.Count);
+            await RenderOcrBoundingBoxes();
+        }
+
+        // Auto-restore calibration and annotations for normal drawings
+        if (PackageDrawingId > 0)
+        {
+            await RestorePdfState();
+        }
+
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public Task OnPdfLoadError(string error)
+    {
+        Logger.LogError("[NutrientPdfViewer] PDF load error: {Error}", error);
+        errorMessage = $"Failed to load PDF: {error}";
+        isLoading = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public async Task OnAnnotationCreated(JsonElement annotationData)
+    {
+        Logger.LogInformation("[NutrientPdfViewer] Annotation created");
+
+        try
+        {
+            // Extract annotation data
+            var id = annotationData.GetProperty("id").GetString();
+            var type = annotationData.GetProperty("type").GetString();
+            var pageIndex = annotationData.GetProperty("pageIndex").GetInt32();
+            var isMeasurement = annotationData.TryGetProperty("isMeasurement", out var isMeasurementProp) && isMeasurementProp.GetBoolean();
+
+            Logger.LogInformation("[NutrientPdfViewer] Annotation: id={Id}, type={Type}, page={Page}, isMeasurement={IsMeasurement}",
+                id, type, pageIndex, isMeasurement);
+
+            // Auto-save annotation to database
+            await SaveAnnotationToDatabase(annotationData);
+
+            // Check if this is a calibration annotation (measurement with scale configuration)
+            if (isMeasurement && annotationData.TryGetProperty("scale", out var scaleElement))
+            {
+                Logger.LogInformation("[NutrientPdfViewer] Calibration annotation detected - data: {Data}", annotationData.ToString());
+                await SaveCalibrationFromAnnotation(annotationData, pageIndex);
+            }
+            else if (isMeasurement)
+            {
+                Logger.LogInformation("[NutrientPdfViewer] Measurement annotation created - data: {Data}", annotationData.ToString());
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error processing annotation");
+        }
+    }
+
+    [JSInvokable]
+    public Task OnAnnotationUpdated(JsonElement annotationData)
+    {
+        Logger.LogInformation("[NutrientPdfViewer] Annotation updated");
+        // TODO: Update annotation in database
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public async Task OnAnnotationDeleted(string annotationId)
+    {
+        Logger.LogInformation("[NutrientPdfViewer] Annotation deleted: {AnnotationId}", annotationId);
+
+        try
+        {
+            // TODO: Get companyId from tenant context
+            const int companyId = 1;
+
+            await CalibrationService.DeleteAnnotationAsync(annotationId, companyId);
+            Logger.LogInformation("[NutrientPdfViewer] ✓ Annotation {AnnotationId} deleted from database", annotationId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error deleting annotation from database");
+        }
+    }
+
+    /// <summary>
+    /// Called from JavaScript when calibration scale is updated through PSPDFKit's native calibration tool
+    /// </summary>
+    [JSInvokable]
+    public async Task OnCalibrationUpdated(decimal scaleRatio, string unit, int pageIndex)
+    {
+        Logger.LogInformation("[NutrientPdfViewer] ============================================");
+        Logger.LogInformation("[NutrientPdfViewer] CALIBRATION UPDATED via annotationPresets.update event");
+        Logger.LogInformation("[NutrientPdfViewer] Scale: 1:{ScaleRatio} ({Unit})", scaleRatio, unit);
+        Logger.LogInformation("[NutrientPdfViewer] Page: {PageIndex}", pageIndex);
+        Logger.LogInformation("[NutrientPdfViewer] PackageDrawingId: {DrawingId}", PackageDrawingId);
+        Logger.LogInformation("[NutrientPdfViewer] ============================================");
+
+        try
+        {
+            const int companyId = 1;
+            int? userId = null;
+
+            // Save calibration to database
+            await CalibrationService.SaveCalibrationAsync(
+                PackageDrawingId,
+                scaleRatio,
+                unit,
+                knownDistance: null,  // Not available from preset update
+                measuredDistance: null,  // Not available from preset update
+                pageIndex,
+                calibrationLineStart: null,
+                calibrationLineEnd: null,
+                userId,
+                companyId
+            );
+
+            Logger.LogInformation("[NutrientPdfViewer] ✓ Calibration saved to database: Scale 1:{Scale} ({Unit})", scaleRatio, unit);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error saving calibration from preset update");
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnMeasurementCalculated(JsonElement calculationResult)
+    {
+        Logger.LogInformation("[NutrientPdfViewer] ============================================");
+        Logger.LogInformation("[NutrientPdfViewer] OnMeasurementCalculated CALLED");
+        Logger.LogInformation("[NutrientPdfViewer] Raw JSON: {Json}", calculationResult.GetRawText());
+
+        try
+        {
+            // Deserialize the calculation result
+            var result = System.Text.Json.JsonSerializer.Deserialize<MeasurementCalculationResult>(calculationResult.GetRawText());
+
+            Logger.LogInformation("[NutrientPdfViewer] Deserialization successful: {Success}", result != null);
+            Logger.LogInformation("[NutrientPdfViewer] Measurement panel reference: {Exists}", measurementPanel != null);
+
+            if (result != null && measurementPanel != null)
+            {
+                Logger.LogInformation("[NutrientPdfViewer] Forwarding calculation to measurement panel:");
+                Logger.LogInformation("[NutrientPdfViewer]   - ItemCode: {ItemCode}", result.ItemCode);
+                Logger.LogInformation("[NutrientPdfViewer]   - Weight: {Weight} kg", result.Weight);
+
+                // Forward to measurement panel to display
+                await measurementPanel.ShowMeasurementResult(result);
+
+                Logger.LogInformation("[NutrientPdfViewer] Successfully forwarded to measurement panel");
+            }
+            else
+            {
+                Logger.LogWarning("[NutrientPdfViewer] Cannot show measurement result:");
+                Logger.LogWarning("[NutrientPdfViewer]   - Result null: {ResultNull}", result == null);
+                Logger.LogWarning("[NutrientPdfViewer]   - Panel null: {PanelNull}", measurementPanel == null);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error processing measurement calculation");
+            Logger.LogError("[NutrientPdfViewer] Exception message: {Message}", ex.Message);
+            Logger.LogError("[NutrientPdfViewer] Exception stack: {Stack}", ex.StackTrace);
+        }
+
+        Logger.LogInformation("[NutrientPdfViewer] ============================================");
+    }
+
+    /// <summary>
+    /// Restore complete PDF state from Instant JSON (includes all annotations + calibration)
+    /// Uses calibration config separately to work with trial license
+    /// </summary>
+    private async Task RestorePdfState()
+    {
+        try
+        {
+            Logger.LogInformation("[NutrientPdfViewer] Restoring PDF state for drawing {DrawingId}", PackageDrawingId);
+
+            // Load the drawing with its saved Instant JSON and calibration config
+            var drawingWithState = await DbContext.PackageDrawings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(pd => pd.Id == PackageDrawingId);
+
+            if (drawingWithState != null)
+            {
+                // Restore calibration config first (works with trial license using setAnnotationPresets())
+                if (!string.IsNullOrEmpty(drawingWithState.CalibrationConfig))
+                {
+                    Logger.LogInformation("[NutrientPdfViewer] Restoring calibration config ({Length} chars)...",
+                        drawingWithState.CalibrationConfig.Length);
+
+                    try
+                    {
+                        var calibrationResult = await JS.InvokeAsync<JsonElement>("nutrientViewer.importMeasurementConfig",
+                            containerId, drawingWithState.CalibrationConfig);
+
+                        if (calibrationResult.TryGetProperty("success", out var calibrationSuccess) && calibrationSuccess.GetBoolean())
+                        {
+                            Logger.LogInformation("[NutrientPdfViewer] ✓ Calibration config restored successfully");
+                        }
+                        else
+                        {
+                            Logger.LogWarning("[NutrientPdfViewer] Failed to restore calibration config");
+                            if (calibrationResult.TryGetProperty("error", out var error))
+                            {
+                                Logger.LogWarning("[NutrientPdfViewer] Error: {Error}", error.GetString());
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "[NutrientPdfViewer] Error restoring calibration config");
+                    }
+                }
+
+                // Try to restore Instant JSON (annotations) - may fail with trial license
+                if (!string.IsNullOrEmpty(drawingWithState.InstantJson))
+                {
+                    Logger.LogInformation("[NutrientPdfViewer] Found saved annotations ({Length} chars) - attempting to restore...",
+                        drawingWithState.InstantJson.Length);
+
+                    try
+                    {
+                        var result = await JS.InvokeAsync<JsonElement>("nutrientViewer.importAnnotations",
+                            containerId, drawingWithState.InstantJson);
+
+                        if (result.TryGetProperty("success", out var success) && success.GetBoolean())
+                        {
+                            Logger.LogInformation("[NutrientPdfViewer] ✓ Annotations restored successfully");
+                        }
+                        else
+                        {
+                            Logger.LogWarning("[NutrientPdfViewer] Failed to restore annotations (this is expected with trial license)");
+                            if (result.TryGetProperty("error", out var error))
+                            {
+                                Logger.LogWarning("[NutrientPdfViewer] Error: {Error}", error.GetString());
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "[NutrientPdfViewer] Error importing annotations (expected with trial license)");
+                    }
+                }
+
+                if (string.IsNullOrEmpty(drawingWithState.InstantJson) && string.IsNullOrEmpty(drawingWithState.CalibrationConfig))
+                {
+                    Logger.LogInformation("[NutrientPdfViewer] No saved state found - this is a new drawing");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error restoring PDF state");
+        }
+    }
+
+    /// <summary>
+    /// Save annotation to database (called from annotation events)
+    /// </summary>
+    private async Task SaveAnnotationToDatabase(JsonElement annotationData)
+    {
+        try
+        {
+            // TODO: Get userId and companyId from tenant context
+            const int companyId = 1;
+            int? userId = null;
+
+            var annotationId = annotationData.GetProperty("id").GetString();
+            var annotationType = annotationData.GetProperty("type").GetString();
+            var pageIndex = annotationData.GetProperty("pageIndex").GetInt32();
+            var isMeasurement = annotationData.TryGetProperty("isMeasurement", out var isMeasurementProp) && isMeasurementProp.GetBoolean();
+
+            // Export Instant JSON for this annotation
+            var instantJson = await JS.InvokeAsync<string>("nutrientViewer.exportAnnotations", containerId);
+
+            if (!string.IsNullOrEmpty(instantJson))
+            {
+                await CalibrationService.SaveAnnotationAsync(
+                    PackageDrawingId,
+                    annotationId ?? Guid.NewGuid().ToString(),
+                    annotationType ?? "Unknown",
+                    pageIndex,
+                    instantJson,
+                    isMeasurement,
+                    false, // isCalibration - would need to detect from annotation type
+                    null, // traceTakeoffMeasurementId - would be set when measurement is saved
+                    userId,
+                    companyId
+                );
+
+                Logger.LogInformation("[NutrientPdfViewer] ✓ Annotation {AnnotationId} saved to database", annotationId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error saving annotation to database");
+        }
+    }
+
+    /// <summary>
+    /// Save calibration from annotation data when scale configuration is detected
+    /// </summary>
+    private async Task SaveCalibrationFromAnnotation(JsonElement annotationData, int pageIndex)
+    {
+        try
+        {
+            // TODO: Get userId and companyId from tenant context
+            const int companyId = 1;
+            int? userId = null;
+
+            // Extract scale configuration from annotation data
+            if (!annotationData.TryGetProperty("scale", out var scaleElement))
+            {
+                Logger.LogWarning("[NutrientPdfViewer] No scale configuration found in annotation data");
+                return;
+            }
+
+            // Parse scale object
+            decimal scale = 50m; // Default 1:50
+            string unit = "m"; // Default meters
+            decimal? knownDistance = null;
+            decimal? measuredDistance = null;
+            string? calibrationLineStart = null;
+            string? calibrationLineEnd = null;
+
+            // Extract scale ratio (e.g., 50 for 1:50)
+            if (scaleElement.TryGetProperty("from", out var fromElement))
+            {
+                scale = fromElement.GetDecimal();
+            }
+
+            // Extract unit
+            if (scaleElement.TryGetProperty("unitFrom", out var unitElement))
+            {
+                unit = unitElement.GetString() ?? "m";
+            }
+
+            // Extract measurement value if available
+            if (annotationData.TryGetProperty("value", out var valueElement))
+            {
+                measuredDistance = valueElement.GetDecimal();
+            }
+
+            // Extract line coordinates if available
+            if (annotationData.TryGetProperty("coordinates", out var coordinatesElement) &&
+                coordinatesElement.TryGetProperty("type", out var coordTypeElement) &&
+                coordTypeElement.GetString() == "lines" &&
+                coordinatesElement.TryGetProperty("data", out var dataElement))
+            {
+                var lines = dataElement.EnumerateArray().ToArray();
+                if (lines.Length > 0)
+                {
+                    var line = lines[0];
+                    if (line.TryGetProperty("start", out var startElement) &&
+                        line.TryGetProperty("end", out var endElement))
+                    {
+                        calibrationLineStart = System.Text.Json.JsonSerializer.Serialize(startElement);
+                        calibrationLineEnd = System.Text.Json.JsonSerializer.Serialize(endElement);
+                    }
+                }
+            }
+
+            // Calculate known distance based on scale and measured distance
+            if (measuredDistance.HasValue && scale > 0)
+            {
+                knownDistance = measuredDistance.Value * scale;
+            }
+
+            Logger.LogInformation("[NutrientPdfViewer] Saving calibration: Scale 1:{Scale} ({Unit}), KnownDistance={KnownDistance}, MeasuredDistance={MeasuredDistance}",
+                scale, unit, knownDistance, measuredDistance);
+
+            // Save calibration to database
+            await CalibrationService.SaveCalibrationAsync(
+                PackageDrawingId,
+                scale,
+                unit,
+                knownDistance,
+                measuredDistance,
+                pageIndex,
+                calibrationLineStart,
+                calibrationLineEnd,
+                userId,
+                companyId
+            );
+
+            Logger.LogInformation("[NutrientPdfViewer] ✓ Calibration saved to database: Scale 1:{Scale} ({Unit})", scale, unit);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error saving calibration from annotation");
+        }
+    }
+
+    /// <summary>
+    /// Render OCR bounding boxes as green rectangles on the PDF
+    /// </summary>
+    private async Task RenderOcrBoundingBoxes()
+    {
+        if (OcrResult?.ExtractedFields == null || !OcrResult.ExtractedFields.Any())
+        {
+            Logger.LogWarning("[NutrientPdfViewer] No OCR fields to render");
+            return;
+        }
+
+        try
+        {
+            Logger.LogInformation("[NutrientPdfViewer] Rendering {Count} OCR bounding boxes", OcrResult.ExtractedFields.Count);
+
+            foreach (var field in OcrResult.ExtractedFields)
+            {
+                if (field.Bounds == null) continue;
+
+                await JS.InvokeVoidAsync("nutrientViewer.addOcrRectangle",
+                    containerId,
+                    field.Bounds.X,
+                    field.Bounds.Y,
+                    field.Bounds.Width,
+                    field.Bounds.Height,
+                    field.FieldName,
+                    field.Value,
+                    field.Confidence);
+            }
+
+            Logger.LogInformation("[NutrientPdfViewer] ✓ OCR overlay rendered successfully");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error rendering OCR bounding boxes");
+        }
+    }
+
+    /// <summary>
+    /// Handle the Close button click - export data FIRST while SignalR circuit is alive,
+    /// then close modal, then upload to SharePoint in background
+    /// This prevents SignalR timeout issues
+    /// </summary>
+    private async Task HandleCloseAsync()
+    {
+        try
+        {
+            if (PackageDrawingId > 0)
+            {
+                Logger.LogInformation("[NutrientPdfViewer] Starting close sequence for drawing {DrawingId}", PackageDrawingId);
+
+                // STEP 1: Export all data from JavaScript BEFORE closing modal (while SignalR circuit is still alive)
+                Logger.LogInformation("[NutrientPdfViewer] Step 1: Exporting data from JavaScript...");
+
+                var instantJson = await JS.InvokeAsync<string>("nutrientViewer.exportAnnotations", containerId);
+                Logger.LogInformation("[NutrientPdfViewer] Exported Instant JSON: {Length} chars", instantJson?.Length ?? 0);
+
+                var calibrationConfig = await JS.InvokeAsync<string>("nutrientViewer.exportMeasurementConfig", containerId);
+                Logger.LogInformation("[NutrientPdfViewer] Exported calibration config: {Length} chars", calibrationConfig?.Length ?? 0);
+
+                var pdfBytes = await JS.InvokeAsync<byte[]>("nutrientViewer.exportPDF", containerId);
+                Logger.LogInformation("[NutrientPdfViewer] Exported PDF: {Length} bytes", pdfBytes?.Length ?? 0);
+
+                // STEP 2: Save to database synchronously (fast operation)
+                Logger.LogInformation("[NutrientPdfViewer] Step 2: Saving to database...");
+
+                if (!string.IsNullOrEmpty(instantJson) || !string.IsNullOrEmpty(calibrationConfig))
+                {
+                    var drawingToUpdate = await DbContext.PackageDrawings
+                        .FirstOrDefaultAsync(pd => pd.Id == PackageDrawingId);
+
+                    if (drawingToUpdate != null)
+                    {
+                        if (!string.IsNullOrEmpty(instantJson))
+                        {
+                            drawingToUpdate.InstantJson = instantJson;
+                            drawingToUpdate.InstantJsonLastUpdated = DateTime.UtcNow;
+                        }
+
+                        if (!string.IsNullOrEmpty(calibrationConfig))
+                        {
+                            drawingToUpdate.CalibrationConfig = calibrationConfig;
+                            drawingToUpdate.CalibrationConfigLastUpdated = DateTime.UtcNow;
+                        }
+
+                        await DbContext.SaveChangesAsync();
+                        Logger.LogInformation("[NutrientPdfViewer] ✓ PDF state saved to database");
+                    }
+                }
+
+                // STEP 3: Close the modal NOW - don't wait for SharePoint upload
+                Logger.LogInformation("[NutrientPdfViewer] Step 3: Closing modal...");
+                await OnClose.InvokeAsync();
+
+                // STEP 4: Upload to SharePoint in background (slow operation, happens after modal is closed)
+                if (pdfBytes != null && pdfBytes.Length > 0)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var scope = ScopeFactory.CreateScope();
+                            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                            var sharePointSvc = scope.ServiceProvider.GetRequiredService<ISharePointService>();
+                            var logger = scope.ServiceProvider.GetRequiredService<ILogger<NutrientPdfViewer>>();
+
+                            logger.LogInformation("[NutrientPdfViewer] Step 4: Uploading to SharePoint in background...");
+
+                            var drawing = await dbContext.PackageDrawings
+                                .Include(pd => pd.Package)
+                                    .ThenInclude(p => p.Revision)
+                                        .ThenInclude(r => r.Takeoff)
+                                .FirstOrDefaultAsync(pd => pd.Id == PackageDrawingId);
+
+                            if (drawing != null)
+                            {
+                                var takeoffNumber = drawing.Package?.Revision?.Takeoff?.TakeoffNumber;
+                                var revisionCode = drawing.Package?.Revision?.RevisionCode;
+                                var packageNumber = drawing.Package?.PackageNumber;
+                                var fileName = !string.IsNullOrEmpty(drawing.SharePointUrl)
+                                    ? Path.GetFileName(new Uri(drawing.SharePointUrl).LocalPath)
+                                    : $"{drawing.DrawingNumber}.pdf";
+
+                                if (!string.IsNullOrEmpty(takeoffNumber) && !string.IsNullOrEmpty(revisionCode) &&
+                                    !string.IsNullOrEmpty(packageNumber) && !string.IsNullOrEmpty(fileName))
+                                {
+                                    var folderPath = $"Takeoffs/{takeoffNumber}/{revisionCode}/PKG-{packageNumber}";
+                                    var files = new List<(Stream stream, string fileName, string contentType)>
+                                    {
+                                        (new MemoryStream(pdfBytes), fileName, "application/pdf")
+                                    };
+
+                                    await sharePointSvc.UploadMultipleFilesAsync(folderPath, files);
+                                    logger.LogInformation("[NutrientPdfViewer] ✓ PDF uploaded to SharePoint: {Path}/{File}", folderPath, fileName);
+                                }
+                            }
+                        }
+                        catch (Exception spEx)
+                        {
+                            Logger.LogError(spEx, "[NutrientPdfViewer] Error uploading to SharePoint in background");
+                        }
+                    });
+                }
+            }
+            else
+            {
+                // No PackageDrawingId - just close the modal
+                await OnClose.InvokeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error in HandleCloseAsync");
+            // Always try to close the modal even if there's an error
+            try
+            {
+                await OnClose.InvokeAsync();
+            }
+            catch (Exception closeEx)
+            {
+                Logger.LogError(closeEx, "[NutrientPdfViewer] Error closing modal");
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        if (dotNetRef != null)
+        {
+            // Instant JSON is now saved in HandleCloseAsync(), before disposal
+            // So we just need to unload the Nutrient instance here
+
+            // Unload Nutrient instance
+            try
+            {
+                _ = JS.InvokeVoidAsync("nutrientViewer.unload", containerId);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "[NutrientPdfViewer] Error unloading Nutrient instance");
+            }
+
+            dotNetRef.Dispose();
+        }
+    }
+}
+
+<style>
+    .nutrient-pdf-viewer {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background: #f5f5f5;
+    }
+
+    .loading-container, .error-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        gap: 1rem;
+    }
+
+    .loading-container .spinner-border {
+        width: 3rem;
+        height: 3rem;
+        border: 0.3rem solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spinner-border 0.75s linear infinite;
+    }
+
+    @@keyframes spinner-border {
+        to { transform: rotate(360deg); }
+    }
+
+    .error-container i {
+        font-size: 3rem;
+        color: #dc3545;
+    }
+
+    .error-container h3 {
+        margin: 0;
+    }
+
+    .error-container p {
+        color: #666;
+        max-width: 600px;
+        text-align: center;
+    }
+
+    .nutrient-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: white;
+        padding: 1rem;
+        border-bottom: 1px solid #e0e0e0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .toolbar-section h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: #333;
+    }
+
+    .toolbar-section.tools {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .tool-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .tool-group label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #666;
+        margin: 0;
+    }
+
+    .tool-btn {
+        padding: 0.5rem 0.75rem;
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .tool-btn:hover {
+        background: #f5f5f5;
+        border-color: #0d6efd;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: #0d6efd;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #0b5ed7;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background: #5c636a;
+    }
+
+    .nutrient-container-wrapper {
+        flex: 1;
+        overflow: hidden;
+        background: #333;
+    }
+
+    .nutrient-pdf-container {
+        width: 100%;
+        height: 100%;
+        background: white;
+    }
+</style>

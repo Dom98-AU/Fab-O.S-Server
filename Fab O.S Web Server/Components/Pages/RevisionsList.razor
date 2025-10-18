@@ -1,0 +1,146 @@
+@page "/takeoffs/{TakeoffId:int}/revisions"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Revisions - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search revisions..." />
+
+<!-- Content -->
+<div class="revisions-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading revisions...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="error-container">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>@errorMessage</div>
+        </div>
+    }
+    else
+    {
+        @if (takeoff != null)
+        {
+            <div class="takeoff-info">
+                <h5>@takeoff.TakeoffNumber - @takeoff.DrawingTitle</h5>
+            </div>
+        }
+
+        <!-- Unified View Toolbar -->
+        <TableViewToolbar TItem="TakeoffRevision"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="TakeoffRevision"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
+
+        <!-- Views -->
+        @if (filteredRevisions.Any())
+        {
+            @if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.TakeoffRevision>.ViewType.Table)
+            {
+                <GenericTableView TItem="TakeoffRevision"
+                                 Items="@filteredRevisions"
+                                 AllItems="@allRevisions"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 ShowCheckboxes="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleRowClick"
+                                 OnRowDoubleClick="@HandleRowDoubleClick"
+                                 EnableAdvancedFeatures="true"
+                                 EnableColumnManagement="true"
+                                 EnableFiltering="true"
+                                 EnableViewPreferences="true"
+                                 EntityType="TakeoffRevision" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.TakeoffRevision>.ViewType.Card)
+            {
+                <GenericCardView TItem="TakeoffRevision"
+                                Items="@filteredRevisions"
+                                TitleSelector="@(item => $"Revision {item.RevisionCode}")"
+                                SubtitleSelector="@(item => item.IsActive ? "Active" : "Inactive")"
+                                DescriptionSelector="@(item => item.Description ?? "No description available")"
+                                StatusSelector="@(item => item.IsActive ? "Active" : "Inactive")"
+                                BadgeSelector="@(item => $"{item.Packages?.Count ?? 0} Packages")"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<TakeoffRevision>>(this, HandleCardSelectionChanged))"
+                                OnItemClick="@(EventCallback.Factory.Create<TakeoffRevision>(this, (item) => NavigateToRevision(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<TakeoffRevision>(this, (item) => NavigateToRevision(item.Id)))" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.TakeoffRevision>.ViewType.List)
+            {
+                <GenericListView TItem="TakeoffRevision"
+                                Items="@filteredRevisions"
+                                OnItemClick="@HandleRowClick"
+                                OnItemDoubleClick="@HandleRowDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedListItems"
+                                SelectedItemsChanged="@HandleListSelectionChanged">
+                    <ItemTitle Context="revision">
+                        <span>Revision @revision.RevisionCode</span>
+                    </ItemTitle>
+                    <ItemStatus Context="revision">
+                        @if (revision.IsActive)
+                        {
+                            <span class="badge bg-success">
+                                <i class="fas fa-check-circle"></i> Active
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Inactive</span>
+                        }
+                    </ItemStatus>
+                    <ItemSubtitle Context="revision">
+                        <span>@(revision.Description ?? "No description available")</span>
+                    </ItemSubtitle>
+                    <ItemDetails Context="revision">
+                        <div class="d-flex gap-3">
+                            <span>
+                                <i class="fas fa-box"></i>
+                                @(revision.Packages?.Count ?? 0) Packages
+                            </span>
+                            <span>
+                                <i class="fas fa-calendar"></i>
+                                @revision.CreatedDate.ToString("MMM dd, yyyy")
+                            </span>
+                            <span>
+                                <i class="fas fa-user"></i>
+                                @(revision.CreatedByUser?.Username ?? "Unknown")
+                            </span>
+                        </div>
+                    </ItemDetails>
+                </GenericListView>
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-code-branch"></i>
+                </div>
+                <h3>No revisions found</h3>
+                <p>@(string.IsNullOrEmpty(searchTerm) ? "This takeoff doesn't have any revisions yet. Use the 'New' button above to create your first revision." : $"No revisions match \"{searchTerm}\". Try adjusting your search.")</p>
+            </div>
+        }
+    }
+</div>

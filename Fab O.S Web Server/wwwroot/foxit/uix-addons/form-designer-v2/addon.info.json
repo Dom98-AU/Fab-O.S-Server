@@ -1,0 +1,729 @@
+{
+    "library": "FormDesigner",
+    "i18n": {
+        "ns": "form-designer",
+        "sources": {
+            "en-US": "./locales/en-US.json",
+            "zh-CN": "./locales/zh-CN.json",
+            "it-IT": "./locales/it-IT.json",
+			"de-DE": "./locales/de-DE.json",
+			"fr-FR": "./locales/fr-FR.json",
+			"zh-TW": "./locales/zh-TW.json",
+            "es-419": "./locales/es-419.json",
+            "nl-NL": "./locales/nl-NL.json",
+            "ko-KR": "./locales/ko-KR.json"
+        }
+    },
+    "css": ["./index.css"],
+    "scripts": [],
+    "restrictions": {
+        "products": ["online", "websdk"],
+        "advanced": true,
+        "platforms": ["desktop"]
+    },
+    "depends": [],
+    "module": "util",
+    "options": {
+        "property-merger-resolutions": {
+            "default": {
+                "conflict": {
+                    "value": "empty",
+                    "available": false,
+                    "visible": true
+                },
+                "multiple": {
+                    "supports": false,
+                    "available": false,
+                    "visible": true
+                },
+                "normal": {
+                    "available": true,
+                    "visible": true
+                },
+                "unsupported": {
+                    "available": false,
+                    "visible": true
+                },
+                "empty": {
+                    "available": false,
+                    "visible": true
+                },
+                "unsupportFieldTypes": []
+            },
+            "properties": {
+                "fieldName": {
+                },
+                "fieldAlternateName": {
+                },
+                "visibleType": {
+                    "conflict": {
+                        "available": true
+                    },
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    }
+                },
+                "fieldRequired": {
+                    "conflict": {
+                        "available": true
+                    },
+                    "unsupportFieldTypes": ["PushButton", "ListBox"],
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    }
+                },
+                "fieldReadonly": {
+                    "conflict": {
+                        "available": true
+                    },
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    }
+                },
+                "widgetOrientation": {
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    }
+                },
+                "widgetMKBorderColor": {
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    }
+                },
+                "widgetMKFillColor": {
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    }
+                },
+                "widgetLineStyle": {
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    }
+                },
+                "widgetLineThickness": {
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    }
+                },
+                "widgetTextSize": {
+                    "unsupportFieldTypes": ["CheckBox", "RadioButton", "Sign"],
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    }
+                },
+                "widgetFontName": {
+                    "unsupportFieldTypes": ["CheckBox", "RadioButton", "Sign"],
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    }
+                },
+                "widgetDirectionRTL": {
+                    "unsupportFieldTypes": ["Sign", "CheckBox", "RadioButton"],
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    }
+                },
+                "widgetRect": {
+                    "multiple": {
+                        "supports": true,
+                        "available": true
+                    },
+                    "conflict": {
+                        "available": true
+                    }
+                }
+            }
+        },
+        "widget-visible-type-options": [
+            {
+                "id": {
+                    "--": "Refer to ANNOT_FLAGS",
+                    "hidden": false,
+                    "print": true,
+                    "noView": false
+                },
+                "text": "form-designer:dialog.general.visible"
+            },
+            {
+                "id": {
+                    "hidden": true,
+                    "print": true,
+                    "noView": false
+                },
+                "text": "form-designer:dialog.general.hidden"
+            },
+            {
+                "id": {
+                    "hidden": false,
+                    "print": false,
+                    "noView": false
+                },
+                "text": "form-designer:dialog.general.visibleButUnprintable"
+            },
+            {
+                "id": {
+                    "hidden": false,
+                    "print": true,
+                    "noView": true
+                },
+                "text": "form-designer:dialog.general.hiddenButPrintable"
+            }
+        ],
+        "field-orientation-options": [
+            {
+                "id": 0,
+                "text": "0"
+            },
+            {
+                "id": 90,
+                "text": "90"
+            },
+            {
+                "id": 180,
+                "text": "180"
+            },
+            {
+                "id": 270,
+                "text": "270"
+            }
+        ],
+        "widget-line-style-options": [
+            {
+                "id": "solid",
+                "text": "form-designer:dialog.appearance.solid"
+            },
+            {
+                "id": "dashed",
+                "text": "form-designer:dialog.appearance.dashed",
+                "params": [3, 3]
+            },
+            {
+                "id": "underline",
+                "text": "form-designer:dialog.appearance.underline"
+            },
+            {
+                "id": "beveled",
+                "text": "form-designer:dialog.appearance.beveled"
+            },
+            {
+                "id": "inset",
+                "text": "form-designer:dialog.appearance.inset"
+            }
+        ],
+        "widget-line-thickness-options": [
+            {
+                "id": "thin",
+                "text": "form-designer:dialog.appearance.thin",
+                "borderWidth": 1
+            },
+            {
+                "id": "medium",
+                "text": "form-designer:dialog.appearance.medium",
+                "borderWidth": 2
+            },
+            {
+                "id": "thick",
+                "text": "form-designer:dialog.appearance.thick",
+                "borderWidth": 3
+            }
+        ],
+        "widget-font-size-options": [
+            {
+                "id": "auto",
+                "text": "auto"
+            },
+            {
+                "id": 6,
+                "text": "6"
+            },
+            {
+                "id": 8,
+                "text": "8"
+            },
+            {
+                "id": 10,
+                "text": "10"
+            },
+            {
+                "id": 12,
+                "text": "12"
+            },
+            {
+                "id": 14,
+                "text": "14"
+            },
+            {
+                "id": 16,
+                "text": "16"
+            },
+            {
+                "id": 18,
+                "text": "18"
+            },
+            {
+                "id": 20,
+                "text": "20"
+            },
+            {
+                "id": 22,
+                "text": "22"
+            },
+            {
+                "id": 24,
+                "text": "24"
+            },
+            {
+                "id": 26,
+                "text": "26"
+            },
+            {
+                "id": 28,
+                "text": "28"
+            },
+            {
+                "id": 30,
+                "text": "30"
+            },
+            {
+                "id": 32,
+                "text": "32"
+            }
+        ],
+        "unit-list": [
+            {
+                "id": "pt",
+                "text": "form-designer:dialog.position.points"
+            },
+            {
+                "id": "inch",
+                "text": "form-designer:dialog.position.inches"
+            },
+            {
+                "id": "cm",
+                "text": "form-designer:dialog.position.centimeters"
+            },
+            {
+                "id": "pica",
+                "text": "form-designer:dialog.position.picas"
+            },
+            {
+                "id": "mm",
+                "text": "form-designer:dialog.position.millimeters"
+            }
+        ],
+        "icon-caption-relation": [
+            {
+                "id": 0,
+                "text": "form-designer:dialog.options.pushButton.labelOnly",
+                "--": "NO_ICON"
+            },
+            {
+                "id": 1,
+                "text": "form-designer:dialog.options.pushButton.iconOnly",
+                "--": "NO_CAPTION"
+            },
+            {
+                "id": 2,
+                "text": "form-designer:dialog.options.pushButton.iconTopLabelBottom",
+                "--": "CAPTION_BELOW_ICON"
+            },
+            {
+                "id": 3,
+                "text": "form-designer:dialog.options.pushButton.labelTopIconBottom",
+                "--": "CAPTION_ABOVE_ICON"
+            },
+            {
+                "id": 4,
+                "text": "form-designer:dialog.options.pushButton.iconLeftLabelRight",
+                "--": "CAPTION_RIGHT"
+            },
+            {
+                "id": 5,
+                "text": "form-designer:dialog.options.pushButton.labelLeftIconRight",
+                "--": "CAPTION_LEFT"
+            },
+            {
+                "id": 6,
+                "text": "form-designer:dialog.options.pushButton.labelOverIcon",
+                "--": "CAPTION_OVERLAY_ON_ICON"
+            }
+        ],
+        "highlighting-mode": [
+            {
+                "id": 0,
+                "text": "form-designer:dialog.options.pushButton.none"
+            },
+            {
+                "id": 3,
+                "text": "form-designer:dialog.options.pushButton.push"
+            },
+            {
+                "id": 2,
+                "text": "form-designer:dialog.options.pushButton.outline"
+            },
+            {
+                "id": 1,
+                "text": "form-designer:dialog.options.pushButton.invert"
+            }
+        ],
+        "alignment-list": [{
+            "id": 0,
+            "text":"form-designer:dialog.options.textField.left"
+        }, {
+            "id": 1,
+            "text":"form-designer:dialog.options.textField.center"
+        }, {
+            "id": 2,
+            "text":"form-designer:dialog.options.textField.right"
+        }],
+        "format-category-list": [
+            {
+                "id": "none",
+                "text": "form-designer:dialog.format.none",
+                "tip": "form-designer:dialog.format.noneInfo"
+            },
+            {
+                "id": "number",
+                "text": "form-designer:dialog.format.number",
+                "tip": "form-designer:dialog.format.numberInfo"
+            },
+            {
+                "id": "percentage",
+                "text": "form-designer:dialog.format.percentage",
+                "tip": "form-designer:dialog.format.percentageInfo"
+            },
+            {
+                "id": "date",
+                "text": "form-designer:dialog.format.date",
+                "tip": "form-designer:dialog.format.dateInfo"
+            },
+            {
+                "id": "time",
+                "text": "form-designer:dialog.format.time",
+                "tip": "form-designer:dialog.format.timeInfo"
+            },
+            {
+                "id": "special",
+                "text": "form-designer:dialog.format.special",
+                "tip": "form-designer:dialog.format.specialInfo"
+            },
+            {
+                "id": "custom",
+                "text": "form-designer:dialog.format.custom",
+                "tip": "form-designer:dialog.format.customInfo"
+            }
+        ],
+        "currency-symbol-list": [
+            {
+                "id": "",
+                "text": "form-designer:dialog.format.none",
+                "isPrepend": false
+            },
+            {
+                "id": "\u0024",
+                "text": "form-designer:dialog.format.currencySymbolList.USDollar",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0020\u0044\u004d",
+                "text": "form-designer:dialog.format.currencySymbolList.DeutschMark",
+                "isPrepend": false
+            },
+            {
+                "id": "\u20ac",
+                "text": "form-designer:dialog.format.currencySymbolList.Euro",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0066\u006c",
+                "text": "form-designer:dialog.format.currencySymbolList.DutchGuilder",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0020\u0046",
+                "text": "form-designer:dialog.format.currencySymbolList.Franc",
+                "isPrepend": false
+            },
+            {
+                "id": "\u0020\u006b\u0072",
+                "text": "form-designer:dialog.format.currencySymbolList.DanishKrone",
+                "isPrepend": false
+            },
+            {
+                "id": "\u004c\u0069\u0074\u002e\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.ItalianLira",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0020\u0050\u0074\u0073",
+                "text": "form-designer:dialog.format.currencySymbolList.SpanishPeseta",
+                "isPrepend": false
+            },
+            {
+                "id": "\u00a3",
+                "text": "form-designer:dialog.format.currencySymbolList.Pound",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0024\u0041\u002e\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.AustralianDollar",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0024\u004e\u005a\u002e\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.NewZealandDollar",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0420\u0443\u0431\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.RussianRuble",
+                "isPrepend": false
+            },
+            {
+                "id": "\u0045\u0053\u0043\u002e\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.PortugueseEscudo",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0048\u004b\u0024\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.HongKongDollar",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0050\u002e\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.MacaoPataca",
+                "format": "\u0050\u002e\u0020{d}",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0052\u004d\u0042\u00a5",
+                "text": "form-designer:dialog.format.currencySymbolList.RenminbiYuan",
+                "isPrepend": true
+            },
+            {
+                "id": "\u004e\u0054\u0024\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.NewTaiwanDollar",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0053\u002e\u0024\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.SingaporeDollar",
+                "isPrepend": true
+            },
+            {
+                "id": "\u20a9",
+                "text": "form-designer:dialog.format.currencySymbolList.KoreanWon",
+                "isPrepend": true
+            },
+            {
+                "id": "\u00a5",
+                "text": "form-designer:dialog.format.currencySymbolList.JapaneseYen",
+                "isPrepend": true
+            },
+            {
+                "id": "\u007a\u0142",
+                "text": "form-designer:dialog.format.currencySymbolList.PolishZloty",
+                "isPrepend": true
+            },
+            {
+                "id": "\u0053\u0045\u004b\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.Krona",
+                "isPrepend": true
+            },
+            {
+                "id": "\u006b\u0072\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.NorwegianKrone",                "isPrepend": true
+            },
+            {
+                "id": "\u0043\u0024\u0020",
+                "text": "form-designer:dialog.format.currencySymbolList.CanadianDollar",
+                "isPrepend": true
+            }
+        ],
+        "number-separator-list": [
+            {"id": 0, "text": "1,234.56"},
+            {"id": 1, "text": "1234.56"},
+            {"id": 2, "text": "1.234,56"},
+            {"id": 3, "text": "1234,56"},
+            {"id": 4, "text": "1 234,56"}
+        ],
+        "dicemal-places-list": [
+            0,1,2,3,4,5,6,7,8,9,10
+        ],
+        "date-format-list": [
+            "m/d",
+    		"m/d/yy",
+    		"m/d/yyyy",
+    		"mm/dd/yy",
+    		"mm/dd/yyyy",
+    		"mm/yy",
+    		"mm/yyyy",
+    		"d-mmm",
+    		"d-mmm-yy",
+    		"d-mmm-yyyy",
+    		"dd-mmm-yy",
+    		"dd-mmm-yyyy",
+    		"yy-mm-dd",
+    		"yyyy-mm-dd",
+    		"mmm-yy",
+    		"mmm-yyyy",
+    		"mmmm-yy",
+    		"mmmm-yyyy",
+    		"mmm d, yyyy",
+    		"mmmm d, yyyy",
+    		"m/d/yy h:MM tt",
+    		"m/d/yyyy h:MM tt",
+    		"m/d/yy HH:MM",
+    		"m/d/yyyy HH:MM",
+    		"Custom"
+        ],
+        "time-format-list": [
+            "HH:MM",
+    		"h:MM tt",
+    		"HH:MM:ss",
+    		"h:MM:ss tt",
+            "Custom"
+        ],
+        "special-format-list": [
+            {
+                "id": "zipCode",
+                "text": "form-designer:dialog.format.zipCode"
+            },
+            {
+                "id": "zipCode4",
+                "text": "form-designer:dialog.format.zipCode4"
+            },
+            {
+                "id": "phoneNumber",
+                "text": "form-designer:dialog.format.phoneNumber"
+            },
+            {
+                "id": "socialSecurityNumber",
+                "text": "form-designer:dialog.format.socialSecurityNumber"
+            },
+            {
+                "id": "arbitraryMask",
+                "text": "form-designer:dialog.format.arbitraryMask"
+            }
+        ],
+        "mk-normal-caption-list": [
+            {
+                "id": "4",
+                "text": "form-designer:dialog.options.choice.check"
+            },
+            {
+                "id": "l",
+                "text": "form-designer:dialog.options.choice.circle"
+            },
+            {
+                "id": "8",
+                "text": "form-designer:dialog.options.choice.cross"
+            },
+            {
+                "id": "u",
+                "text": "form-designer:dialog.options.choice.diamond"
+            },
+            {
+                "id": "n",
+                "text": "form-designer:dialog.options.choice.square"
+            },
+            {
+                "id": "H",
+                "text": "form-designer:dialog.options.choice.star"
+            }
+        ],
+        "calculate-relation-types": [
+            {
+                "id": "SUM",
+                "text": "form-designer:dialog.calculate.sum"
+            },
+            {
+                "id": "PRD",
+                "text": "form-designer:dialog.calculate.product"
+            },
+            {
+                "id": "AVG",
+                "text": "form-designer:dialog.calculate.average"
+            },
+            {
+                "id": "MIN",
+                "text": "form-designer:dialog.calculate.minimum"
+            },
+            {
+                "id": "MAX",
+                "text": "form-designer:dialog.calculate.maximum"
+            }
+        ],
+        "action-trigger-list": [
+            {
+                "id": 14,
+                "text": "editActions.mouseUp"
+            },
+            {
+                "id": 13,
+                "text": "editActions.mouseDown"
+            },
+            {
+                "id": 11,
+                "text": "editActions.mouseEnter"
+            },
+            {
+                "id": 12,
+                "text": "editActions.mouseExit"
+            },
+            {
+                "id": 15,
+                "text": "editActions.focus"
+            },
+            {
+                "id": 16,
+                "text": "editActions.blur"
+            }
+        ],
+        "action-type-list": [
+            {
+                "id": "TypeURI",
+                "text": "ui_:dialog.actionDialog.selectAction.webLink"
+            },
+            {
+                "id": "TypeHide",
+                "text": "ui_:dialog.actionDialog.selectAction.field"
+            },
+            {
+                "id": "TypeGoto",
+                "text": "ui_:dialog.actionDialog.selectAction.goto"
+            },
+            {
+                "id": "TypeLaunch",
+                "text": "ui_:dialog.actionDialog.selectAction.file"
+            },
+            {
+                "id": "TypeSubmitForm",
+                "text": "ui_:dialog.actionDialog.selectAction.submit"
+            },
+            {
+                "id": "TypeJavaScript",
+                "text": "ui_:dialog.actionDialog.selectAction.run"
+            },
+            {
+                "id": "TypeResetForm",
+                "text": "ui_:dialog.actionDialog.selectAction.reset"
+            },
+            {
+                "id": "TypeImportData",
+                "text": "ui_:dialog.actionDialog.selectAction.import"
+            }
+        ]
+    }
+}

@@ -63,29 +63,52 @@ public class PackageDrawingService : IPackageDrawingService
     {
         try
         {
-            // Get package info
-            var package = await _context.Packages.FindAsync(packageId);
+            // Get package with revision and takeoff information
+            var package = await _context.Packages
+                .Include(p => p.Revision)
+                    .ThenInclude(r => r!.Takeoff)
+                .FirstOrDefaultAsync(p => p.Id == packageId);
+
             if (package == null)
             {
                 throw new InvalidOperationException($"Package {packageId} not found");
             }
 
-            // Create folder path for package if not exists
-            var folderPath = $"PKG-{package.PackageNumber}";
-
-            // Check if SharePoint folder exists, create if not
-            if (!await _sharePointService.TakeoffFolderExistsAsync(folderPath))
+            if (package.Revision?.Takeoff == null)
             {
-                await _sharePointService.CreateTakeoffFolderAsync(folderPath);
+                throw new InvalidOperationException($"Package {packageId} is not associated with a takeoff and revision");
             }
 
-            // Upload to SharePoint
-            var sharePointFile = await _sharePointService.UploadFileAsync(
+            var takeoffNumber = package.Revision.Takeoff.TakeoffNumber;
+            var revisionCode = package.Revision.RevisionCode;
+            var packageNumber = package.PackageNumber;
+
+            if (string.IsNullOrEmpty(takeoffNumber))
+            {
+                throw new InvalidOperationException($"Takeoff number is missing for package {packageId}");
+            }
+
+            // Ensure the complete folder hierarchy exists (Takeoffs/TakeoffNumber/RevisionCode/PKG-PackageNumber)
+            await _sharePointService.EnsurePackageFolderExistsAsync(takeoffNumber, revisionCode, packageNumber);
+
+            // Get the complete folder path
+            var folderPath = await _sharePointService.GetPackageFolderPathAsync(takeoffNumber, revisionCode, packageNumber);
+
+            // Upload to SharePoint using the helper method that accepts folder paths
+            var sharePointFile = await _sharePointService.UploadMultipleFilesAsync(
                 folderPath,
-                fileStream,
-                fileName,
-                "application/pdf"
+                new List<(Stream stream, string fileName, string contentType)>
+                {
+                    (fileStream, fileName, "application/pdf")
+                }
             );
+
+            if (sharePointFile == null || !sharePointFile.Any())
+            {
+                throw new InvalidOperationException("File upload failed");
+            }
+
+            var uploadedFile = sharePointFile.First();
 
             // Save reference in database
             var drawing = new PackageDrawing
@@ -93,10 +116,10 @@ public class PackageDrawingService : IPackageDrawingService
                 PackageId = packageId,
                 DrawingNumber = drawingNumber,
                 DrawingTitle = drawingTitle,
-                SharePointItemId = sharePointFile.Id,
-                SharePointUrl = sharePointFile.WebUrl,
+                SharePointItemId = uploadedFile.Id,
+                SharePointUrl = uploadedFile.WebUrl,
                 FileType = "PDF",
-                FileSize = sharePointFile.Size,
+                FileSize = uploadedFile.Size,
                 UploadedDate = DateTime.UtcNow,
                 UploadedBy = uploadedBy,
                 IsActive = true
@@ -106,9 +129,10 @@ public class PackageDrawingService : IPackageDrawingService
             await _context.SaveChangesAsync();
 
             _logger.LogInformation(
-                "Uploaded drawing {DrawingNumber} for package {PackageId}",
+                "Uploaded drawing {DrawingNumber} for package {PackageId} to {FolderPath}",
                 drawingNumber,
-                packageId
+                packageId,
+                folderPath
             );
 
             return drawing;

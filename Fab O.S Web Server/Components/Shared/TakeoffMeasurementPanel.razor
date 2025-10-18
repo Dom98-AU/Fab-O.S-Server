@@ -1,0 +1,160 @@
+@namespace FabOS.WebServer.Components.Shared
+@rendermode InteractiveServer
+@using FabOS.WebServer.Services.Interfaces
+
+<div class="takeoff-measurement-footer @(IsVisible ? "visible" : "") @GetHeightClass()">
+    <!-- Footer Header -->
+    <div class="footer-header">
+        <div class="header-left">
+            <h3>
+                <i class="fas fa-calculator"></i>
+                Measurements
+            </h3>
+            @if (measurements.Count > 0)
+            {
+                <span class="badge">@measurements.Count items</span>
+                <span class="badge weight-badge">@TotalWeight.ToString("F2") kg</span>
+            }
+        </div>
+        <div class="header-actions">
+            <button class="btn-expand" @onclick="CycleHeight" title="Resize Footer">
+                <i class="fas @GetExpandIcon()"></i>
+            </button>
+            <button class="btn-close" @onclick="TogglePanel" title="Toggle Footer">
+                <i class="fas @(IsVisible ? "fa-chevron-down" : "fa-chevron-up")"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer Content -->
+    <div class="footer-content">
+
+        <!-- Current Measurement (Active) -->
+        @if (CurrentMeasurement != null)
+        {
+            <div class="current-measurement-banner">
+                <div class="banner-icon">
+                    <i class="fas fa-crosshairs"></i>
+                </div>
+                <div class="banner-info">
+                    <div class="banner-row">
+                        <span class="item-code">@CurrentMeasurement.ItemCode</span>
+                        <span class="item-desc">@CurrentMeasurement.Description</span>
+                    </div>
+                    <div class="banner-row">
+                        <span class="badge badge-type">@CurrentMeasurement.MeasurementType</span>
+                        <span class="value">@CurrentMeasurement.MeasurementValue.ToString("F2") @CurrentMeasurement.Unit</span>
+                        <span class="quantity">→ @CurrentMeasurement.Quantity.ToString("F2") @CurrentMeasurement.QuantityUnit</span>
+                        @if (CurrentMeasurement.Weight.HasValue)
+                        {
+                            <span class="weight-result">
+                                <i class="fas fa-weight-hanging"></i>
+                                @CurrentMeasurement.Weight.Value.ToString("F2") @CurrentMeasurement.WeightUnit
+                            </span>
+                        }
+                    </div>
+                </div>
+                <div class="banner-actions">
+                    <button class="btn btn-primary btn-sm" @onclick="SaveCurrentMeasurement">
+                        <i class="fas fa-save"></i>
+                        Save
+                    </button>
+                    <button class="btn btn-secondary btn-sm" @onclick="CancelCurrentMeasurement">
+                        <i class="fas fa-times"></i>
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        }
+
+        <!-- Measurements List (Horizontal Scrollable) -->
+        <div class="measurements-horizontal">
+            @if (isLoadingMeasurements)
+            {
+                <div class="loading-state">
+                    <div class="spinner-border spinner-border-sm"></div>
+                    <span>Loading measurements...</span>
+                </div>
+            }
+            else if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>@errorMessage</p>
+                    <button class="btn btn-primary btn-sm" @onclick="LoadMeasurements">
+                        <i class="fas fa-redo"></i>
+                        Retry
+                    </button>
+                </div>
+            }
+            else if (measurements.Count == 0)
+            {
+                <div class="empty-state">
+                    <i class="fas fa-ruler-combined"></i>
+                    <p>No measurements yet</p>
+                    <small>Select an item from the catalogue and start measuring</small>
+                </div>
+            }
+            else
+            {
+                <!-- Grouped by Category (Horizontal Cards) -->
+                @foreach (var categoryGroup in GroupedMeasurements)
+                {
+                    <div class="category-column">
+                        <div class="category-header @(expandedCategory == categoryGroup.Key ? "expanded" : "")"
+                             @onclick="() => ToggleCategory(categoryGroup.Key)">
+                            <div class="category-title">
+                                <i class="fas @(expandedCategory == categoryGroup.Key ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                                <span class="category-name">@categoryGroup.Key</span>
+                            </div>
+                            <span class="badge">@categoryGroup.Value.Count</span>
+                            <span class="weight-badge">@categoryGroup.Value.Sum(m => m.CalculatedWeight ?? 0).ToString("F2") kg</span>
+                        </div>
+
+                        @if (expandedCategory == categoryGroup.Key)
+                        {
+                            <div class="category-items-scroll">
+                                @foreach (var measurement in categoryGroup.Value)
+                                {
+                                    <div class="measurement-card-compact">
+                                        <div class="card-header">
+                                            <span class="item-code">@measurement.CatalogueItem?.ItemCode</span>
+                                            <button class="btn-icon" @onclick="() => DeleteMeasurement(measurement.Id)" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                        <div class="card-body">
+                                            <span class="badge badge-type">@measurement.MeasurementType</span>
+                                            <span class="value">@measurement.Value.ToString("F2") @measurement.Unit</span>
+                                            @if (measurement.CalculatedWeight.HasValue)
+                                            {
+                                                <span class="weight">
+                                                    <i class="fas fa-weight-hanging"></i>
+                                                    @measurement.CalculatedWeight.Value.ToString("F2") kg
+                                                </span>
+                                            }
+                                        </div>
+                                        <div class="card-footer">
+                                            <i class="fas fa-clock"></i>
+                                            <span>@measurement.CreatedDate.ToLocalTime().ToString("g")</span>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Footer Actions -->
+                <div class="footer-actions-column">
+                    <button class="btn btn-secondary btn-sm" @onclick="RefreshMeasurements" title="Refresh">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button class="btn btn-danger btn-sm" @onclick="ClearAllMeasurements" title="Clear All">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+</div>

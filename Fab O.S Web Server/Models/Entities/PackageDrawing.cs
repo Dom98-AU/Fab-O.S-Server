@@ -20,9 +20,8 @@ public class PackageDrawing
     [StringLength(100)]
     public string DrawingNumber { get; set; } = string.Empty;
 
-    [Required]
     [StringLength(500)]
-    public string DrawingTitle { get; set; } = string.Empty;
+    public string? DrawingTitle { get; set; }
 
     [Required]
     [StringLength(500)]
@@ -47,6 +46,22 @@ public class PackageDrawing
 
     [StringLength(500)]
     public string? Notes { get; set; }
+
+    /// <summary>
+    /// Nutrient/PSPDFKit Instant JSON containing all annotations, measurements, and calibration scale
+    /// This preserves the complete visual state of the PDF viewer
+    /// </summary>
+    public string? InstantJson { get; set; }
+
+    public DateTime? InstantJsonLastUpdated { get; set; }
+
+    /// <summary>
+    /// Calibration configuration (measurement presets) stored separately for trial license compatibility
+    /// Contains measurementValueConfiguration for distance, perimeter, and area measurement tools
+    /// </summary>
+    public string? CalibrationConfig { get; set; }
+
+    public DateTime? CalibrationConfigLastUpdated { get; set; }
 
     // Navigation properties
     [ForeignKey("PackageId")]

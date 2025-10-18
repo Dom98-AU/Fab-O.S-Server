@@ -7,16 +7,19 @@
 @using FabOS.WebServer.Components.Shared.Interfaces
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 @inject ApplicationDbContext DbContext
 @inject ISharePointService SharePointService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject ILogger<PackageSharePointFiles> Logger
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Package SharePoint Files - @package?.PackageNumber - Fab.OS</PageTitle>
 
 <!-- Standard Toolbar -->
-<StandardToolbar ActionProvider="@this" PageType="PageType.SharePointFiles" />
+<StandardToolbar ActionProvider="@this" PageType="PageType.SharePointFiles" OnSearch="@OnSearchChanged" SearchPlaceholder="Search files..." />
 
 <div class="sharepoint-files-container">
     @if (isLoading)
@@ -40,13 +43,6 @@
     else
     {
         <div class="files-content">
-            <div class="files-header">
-                <div class="header-info">
-                    <h1>SharePoint Files - Package @package.PackageNumber</h1>
-                    <p>@package.PackageName</p>
-                </div>
-            </div>
-
             @if (!sharePointConfigured)
             {
                 <div class="alert alert-warning">
@@ -75,48 +71,31 @@
                     </div>
                 </div>
             }
-            else
+            else if (!folderStructureExists)
             {
-                <!-- Upload Section -->
-                <div class="upload-section">
-                    <h3>Upload New Drawing</h3>
-                    <div class="upload-form">
-                        <div class="form-group">
-                            <label>Drawing Number</label>
-                            <input type="text" class="form-control" @bind="newDrawingNumber"
-                                   placeholder="e.g., DWG-001" />
-                        </div>
-                        <div class="form-group">
-                            <label>Drawing Title</label>
-                            <input type="text" class="form-control" @bind="newDrawingTitle"
-                                   placeholder="e.g., Ground Floor Plan" />
-                        </div>
-                        <div class="form-group">
-                            <label>Select PDF File</label>
-                            <InputFile OnChange="HandleFileSelected" accept=".pdf" class="form-control" />
-                            @if (selectedFile != null)
-                            {
-                                <small class="text-muted">
-                                    Selected: @selectedFile.Name (@FormatFileSize(selectedFile.Size))
-                                </small>
-                            }
-                        </div>
-                        <button class="btn btn-primary" @onclick="UploadToSharePoint"
-                                disabled="@(!CanUpload() || isUploading)">
-                            @if (isUploading)
+                <!-- Create Folder Structure Section -->
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <div class="alert-content">
+                        <h4>SharePoint Folder Structure Not Created</h4>
+                        <p>The folder structure for this takeoff hasn't been created yet. Click the button below to create the folder hierarchy: Takeoff > Revision > Package</p>
+                        <button class="btn btn-primary" @onclick="CreateFolderStructure" disabled="@isCreatingFolderStructure">
+                            @if (isCreatingFolderStructure)
                             {
                                 <span class="spinner-border spinner-border-sm me-2"></span>
-                                <span>Uploading...</span>
+                                <span>Creating Folder Structure...</span>
                             }
                             else
                             {
-                                <i class="fas fa-upload"></i>
-                                <span>Upload to SharePoint</span>
+                                <i class="fas fa-folder-plus"></i>
+                                <span>Create Folder Structure</span>
                             }
                         </button>
                     </div>
                 </div>
-
+            }
+            else
+            {
                 <!-- SharePoint File Browser -->
                 <SharePointFileBrowser TPage="PackageSharePointFiles"
                                      Page="@this"
@@ -136,6 +115,13 @@
                  Title="@GetTakeoffModalTitle()"
                  OnClose="CloseTakeoffModal" />
 
+<!-- File Upload Modal -->
+<FileUploadModal @ref="uploadModal"
+                 @bind-IsVisible="showUploadModal"
+                 OnUpload="@HandleUploadRequest"
+                 OnUploadComplete="@HandleUploadComplete"
+                 OnClose="@(() => showUploadModal = false)" />
+
 @code {
     [Parameter] public int PackageId { get; set; }
 
@@ -145,12 +131,14 @@
     private bool sharePointConfigured = false;
     private bool sharePointConnected = false;
     private string sharePointError = "";
+    private bool folderStructureExists = false;
+    private bool isCreatingFolderStructure = false;
+    private int currentUserId = 0;
 
-    // Upload form
-    private string newDrawingNumber = "";
-    private string newDrawingTitle = "";
-    private IBrowserFile? selectedFile;
-    private bool isUploading = false;
+    // Modal state
+    private bool showUploadModal = false;
+    private string searchTerm = "";
+    private FileUploadModal? uploadModal;
 
     // SharePoint file browser state
     private SharePointFolderState folderState = new();
@@ -166,21 +154,60 @@
     public string CurrentFolderPath => currentFolderPath;
     public List<SharePointFileInfo> SelectedFiles => selectedFiles;
     public bool HasSelectedFiles => selectedFiles.Any();
-    public bool IsAtRoot => string.IsNullOrEmpty(currentFolderPath) || currentFolderPath == $"PKG-{package?.PackageNumber}";
+    public bool IsAtRoot
+    {
+        get
+        {
+            if (package == null) return true;
+            // Root is the package folder itself  (Takeoffs/TK-XXX/A/PKG-001)
+            var expectedRoot = $"Takeoffs/{package.Revision?.Takeoff?.TakeoffNumber}/{package.Revision?.RevisionCode}/PKG-{package.PackageNumber}";
+            return string.IsNullOrEmpty(currentFolderPath) || currentFolderPath == expectedRoot;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
+        // Get current user ID from authentication state
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var userIdClaim = user.FindFirst("UserId") ?? user.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+            {
+                currentUserId = userId;
+            }
+            else
+            {
+                Logger.LogWarning("Could not find UserId claim for authenticated user");
+            }
+        }
+
         await LoadPackage();
         await CheckSharePointStatus();
         await LoadPackageDrawings();
 
-        // Initialize folder browsing to package root
-        if (package != null)
+        // Initialize folder browsing to package root and check if structure exists
+        if (package != null && sharePointConnected)
         {
-            currentFolderPath = $"PKG-{package.PackageNumber}";
-            if (sharePointConnected)
+            // Load package with revision and takeoff info to build correct path
+            var packageWithRevision = await DbContext.Packages
+                .Include(p => p.Revision)
+                    .ThenInclude(r => r!.Takeoff)
+                .FirstOrDefaultAsync(p => p.Id == PackageId);
+
+            if (packageWithRevision?.Revision?.Takeoff != null)
             {
-                await RefreshFolderContents();
+                var takeoffNumber = packageWithRevision.Revision.Takeoff.TakeoffNumber;
+                var revisionCode = packageWithRevision.Revision.RevisionCode;
+                var packageNumber = packageWithRevision.PackageNumber;
+
+                // Set the correct folder path: Takeoffs/TK-XXX/A/PKG-001
+                currentFolderPath = await SharePointService.GetPackageFolderPathAsync(
+                    takeoffNumber, revisionCode, packageNumber);
+
+                await CheckFolderStructureExists();
             }
         }
     }
@@ -241,58 +268,85 @@
         }
     }
 
-    private void HandleFileSelected(InputFileChangeEventArgs e)
+    private void OnSearchChanged(string newSearchTerm)
     {
-        selectedFile = e.File;
+        searchTerm = newSearchTerm;
+        // The SharePointFileBrowser component handles its own filtering
+        // This search is primarily for future enhancements
+        StateHasChanged();
     }
 
-    private bool CanUpload()
+    private async Task HandleUploadRequest(FileUploadModal.UploadFileRequest request)
     {
-        return !string.IsNullOrWhiteSpace(newDrawingNumber) &&
-               !string.IsNullOrWhiteSpace(newDrawingTitle) &&
-               selectedFile != null &&
-               sharePointConnected;
-    }
-
-    private async Task UploadToSharePoint()
-    {
-        if (!CanUpload() || package == null)
-            return;
-
-        isUploading = true;
+        if (package == null) return;
 
         try
         {
-            // Read file content
-            using var stream = selectedFile!.OpenReadStream(maxAllowedSize: 250 * 1024 * 1024); // 250MB max
-            using var memoryStream = new MemoryStream();
-            await stream.CopyToAsync(memoryStream);
+            // Extract drawing number from filename (without extension)
+            var drawingNumber = Path.GetFileNameWithoutExtension(request.File.Name);
+
+            // Use cached file data instead of reading from stream (which has already been consumed)
+            if (request.FileData == null)
+            {
+                throw new InvalidOperationException("File data is not available. Please try again.");
+            }
+
+            var memoryStream = new MemoryStream(request.FileData);
             memoryStream.Position = 0;
 
-            // Create folder path for package if not exists
-            var folderPath = $"PKG-{package.PackageNumber}";
+            // Load package with revision info
+            var packageWithRevision = await DbContext.Packages
+                .Include(p => p.Revision)
+                    .ThenInclude(r => r!.Takeoff)
+                .FirstOrDefaultAsync(p => p.Id == PackageId);
 
-            // Upload to SharePoint
-            var fileName = $"{newDrawingNumber}_{selectedFile.Name}";
-            var sharePointFile = await SharePointService.UploadFileAsync(
+            if (packageWithRevision?.Revision?.Takeoff == null)
+            {
+                throw new InvalidOperationException("Package is not associated with a takeoff");
+            }
+
+            var takeoffNumber = packageWithRevision.Revision.Takeoff.TakeoffNumber;
+            var revisionCode = packageWithRevision.Revision.RevisionCode;
+            var packageNumber = packageWithRevision.PackageNumber;
+
+            // Get the package folder path (Takeoffs/TK-XXX/A/PKG-001)
+            var folderPath = await SharePointService.GetPackageFolderPathAsync(
+                takeoffNumber, revisionCode, packageNumber);
+
+            // Upload to SharePoint using original filename
+            var uploadedFiles = await SharePointService.UploadMultipleFilesAsync(
                 folderPath,
-                memoryStream,
-                fileName,
-                "application/pdf"
+                new List<(Stream stream, string fileName, string contentType)>
+                {
+                    (memoryStream, request.File.Name, "application/pdf")
+                }
             );
+
+            if (uploadedFiles == null || !uploadedFiles.Any())
+            {
+                throw new InvalidOperationException("File upload failed");
+            }
+
+            var sharePointFile = uploadedFiles.First();
+
+            // Validate user authentication
+            if (currentUserId == 0)
+            {
+                throw new InvalidOperationException("User is not authenticated. Please log in and try again.");
+            }
 
             // Save reference in database
             var drawing = new PackageDrawing
             {
                 PackageId = PackageId,
-                DrawingNumber = newDrawingNumber,
-                DrawingTitle = newDrawingTitle,
+                DrawingNumber = drawingNumber,
+                DrawingTitle = "", // Empty until OCR fills it
                 SharePointItemId = sharePointFile.Id,
                 SharePointUrl = sharePointFile.WebUrl,
                 FileType = "PDF",
-                FileSize = selectedFile.Size,
+                FileSize = request.File.Size,
                 UploadedDate = DateTime.UtcNow,
-                UploadedBy = 1, // TODO: Get from current user context
+                UploadedBy = currentUserId, // Use authenticated user's ID
                 IsActive = true
             };
 
@@ -302,23 +356,39 @@
             // Add to local list
             packageDrawings.Insert(0, drawing);
 
-            // Reset form
-            newDrawingNumber = "";
-            newDrawingTitle = "";
-            selectedFile = null;
+            // Pass the drawing ID back to the modal so it can run OCR if needed
+            uploadModal?.SetUploadedDrawingId(drawing.Id);
 
-            // Show success message
-            await JS.InvokeVoidAsync("alert", "File uploaded successfully!");
+            // Refresh folder contents to show new file
+            await RefreshFolderContents();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error uploading file to SharePoint");
-            await JS.InvokeVoidAsync("alert", $"Upload failed: {ex.Message}");
+            throw; // Let the modal handle the error display
         }
-        finally
+    }
+
+    private async Task HandleUploadComplete(FileUploadModal.UploadCompleteResult result)
+    {
+        // Reload the drawing that was uploaded to reflect any OCR changes
+        var updatedDrawing = await DbContext.PackageDrawings
+            .FirstOrDefaultAsync(d => d.Id == result.DrawingId);
+
+        if (updatedDrawing != null)
         {
-            isUploading = false;
+            // Update the local list with the updated drawing
+            var existingIndex = packageDrawings.FindIndex(d => d.Id == result.DrawingId);
+            if (existingIndex >= 0)
+            {
+                packageDrawings[existingIndex] = updatedDrawing;
+            }
         }
+
+        // Close modal and refresh
+        showUploadModal = false;
+        await RefreshFolderContents();
+        StateHasChanged();
     }
 
     private void OpenInTakeoffViewer(int drawingId)
@@ -363,6 +433,101 @@
         {
             Logger.LogError(ex, "Error deleting file");
             await JS.InvokeVoidAsync("alert", $"Delete failed: {ex.Message}");
+        }
+    }
+
+    private async Task CheckFolderStructureExists()
+    {
+        try
+        {
+            if (package == null) return;
+
+            // Load the package with its revision to get the takeoff information
+            var packageWithRevision = await DbContext.Packages
+                .Include(p => p.Revision)
+                    .ThenInclude(r => r!.Takeoff)
+                .FirstOrDefaultAsync(p => p.Id == PackageId);
+
+            if (packageWithRevision?.Revision?.Takeoff == null)
+            {
+                Logger.LogWarning("Package {PackageId} does not have associated takeoff information", PackageId);
+                folderStructureExists = false;
+                return;
+            }
+
+            var takeoffNumber = packageWithRevision.Revision.Takeoff.TakeoffNumber;
+            var revisionCode = packageWithRevision.Revision.RevisionCode;
+            var packageNumber = packageWithRevision.PackageNumber;
+
+            // Check if the complete package folder exists (Takeoffs/TK-XXX/A/PKG-001)
+            folderStructureExists = await SharePointService.PackageFolderExistsAsync(
+                takeoffNumber, revisionCode, packageNumber);
+
+            // If folder exists, load its contents
+            if (folderStructureExists)
+            {
+                await RefreshFolderContents();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error checking if folder structure exists");
+            folderStructureExists = false;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CreateFolderStructure()
+    {
+        if (package == null) return;
+
+        isCreatingFolderStructure = true;
+        StateHasChanged();
+
+        try
+        {
+            // Load the package with its revision to get the takeoff and revision information
+            var packageWithRevision = await DbContext.Packages
+                .Include(p => p.Revision)
+                    .ThenInclude(r => r!.Takeoff)
+                .FirstOrDefaultAsync(p => p.Id == PackageId);
+
+            if (packageWithRevision?.Revision?.Takeoff == null)
+            {
+                await JS.InvokeVoidAsync("alert", "Cannot create folder structure: Package is not associated with a takeoff.");
+                return;
+            }
+
+            var takeoffNumber = packageWithRevision.Revision.Takeoff.TakeoffNumber;
+            var revisionCode = packageWithRevision.Revision.RevisionCode;
+            var packageNumber = packageWithRevision.PackageNumber;
+
+            // Create the complete folder hierarchy: Takeoff > Revision > Package
+            await SharePointService.EnsurePackageFolderExistsAsync(takeoffNumber, revisionCode, packageNumber);
+
+            // Update the current folder path to the package folder
+            currentFolderPath = await SharePointService.GetPackageFolderPathAsync(
+                takeoffNumber, revisionCode, packageNumber);
+
+            // Update state and load folder contents
+            folderStructureExists = true;
+            await RefreshFolderContents();
+
+            await JS.InvokeVoidAsync("alert", "Folder structure created successfully!");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating folder structure");
+            await JS.InvokeVoidAsync("alert", $"Failed to create folder structure: {ex.Message}");
+        }
+        finally
+        {
+            isCreatingFolderStructure = false;
+            StateHasChanged();
         }
     }
 
@@ -414,7 +579,22 @@
 
     public async Task NavigateToRootAsync()
     {
-        await NavigateToFolderAsync($"PKG-{package?.PackageNumber}");
+        if (package == null) return;
+
+        var packageWithRevision = await DbContext.Packages
+            .Include(p => p.Revision)
+                .ThenInclude(r => r!.Takeoff)
+            .FirstOrDefaultAsync(p => p.Id == PackageId);
+
+        if (packageWithRevision?.Revision?.Takeoff != null)
+        {
+            var rootPath = await SharePointService.GetPackageFolderPathAsync(
+                packageWithRevision.Revision.Takeoff.TakeoffNumber,
+                packageWithRevision.Revision.RevisionCode,
+                packageWithRevision.PackageNumber);
+
+            await NavigateToFolderAsync(rootPath);
+        }
     }
 
     public async Task RefreshAsync()
@@ -438,8 +618,9 @@
 
     public async Task UploadFilesAsync()
     {
-        // Trigger file upload UI - could open modal or use existing upload form
-        await JS.InvokeVoidAsync("alert", "Upload functionality to be implemented");
+        showUploadModal = true;
+        StateHasChanged();
+        await Task.CompletedTask;
     }
 
     public async Task DeleteSelectedFilesAsync()
@@ -489,32 +670,67 @@
     {
         var breadcrumbs = new List<SharePointBreadcrumb>();
 
-        if (package != null)
+        if (package == null || string.IsNullOrEmpty(currentFolderPath))
+            return breadcrumbs;
+
+        // Parse the path: Takeoffs/TK-2025-001/A/PKG-001/subfolder/...
+        var parts = currentFolderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length >= 4) // At minimum: Takeoffs, TakeoffNumber, RevisionCode, PKG-Number
         {
+            var path = "";
+
+            // Add Takeoffs root
+            path = parts[0];
             breadcrumbs.Add(new SharePointBreadcrumb
             {
-                Name = $"PKG-{package.PackageNumber}",
-                Path = $"PKG-{package.PackageNumber}",
-                IsRoot = true,
-                IsCurrent = IsAtRoot
+                Name = "Takeoffs",
+                Path = path,
+                IsRoot = false,
+                IsCurrent = parts.Length == 1
             });
 
-            if (!IsAtRoot && !string.IsNullOrEmpty(currentFolderPath))
+            // Add Takeoff Number
+            path += $"/{parts[1]}";
+            breadcrumbs.Add(new SharePointBreadcrumb
             {
-                var parts = currentFolderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                var path = "";
+                Name = parts[1], // e.g., "TK-2025-001"
+                Path = path,
+                IsRoot = false,
+                IsCurrent = parts.Length == 2
+            });
 
-                for (int i = 1; i < parts.Length; i++) // Skip the PKG- part
+            // Add Revision
+            path += $"/{parts[2]}";
+            breadcrumbs.Add(new SharePointBreadcrumb
+            {
+                Name = $"Rev {parts[2]}", // e.g., "Rev A"
+                Path = path,
+                IsRoot = false,
+                IsCurrent = parts.Length == 3
+            });
+
+            // Add Package (this is the root for this page)
+            path += $"/{parts[3]}";
+            breadcrumbs.Add(new SharePointBreadcrumb
+            {
+                Name = parts[3], // e.g., "PKG-001"
+                Path = path,
+                IsRoot = true, // This is the root for the package view
+                IsCurrent = parts.Length == 4
+            });
+
+            // Add any subfolders
+            for (int i = 4; i < parts.Length; i++)
+            {
+                path += $"/{parts[i]}";
+                breadcrumbs.Add(new SharePointBreadcrumb
                 {
-                    path = path == "" ? $"PKG-{package.PackageNumber}/{parts[i]}" : $"{path}/{parts[i]}";
-                    breadcrumbs.Add(new SharePointBreadcrumb
-                    {
-                        Name = parts[i],
-                        Path = path,
-                        IsRoot = false,
-                        IsCurrent = i == parts.Length - 1
-                    });
-                }
+                    Name = parts[i],
+                    Path = path,
+                    IsRoot = false,
+                    IsCurrent = i == parts.Length - 1
+                });
             }
         }
 
@@ -546,28 +762,63 @@
 
     private async Task RefreshFolderContents()
     {
+        Logger.LogInformation("[RefreshFolderContents] Starting refresh for PackageId {PackageId}", PackageId);
         folderState.IsLoading = true;
         folderState.ErrorMessage = null;
         StateHasChanged();
+        Logger.LogInformation("[RefreshFolderContents] Set IsLoading=true and called StateHasChanged");
 
         try
         {
-            var folderPath = string.IsNullOrEmpty(currentFolderPath) ? $"PKG-{package?.PackageNumber}" : currentFolderPath;
-            var contents = await SharePointService.GetFolderContentsAsync(folderPath);
+            // Use the current folder path (should already be correct: Takeoffs/TK-XXX/A/PKG-001)
+            if (string.IsNullOrEmpty(currentFolderPath) && package != null)
+            {
+                Logger.LogInformation("[RefreshFolderContents] CurrentFolderPath is empty, building it...");
+                // Fallback: build the path if somehow it's empty
+                var packageWithRevision = await DbContext.Packages
+                    .Include(p => p.Revision)
+                        .ThenInclude(r => r!.Takeoff)
+                    .FirstOrDefaultAsync(p => p.Id == PackageId);
+
+                if (packageWithRevision?.Revision?.Takeoff != null)
+                {
+                    currentFolderPath = await SharePointService.GetPackageFolderPathAsync(
+                        packageWithRevision.Revision.Takeoff.TakeoffNumber,
+                        packageWithRevision.Revision.RevisionCode,
+                        packageWithRevision.PackageNumber);
+                    Logger.LogInformation("[RefreshFolderContents] Built folder path: {FolderPath}", currentFolderPath);
+                }
+                else
+                {
+                    Logger.LogWarning("[RefreshFolderContents] Could not build folder path - package/revision/takeoff not found");
+                }
+            }
+            else
+            {
+                Logger.LogInformation("[RefreshFolderContents] Using existing currentFolderPath: {FolderPath}", currentFolderPath);
+            }
+
+            Logger.LogInformation("[RefreshFolderContents] Calling SharePointService.GetFolderContentsAsync for path: {FolderPath}", currentFolderPath);
+            var contents = await SharePointService.GetFolderContentsAsync(currentFolderPath);
+            Logger.LogInformation("[RefreshFolderContents] SharePointService returned {FolderCount} folders and {FileCount} files",
+                contents.Folders?.Count ?? 0, contents.Files?.Count ?? 0);
 
             folderState.CurrentPath = contents.CurrentPath;
             folderState.Folders = contents.Folders;
             folderState.Files = contents.Files;
+            Logger.LogInformation("[RefreshFolderContents] Updated folderState with contents");
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error loading folder contents");
+            Logger.LogError(ex, "[RefreshFolderContents] Error loading folder contents");
             folderState.ErrorMessage = ex.Message;
         }
         finally
         {
+            Logger.LogInformation("[RefreshFolderContents] Setting IsLoading=false in finally block");
             folderState.IsLoading = false;
             StateHasChanged();
+            Logger.LogInformation("[RefreshFolderContents] Completed. IsLoading={IsLoading}", folderState.IsLoading);
         }
     }
 
@@ -672,242 +923,3 @@
 
 @implements IToolbarActionProvider
 @implements ISharePointFilesPage<SharePointFileInfo>
-
-<style>
-    .sharepoint-files-container {
-        padding: 1.5rem;
-        max-width: 1400px;
-        margin: 0 auto;
-    }
-
-    .loading-container, .error-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-height: 400px;
-        text-align: center;
-    }
-
-    .files-header {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin-bottom: 1.5rem;
-    }
-
-    .header-info h1 {
-        margin: 0 0 0.5rem 0;
-        font-size: 1.75rem;
-        color: var(--text-primary);
-    }
-
-    .header-info p {
-        margin: 0;
-        color: var(--text-secondary);
-    }
-
-    .alert {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: 1.5rem;
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-    }
-
-    .alert-warning {
-        background: #fff3cd;
-        color: #856404;
-    }
-
-    .alert-danger {
-        background: #f8d7da;
-        color: #721c24;
-    }
-
-    .alert-content {
-        flex: 1;
-    }
-
-    .alert-content h4 {
-        margin: 0 0 0.5rem 0;
-    }
-
-    .upload-section {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin-bottom: 1.5rem;
-    }
-
-    .upload-section h3 {
-        margin: 0 0 1rem 0;
-        font-size: 1.25rem;
-        color: var(--text-primary);
-    }
-
-    .upload-form {
-        display: grid;
-        grid-template-columns: 1fr 1fr 2fr auto;
-        gap: 1rem;
-        align-items: end;
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .form-group label {
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-        margin-bottom: 0.25rem;
-    }
-
-    .files-list-section {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .files-list-section h3 {
-        margin: 0 0 1.5rem 0;
-        font-size: 1.25rem;
-        color: var(--text-primary);
-    }
-
-    .no-files {
-        text-align: center;
-        padding: 3rem;
-        color: var(--text-secondary);
-    }
-
-    .no-files i {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        opacity: 0.5;
-    }
-
-    .files-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-        gap: 1rem;
-    }
-
-    .file-card {
-        display: flex;
-        align-items: center;
-        padding: 1rem;
-        background: #f8f9fa;
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .file-card:hover {
-        background: white;
-        border-color: var(--primary-color);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        transform: translateY(-2px);
-    }
-
-    .file-card:hover .file-card-overlay {
-        opacity: 1;
-    }
-
-    .file-card-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 48px;
-        height: 48px;
-        background: white;
-        border-radius: 8px;
-        margin-right: 1rem;
-    }
-
-    .file-card-icon i {
-        font-size: 1.5rem;
-        color: #dc3545;
-    }
-
-    .file-card-content {
-        flex: 1;
-    }
-
-    .file-card-content h4 {
-        margin: 0 0 0.25rem 0;
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--text-primary);
-    }
-
-    .file-title {
-        margin: 0 0 0.5rem 0;
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-    }
-
-    .file-meta {
-        display: flex;
-        gap: 1rem;
-        font-size: 0.75rem;
-        color: var(--text-muted);
-    }
-
-    .file-card-actions {
-        display: flex;
-        gap: 0.5rem;
-    }
-
-    .btn-icon {
-        padding: 0.5rem;
-        background: transparent;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .btn-icon:hover {
-        background: rgba(0,0,0,0.05);
-    }
-
-    .file-card-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(33, 150, 243, 0.95);
-        color: white;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        opacity: 0;
-        transition: opacity 0.3s;
-    }
-
-    .file-card-overlay i {
-        font-size: 2rem;
-    }
-
-    @media (max-width: 768px) {
-        .upload-form {
-            grid-template-columns: 1fr;
-        }
-
-        .files-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-</style>

@@ -1,0 +1,50 @@
+{
+  "button-tooltip": {
+    "title": "隱藏資料",
+    "tooltip": "隱藏資料"
+  },
+  "sanitizeDocument": {
+    "title": "處理文件",
+    "tooltip": "處理文件",
+    "dialog": {
+      "title": "「處理文件」會從 PDF 文件中移除中繼資料和可能包含敏感資訊的其他隱藏資料。此功能將移除：",
+      "content": {
+        "metadata": "中繼資料",
+        "embeddedAttached": "嵌入的內容和附件",
+        "scripts": "指令碼",
+        "hiddenLayers": "隱藏的圖層",
+        "embeddedSearchIndexes": "內嵌搜尋索引",
+        "storedFormData": "存儲的表單數據",
+        "reviewComment": "審閱和註解數據",
+        "hiddenDataPreDocSave": "以前文檔保存的隱藏數據",
+        "obscuredTextAndImage": "模糊的文字和圖像",
+        "commentsHidden": "隱藏在 PDF 文件正文中的註解",
+        "unreferencedData": "未引用的數據",
+        "linksActionsJavascripts": "連結、動作以及 Javascripts",
+        "overlappingObjects": "重疊的物件"
+      },
+      "notShowAgain": "不再顯示此訊息"
+    }
+  },
+  "removeHiddenInformation": {
+    "title": "移除隱藏的資訊",
+    "tooltip": "移除隱藏的資訊",
+    "dialog": {
+      "title": "移除隱藏的資訊將會搜尋並移除以下文件資訊",
+      "checkboxes": {
+        "metadata": "中繼資料",
+        "fileAttachments": "檔案附件",
+        "bookmarks": "書籤",
+        "embeddedSearchIndexes": "內嵌搜尋索引",
+        "commentsAndMarkups": "註解和標記",
+        "formFields": "表單欄位",
+        "hiddenText": "隱藏的文字",
+        "hiddenLayers": "隱藏的圖層",
+        "deletedOrCroppedContent": "已刪除或裁剪的內容",
+        "linksActionsJavascripts": "連結、動作以及 Javascripts",
+        "overlappingObjects": "重疊的物件"
+      },
+      "noCheckedAlert": "請至少選取一個項目以移除。"
+    }
+  }
+}

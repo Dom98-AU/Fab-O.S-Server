@@ -1,0 +1,46 @@
+@namespace FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Models.Columns
+@using FabOS.WebServer.Models.ViewState
+@typeparam TItem where TItem : class
+
+<div class="table-view-toolbar">
+    <div class="toolbar-left">
+        @if (EnableViewPreferences)
+        {
+            <TableViewPreferences ViewType="Table"
+                                EntityType="@EntityType"
+                                CurrentState="@CurrentViewState"
+                                OnViewLoaded="@OnViewLoaded"
+                                HasUnsavedChanges="@HasUnsavedChanges" />
+        }
+        @if (EnableColumnManagement)
+        {
+            <TableColumnManager Columns="@Columns"
+                              ColumnsChanged="@OnColumnsChanged"
+                              HasCustomConfiguration="@HasCustomColumnConfig" />
+        }
+    </div>
+
+    <div class="toolbar-right">
+        <GenericViewSwitcher TItem="TItem"
+                           CurrentView="@CurrentView"
+                           CurrentViewChanged="@OnViewChanged"
+                           ShowViewPreferences="false" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool EnableViewPreferences { get; set; } = true;
+    [Parameter] public bool EnableColumnManagement { get; set; } = true;
+    [Parameter] public string EntityType { get; set; } = "";
+    [Parameter] public ViewState? CurrentViewState { get; set; }
+    [Parameter] public EventCallback<ViewState> OnViewLoaded { get; set; }
+    [Parameter] public bool HasUnsavedChanges { get; set; }
+
+    [Parameter] public List<ColumnDefinition> Columns { get; set; } = new();
+    [Parameter] public EventCallback<List<ColumnDefinition>> OnColumnsChanged { get; set; }
+    [Parameter] public bool HasCustomColumnConfig { get; set; }
+
+    [Parameter] public GenericViewSwitcher<TItem>.ViewType CurrentView { get; set; }
+    [Parameter] public EventCallback<GenericViewSwitcher<TItem>.ViewType> OnViewChanged { get; set; }
+}

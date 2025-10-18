@@ -1,0 +1,579 @@
+/* ========================================
+   MEASUREMENT FOOTER BAR
+   Matches styling of Catalogue Sidebar
+   ======================================== */
+
+.takeoff-measurement-footer {
+    position: fixed;
+    bottom: 0;
+    left: 280px; /* Account for main sidebar */
+    right: 0;
+    height: 200px; /* Default height */
+    background: white;
+    border-top: 1px solid #E0E0E0;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(100%); /* Hidden by default */
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s ease, left 0.3s ease;
+}
+
+.takeoff-measurement-footer.visible {
+    transform: translateY(0);
+}
+
+/* Height variations */
+.takeoff-measurement-footer.height-expanded {
+    height: 350px;
+}
+
+.takeoff-measurement-footer.height-full {
+    height: 60vh;
+}
+
+/* Adjust for sidebar states */
+.sidebar-collapsed .takeoff-measurement-footer {
+    left: 60px;
+}
+
+.sidebar-expanded .takeoff-measurement-footer {
+    left: 420px;
+}
+
+/* Adjust for catalogue sidebar */
+body.catalogue-sidebar-open .takeoff-measurement-footer {
+    left: 600px; /* 280px main + 320px catalogue */
+}
+
+body.sidebar-collapsed.catalogue-sidebar-open .takeoff-measurement-footer {
+    left: 380px; /* 60px main + 320px catalogue */
+}
+
+body.sidebar-expanded.catalogue-sidebar-open .takeoff-measurement-footer {
+    left: 740px; /* 420px main + 320px catalogue */
+}
+
+body.catalogue-sidebar-expanded .takeoff-measurement-footer {
+    left: 760px; /* 280px main + 480px catalogue */
+}
+
+body.sidebar-collapsed.catalogue-sidebar-expanded .takeoff-measurement-footer {
+    left: 540px; /* 60px main + 480px catalogue */
+}
+
+body.sidebar-expanded.catalogue-sidebar-expanded .takeoff-measurement-footer {
+    left: 900px; /* 420px main + 480px catalogue */
+}
+
+/* ========================================
+   FOOTER HEADER
+   ======================================== */
+
+.footer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    min-height: 50px;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.footer-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.footer-header h3 i {
+    font-size: 1.1rem;
+}
+
+.footer-header .badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.footer-header .weight-badge {
+    background: rgba(76, 175, 80, 0.3);
+    border: 1px solid rgba(76, 175, 80, 0.5);
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-expand, .btn-close {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-expand:hover, .btn-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+/* ========================================
+   FOOTER CONTENT
+   ======================================== */
+
+.footer-content {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #F8F9FA;
+}
+
+/* ========================================
+   CURRENT MEASUREMENT BANNER
+   ======================================== */
+
+.current-measurement-banner {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+    animation: slideInFromTop 0.3s ease;
+}
+
+@keyframes slideInFromTop {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.banner-icon {
+    font-size: 2rem;
+    opacity: 0.9;
+}
+
+.banner-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.banner-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.banner-row .item-code {
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.banner-row .item-desc {
+    font-size: 0.9rem;
+    opacity: 0.95;
+}
+
+.banner-row .badge-type {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+
+.banner-row .value {
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.banner-row .quantity {
+    font-size: 1rem;
+    opacity: 0.9;
+}
+
+.banner-row .weight-result {
+    background: rgba(76, 175, 80, 0.3);
+    border: 1px solid rgba(76, 175, 80, 0.5);
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.banner-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* ========================================
+   MEASUREMENTS HORIZONTAL SCROLLABLE
+   ======================================== */
+
+.measurements-horizontal {
+    flex: 1;
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-items: flex-start;
+}
+
+.measurements-horizontal::-webkit-scrollbar {
+    height: 8px;
+}
+
+.measurements-horizontal::-webkit-scrollbar-track {
+    background: #E0E0E0;
+    border-radius: 4px;
+}
+
+.measurements-horizontal::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 4px;
+}
+
+.measurements-horizontal::-webkit-scrollbar-thumb:hover {
+    background: #764ba2;
+}
+
+/* ========================================
+   CATEGORY COLUMNS
+   ======================================== */
+
+.category-column {
+    min-width: 280px;
+    max-width: 350px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #E0E0E0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+}
+
+.category-header {
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    transition: background 0.2s;
+}
+
+.category-header:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.category-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.category-name {
+    flex: 1;
+}
+
+.category-header .badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    align-self: flex-start;
+}
+
+.category-header .weight-badge {
+    background: rgba(76, 175, 80, 0.3);
+    border: 1px solid rgba(76, 175, 80, 0.5);
+    font-weight: 600;
+}
+
+/* ========================================
+   CATEGORY ITEMS SCROLL
+   ======================================== */
+
+.category-items-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.category-items-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.category-items-scroll::-webkit-scrollbar-track {
+    background: #F0F0F0;
+}
+
+.category-items-scroll::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 3px;
+}
+
+/* ========================================
+   MEASUREMENT CARDS (COMPACT)
+   ======================================== */
+
+.measurement-card-compact {
+    background: #F8F9FA;
+    border: 1px solid #E0E0E0;
+    border-radius: 6px;
+    padding: 0.75rem;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.measurement-card-compact:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+    transform: translateY(-1px);
+}
+
+.measurement-card-compact .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.measurement-card-compact .item-code {
+    font-weight: 700;
+    color: #667eea;
+    font-size: 0.9rem;
+}
+
+.measurement-card-compact .btn-icon {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.measurement-card-compact .btn-icon:hover {
+    background: #FFE5E5;
+    color: #DC3545;
+}
+
+.measurement-card-compact .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.measurement-card-compact .badge-type {
+    background: #E3F2FD;
+    color: #1976D2;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    align-self: flex-start;
+}
+
+.measurement-card-compact .value {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #333;
+}
+
+.measurement-card-compact .weight {
+    color: #4CAF50;
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.measurement-card-compact .card-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: #999;
+}
+
+/* ========================================
+   FOOTER ACTIONS COLUMN
+   ======================================== */
+
+.footer-actions-column {
+    min-width: 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.5rem;
+}
+
+/* ========================================
+   LOADING/ERROR/EMPTY STATES
+   ======================================== */
+
+.loading-state, .error-state, .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 2rem;
+    color: #666;
+    min-width: 300px;
+}
+
+.spinner-border-sm {
+    width: 2rem;
+    height: 2rem;
+    border: 0.25rem solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border 0.75s linear infinite;
+}
+
+@keyframes spinner-border {
+    to { transform: rotate(360deg); }
+}
+
+.empty-state i {
+    font-size: 3rem;
+    color: #ccc;
+}
+
+.empty-state p {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.empty-state small {
+    color: #999;
+    font-size: 0.85rem;
+}
+
+.error-state i {
+    font-size: 2.5rem;
+    color: #DC3545;
+}
+
+/* ========================================
+   BUTTONS
+   ======================================== */
+
+.btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+.btn-primary {
+    background: #667eea;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #5568d3;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+.btn-danger {
+    background: #DC3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+/* ========================================
+   RESPONSIVE
+   ======================================== */
+
+@media (max-width: 768px) {
+    .takeoff-measurement-footer {
+        left: 20px;
+        right: 20px;
+    }
+
+    .category-column {
+        min-width: 240px;
+    }
+
+    .footer-header h3 {
+        font-size: 0.9rem;
+    }
+}

@@ -114,7 +114,7 @@
         {
             try
             {
-                modalModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/modal-helpers.js");
+                modalModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/modalHelper.js");
 
                 if (modalModule != null && dotNetRef != null)
                 {

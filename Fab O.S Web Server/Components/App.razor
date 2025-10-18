@@ -7,19 +7,25 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
-    <link rel="stylesheet" href="app.css" />
-    <link rel="stylesheet" href="FabOS.WebServer.styles.css" />
+    <link rel="stylesheet" href="app.css?v=20251017" />
+    <link rel="stylesheet" href="FabOS.WebServer.styles.css?v=20251017" />
     <link rel="stylesheet" href="css/pdf-takeoff-viewer.css" />
-    <link rel="stylesheet" href="css/modal-infrastructure.css" />
+    <link rel="stylesheet" href="css/modal-infrastructure.css?v=20251015044500" />
     <link rel="stylesheet" href="css/sharepoint-modal.css" />
     <link rel="stylesheet" href="css/sharepoint-file-browser.css" />
     <link rel="stylesheet" href="css/table-column-management.css" />
     <link rel="stylesheet" href="css/table-filter-system.css" />
     <link rel="stylesheet" href="css/table-view-preferences.css" />
+    <link rel="stylesheet" href="css/table-view-toolbar.css" />
     <link rel="stylesheet" href="css/frozen-columns.css" />
     <link rel="stylesheet" href="css/view-controls.css" />
+    <link rel="stylesheet" href="css/takeoff-catalogue.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <!-- PDF.js CDN -->
+
+    <!-- Nutrient (PSPDFKit) Web SDK -->
+    <link rel="stylesheet" href="assets/pspdfkit/pspdfkit-2024.8.2.css" />
+
+    <!-- PDF.js CDN (keep for backward compatibility during migration) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         // Set PDF.js worker
@@ -31,10 +37,18 @@
 <body>
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
-    <script src="js/pdf-takeoff-viewer.js"></script>
-    <script src="js/modal-helpers.js"></script>
-    <script src="js/table-column-freeze.js"></script>
-    <script src="js/pdf-viewer-interop.js"></script>
+
+    <!-- Nutrient (PSPDFKit) Web SDK -->
+    <script src="assets/pspdfkit/pspdfkit.js"></script>
+    <script src="js/nutrient-poc.js?v=1"></script>
+    <script src="js/nutrient-viewer.js?v=11"></script>
+
+    <!-- Existing PDF.js viewers (keep for backward compatibility) -->
+    <script src="js/pdf-takeoff-viewer.js?v=3"></script>
+    <script src="js/modal-helpers.js?v=3"></script>
+    <script src="js/table-column-freeze.js?v=3"></script>
+    <script src="js/pdf-viewer-interop.js?v=3"></script>
+    <script src="js/upload-pdf-preview.js?v=5"></script>
 </body>
 
 </html>

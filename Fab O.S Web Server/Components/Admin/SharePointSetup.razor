@@ -1,9 +1,15 @@
 @page "/admin/sharepoint-setup"
 @rendermode InteractiveServer
 @using FabOS.WebServer.Services.Interfaces
+@using FabOS.WebServer.Services.Implementations
 @using FabOS.WebServer.Models.Configuration
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Data.Contexts
 @using Microsoft.Extensions.Options
+@using Microsoft.EntityFrameworkCore
 @inject ISharePointService SharePointService
+@inject ITenantService TenantService
+@inject ApplicationDbContext DbContext
 @inject IConfiguration Configuration
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -14,6 +20,12 @@
     <div class="setup-header">
         <h1>SharePoint Integration Setup</h1>
         <p>Configure SharePoint to store and manage your package documents</p>
+        @if (currentCompany != null)
+        {
+            <div class="tenant-info">
+                <strong>Organization:</strong> @currentCompany.Name
+            </div>
+        }
     </div>
 
     @if (isCheckingStatus)
@@ -69,29 +81,111 @@
                     </div>
 
                     <div class="instruction-card">
-                        <h4>Instructions:</h4>
-                        <ol>
-                            <li>Go to <a href="https://portal.azure.com" target="_blank">Azure Portal</a></li>
-                            <li>Navigate to Azure Active Directory → App registrations</li>
-                            <li>Click "New registration"</li>
-                            <li>Name: "FabOS SharePoint Integration"</li>
-                            <li>After registration, note down:
+                        <h4>📋 Step-by-Step Instructions:</h4>
+                        <div class="instruction-step">
+                            <div class="step-badge">1</div>
+                            <div class="step-details">
+                                <strong>Access Azure Portal</strong>
+                                <p>Go to <a href="https://portal.azure.com" target="_blank" class="external-link">Azure Portal <i class="fas fa-external-link-alt"></i></a></p>
+                            </div>
+                        </div>
+
+                        <div class="instruction-step">
+                            <div class="step-badge">2</div>
+                            <div class="step-details">
+                                <strong>Navigate to App Registrations</strong>
+                                <p>Azure Active Directory → App registrations → Click <strong>"+ New registration"</strong></p>
+                            </div>
+                        </div>
+
+                        <div class="instruction-step">
+                            <div class="step-badge">3</div>
+                            <div class="step-details">
+                                <strong>Register the Application</strong>
+                                <div class="config-box">
+                                    <p><strong>Name:</strong> <code>FabOS SharePoint Integration</code></p>
+                                    <p><strong>Supported account types:</strong></p>
+                                    <ul class="account-types">
+                                        <li>
+                                            <input type="radio" checked disabled />
+                                            <strong>Accounts in this organizational directory only (Single tenant)</strong>
+                                            <br/><small>Recommended for most organizations - only users in your organization can access</small>
+                                        </li>
+                                    </ul>
+                                    <p><strong>Redirect URI:</strong></p>
+                                    <div class="redirect-uri-box">
+                                        <p>Platform: <strong>Web</strong></p>
+                                        <p>URI: <code>https://localhost:5223/signin-oidc</code> (for development)</p>
+                                        <small class="text-muted">⚠️ You can leave this blank for now and add it later if needed</small>
+                                    </div>
+                                </div>
+                                <p class="mt-2">Click <strong>"Register"</strong></p>
+                            </div>
+                        </div>
+
+                        <div class="instruction-step">
+                            <div class="step-badge">4</div>
+                            <div class="step-details">
+                                <strong>Copy Important IDs</strong>
+                                <p>On the Overview page, you'll see:</p>
+                                <div class="id-box">
+                                    <p>📋 <strong>Application (client) ID:</strong> <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code></p>
+                                    <p>📋 <strong>Directory (tenant) ID:</strong> <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code></p>
+                                    <small>⚠️ Copy these values - you'll need them in Step 2</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="instruction-step">
+                            <div class="step-badge">5</div>
+                            <div class="step-details">
+                                <strong>Create Client Secret</strong>
                                 <ul>
-                                    <li>Application (client) ID</li>
-                                    <li>Directory (tenant) ID</li>
+                                    <li>In the left menu, click <strong>"Certificates & secrets"</strong></li>
+                                    <li>Under "Client secrets", click <strong>"+ New client secret"</strong></li>
+                                    <li>Description: <code>FabOS Integration</code></li>
+                                    <li>Expires: <strong>24 months</strong> (recommended)</li>
+                                    <li>Click <strong>"Add"</strong></li>
+                                    <li class="warning-text">⚠️ <strong>IMPORTANT:</strong> Copy the <strong>Value</strong> immediately - it won't be shown again!</li>
                                 </ul>
-                            </li>
-                            <li>Go to "Certificates & secrets" → "New client secret"</li>
-                            <li>Copy the secret value immediately</li>
-                            <li>Go to "API permissions" → Add permissions:
+                            </div>
+                        </div>
+
+                        <div class="instruction-step">
+                            <div class="step-badge">6</div>
+                            <div class="step-details">
+                                <strong>Configure API Permissions</strong>
                                 <ul>
-                                    <li>Microsoft Graph → Application permissions</li>
-                                    <li>Sites.ReadWrite.All</li>
-                                    <li>Files.ReadWrite.All</li>
+                                    <li>In the left menu, click <strong>"API permissions"</strong></li>
+                                    <li>Click <strong>"+ Add a permission"</strong></li>
+                                    <li>Select <strong>"Microsoft Graph"</strong></li>
+                                    <li>Select <strong>"Application permissions"</strong> (not Delegated)</li>
+                                    <li>Search and check these permissions:
+                                        <div class="permissions-list">
+                                            <p>✓ <code>Sites.ReadWrite.All</code> - Access to SharePoint sites</p>
+                                            <p>✓ <code>Files.ReadWrite.All</code> - Access to files</p>
+                                        </div>
+                                    </li>
+                                    <li>Click <strong>"Add permissions"</strong></li>
                                 </ul>
-                            </li>
-                            <li>Click "Grant admin consent"</li>
-                        </ol>
+                            </div>
+                        </div>
+
+                        <div class="instruction-step">
+                            <div class="step-badge">7</div>
+                            <div class="step-details">
+                                <strong>Grant Admin Consent</strong>
+                                <div class="warning-box">
+                                    <p>⚠️ <strong>Admin Rights Required</strong></p>
+                                    <p>You need to be a Global Administrator or Application Administrator to complete this step.</p>
+                                </div>
+                                <ul>
+                                    <li>On the API permissions page, click <strong>"Grant admin consent for [Your Organization]"</strong></li>
+                                    <li>Click <strong>"Yes"</strong> to confirm</li>
+                                    <li>Wait for the status to show green checkmarks ✓</li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
 
                     <button class="btn btn-primary" @onclick="() => currentStep = 2">
@@ -162,15 +256,142 @@
                                 <h4>✅ Connection Successful!</h4>
                                 <p>@testResult.Message</p>
 
+                                @if (!string.IsNullOrEmpty(setupError))
+                                {
+                                    <div class="alert alert-danger mt-3">
+                                        <h4>⚠️ Setup Error</h4>
+                                        <p style="white-space: pre-wrap;">@setupError</p>
+
+                                        @if (setupError.Contains("Document library"))
+                                        {
+                                            <div class="library-creation-guide mt-3">
+                                                <h5>📚 How to Create the Document Library in SharePoint</h5>
+                                                <p class="guide-intro">The document library must be created manually by someone with access to your SharePoint site. Follow these detailed steps:</p>
+
+                                                <div class="instruction-card">
+                                                    <div class="instruction-step">
+                                                        <div class="step-badge">1</div>
+                                                        <div class="step-details">
+                                                            <strong>Navigate to Your SharePoint Site</strong>
+                                                            <p>Open your web browser and go to:</p>
+                                                            <div class="url-box">
+                                                                <code>@siteUrl</code>
+                                                                <button class="btn-copy" @onclick="@(() => CopyToClipboard(siteUrl))">📋 Copy</button>
+                                                            </div>
+                                                            <p class="tip">💡 <strong>Tip:</strong> You must be signed in to Microsoft 365 with an account that has access to this SharePoint site.</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="instruction-step">
+                                                        <div class="step-badge">2</div>
+                                                        <div class="step-details">
+                                                            <strong>Access Site Contents</strong>
+                                                            <ul>
+                                                                <li>Look for the <strong>Settings</strong> gear icon ⚙️ in the top-right corner of the page</li>
+                                                                <li>Click on the gear icon to open the settings menu</li>
+                                                                <li>From the dropdown menu, select <strong>"Site contents"</strong></li>
+                                                            </ul>
+                                                            <p class="tip">💡 <strong>Alternative:</strong> You can also click "Site contents" from the left navigation menu if available.</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="instruction-step">
+                                                        <div class="step-badge">3</div>
+                                                        <div class="step-details">
+                                                            <strong>Create New Document Library</strong>
+                                                            <ul>
+                                                                <li>On the Site contents page, click the <strong>"+ New"</strong> button near the top</li>
+                                                                <li>From the dropdown menu, select <strong>"Document library"</strong></li>
+                                                            </ul>
+                                                            <div class="warning-box mt-2">
+                                                                <p>⚠️ <strong>Don't see "+ New"?</strong></p>
+                                                                <p>You may not have permission to create libraries on this site. Contact your SharePoint administrator or site owner.</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="instruction-step">
+                                                        <div class="step-badge">4</div>
+                                                        <div class="step-details">
+                                                            <strong>Configure the Library</strong>
+                                                            <p>A panel will appear on the right side. Fill in the following:</p>
+                                                            <div class="config-box">
+                                                                <p><strong>Name:</strong> <code>@documentLibrary</code></p>
+                                                                <p><strong>Description:</strong> (Optional) <code>Storage for FabOS takeoff files and packages</code></p>
+                                                                <p><strong>Show in site navigation:</strong> ✅ Check this (recommended)</p>
+                                                            </div>
+                                                            <p class="important-note">⚠️ <strong>IMPORTANT:</strong> The name must be exactly <code>@documentLibrary</code> - case and spacing matter!</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="instruction-step">
+                                                        <div class="step-badge">5</div>
+                                                        <div class="step-details">
+                                                            <strong>Create the Library</strong>
+                                                            <ul>
+                                                                <li>Click the <strong>"Create"</strong> button at the bottom of the panel</li>
+                                                                <li>Wait for SharePoint to create the library (usually takes a few seconds)</li>
+                                                                <li>You should see the new library appear in your Site contents list</li>
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="instruction-step">
+                                                        <div class="step-badge">6</div>
+                                                        <div class="step-details">
+                                                            <strong>Verify the Library Exists</strong>
+                                                            <ul>
+                                                                <li>You should now see <strong>"@documentLibrary"</strong> in your Site contents list</li>
+                                                                <li>Click on it to open the library (it will be empty - that's normal!)</li>
+                                                                <li>The library URL should look like: <code>@siteUrl/@documentLibrary</code></li>
+                                                            </ul>
+                                                            <div class="success-box mt-2">
+                                                                <p>✅ <strong>Success!</strong> The document library has been created.</p>
+                                                                <p>Return to this page and click <strong>"Complete Setup"</strong> again to finish the configuration.</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="troubleshooting-section mt-3">
+                                                    <h5>🔧 Troubleshooting</h5>
+                                                    <div class="troubleshooting-item">
+                                                        <strong>Problem:</strong> I don't have access to the SharePoint site
+                                                        <p><strong>Solution:</strong> Contact your SharePoint administrator or IT department to request access to <code>@siteUrl</code></p>
+                                                    </div>
+                                                    <div class="troubleshooting-item">
+                                                        <strong>Problem:</strong> The "+ New" button is grayed out or missing
+                                                        <p><strong>Solution:</strong> You need "Contribute" or "Owner" permissions on the site. Ask a site owner to grant you access or create the library for you.</p>
+                                                    </div>
+                                                    <div class="troubleshooting-item">
+                                                        <strong>Problem:</strong> I created the library but setup still fails
+                                                        <p><strong>Solution:</strong> Make sure the library name is exactly <code>@documentLibrary</code> (check for typos, extra spaces, or case differences). Delete and recreate if needed.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <p class="mt-2"><strong>What to do:</strong></p>
+                                            <ul>
+                                                <li>Check the browser console for detailed error messages (F12 → Console tab)</li>
+                                                <li>Verify your Azure AD app has the required permissions</li>
+                                                <li>Ensure admin consent has been granted</li>
+                                                <li>Confirm the document library exists in SharePoint</li>
+                                            </ul>
+                                        }
+                                    </div>
+                                }
+
                                 <div class="form-group mt-3">
                                     <label>Document Library Name</label>
                                     <input type="text" class="form-control" @bind="documentLibrary"
-                                           placeholder="Package Documents" />
-                                    <small class="form-text text-muted">Name for the document library (will be created if it doesn't exist)</small>
+                                           placeholder="Takeoff Files" />
+                                    <small class="form-text text-muted">Name for the document library (must already exist in SharePoint)</small>
                                 </div>
 
-                                <button class="btn btn-primary mt-3" @onclick="CompleteSetup">
-                                    Complete Setup →
+                                <button class="btn btn-primary mt-3" @onclick="CompleteSetup" disabled="@isCompleting">
+                                    @(isCompleting ? "Completing..." : "Complete Setup →")
                                 </button>
                             </div>
                         }
@@ -223,18 +444,21 @@
     private SharePointConnectionStatus? connectionStatus;
     private bool isCheckingStatus = true;
     private int currentStep = 1;
+    private Company? currentCompany;
+    private CompanySharePointSettings? existingSettings;
 
     // Form fields
     private string tenantId = "";
     private string clientId = "";
     private string clientSecret = "";
     private string siteUrl = "";
-    private string documentLibrary = "Package Documents";
+    private string documentLibrary = "Takeoff Files";
 
     // Status flags
     private bool isTesting = false;
     private bool isCompleting = false;
     private bool setupComplete = false;
+    private string? setupError = null;
 
     private class TestResult
     {
@@ -246,7 +470,25 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadTenantInfo();
         await CheckSharePointStatus();
+    }
+
+    private async Task LoadTenantInfo()
+    {
+        var companyId = TenantService.GetCurrentCompanyId();
+        currentCompany = await DbContext.Companies.FirstOrDefaultAsync(c => c.Id == companyId);
+
+        // Load existing settings if any
+        existingSettings = await SharePointService.GetSettingsForTenantAsync(companyId);
+        if (existingSettings != null)
+        {
+            tenantId = existingSettings.TenantId;
+            clientId = existingSettings.ClientId;
+            // Don't populate the secret for security reasons
+            siteUrl = existingSettings.SiteUrl;
+            documentLibrary = existingSettings.DocumentLibrary;
+        }
     }
 
     private async Task CheckSharePointStatus()
@@ -281,6 +523,7 @@
     {
         isTesting = true;
         testResult = null;
+        StateHasChanged();
 
         try
         {
@@ -294,7 +537,6 @@
                     Success = true,
                     Message = "Successfully connected to SharePoint!"
                 };
-                currentStep = 3;
             }
             else
             {
@@ -316,17 +558,62 @@
         finally
         {
             isTesting = false;
+            StateHasChanged();
+
+            // Advance to step 3 only after test is complete and UI is updated
+            if (testResult?.Success == true)
+            {
+                currentStep = 3;
+                StateHasChanged();
+            }
         }
     }
 
     private async Task CompleteSetup()
     {
         isCompleting = true;
+        setupError = null;
 
         try
         {
-            // The connection is already configured from the test step
-            // Just need to create the initial folder structure
+            // Log the connection status first
+            var connectionStatus = await SharePointService.GetConnectionStatusAsync();
+            Console.WriteLine($"Connection Status - Configured: {connectionStatus.IsConfigured}, Connected: {connectionStatus.IsConnected}");
+
+            if (!connectionStatus.IsConnected)
+            {
+                setupError = $"SharePoint connection test failed: {connectionStatus.ErrorMessage ?? "Unknown error"}. Please verify your credentials and try again.";
+                isCompleting = false;
+                return;
+            }
+
+            // Check if the document library exists
+            var libraryCheck = await SharePointService.CheckDocumentLibraryAsync();
+            Console.WriteLine($"Library Check - Exists: {libraryCheck.Exists}, Message: {libraryCheck.Message}");
+
+            if (!libraryCheck.Exists)
+            {
+                // Show detailed error message with instructions
+                var errorMessage = $@"{libraryCheck.Message}
+
+To create the document library manually:
+1. Go to your SharePoint site: {siteUrl}
+2. Click 'Settings' (gear icon) → 'Site contents'
+3. Click '+ New' → 'Document library'
+4. Name it: '{libraryCheck.LibraryName}'
+5. Click 'Create'
+6. Return here and click 'Complete Setup' again
+
+Would you like to continue anyway? (The library must exist before uploading files)";
+
+                var shouldContinue = await JS.InvokeAsync<bool>("confirm", errorMessage);
+                if (!shouldContinue)
+                {
+                    setupError = $"Setup incomplete: Document library '{libraryCheck.LibraryName}' does not exist. Please create it manually and try again.";
+                    isCompleting = false;
+                    return;
+                }
+            }
 
             // Save to configuration
             // Note: In production, you'd want to save this more securely
@@ -336,7 +623,16 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Setup failed: {ex.Message}");
+            Console.WriteLine($"Setup Error: {ex.Message}");
+            Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+            setupError = $"Setup failed: {ex.Message}";
+
+            // Show detailed error in console for debugging
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
+                setupError += $"\n\nDetails: {ex.InnerException.Message}";
+            }
         }
         finally
         {
@@ -354,94 +650,568 @@
     {
         Navigation.NavigateTo("/packages");
     }
+
+    private async Task CopyToClipboard(string text)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+            await JS.InvokeVoidAsync("alert", "Copied to clipboard!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to copy to clipboard: {ex.Message}");
+            await JS.InvokeVoidAsync("alert", $"Failed to copy. Please copy manually: {text}");
+        }
+    }
 }
 
 <style>
     .sharepoint-setup-container {
-        max-width: 900px;
+        max-width: 1000px;
         margin: 2rem auto;
         padding: 2rem;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        min-height: calc(100vh - 4rem);
     }
 
     .setup-header {
         text-align: center;
         margin-bottom: 3rem;
+        padding: 2rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+    }
+
+        .setup-header h1 {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .setup-header p {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+
+    .tenant-info {
+        margin-top: 1rem;
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 8px;
+        display: inline-block;
+        font-size: 1.1rem;
     }
 
     .step-indicator {
         display: flex;
         justify-content: space-between;
         margin-bottom: 3rem;
+        position: relative;
+        padding: 0 1rem;
     }
+
+        .step-indicator::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 10%;
+            right: 10%;
+            height: 3px;
+            background: #e0e0e0;
+            z-index: 0;
+        }
 
     .step {
         flex: 1;
         text-align: center;
-        opacity: 0.3;
-        transition: opacity 0.3s;
+        opacity: 0.4;
+        transition: all 0.3s ease;
+        position: relative;
+        z-index: 1;
     }
 
-    .step.active {
-        opacity: 1;
-    }
+        .step.active {
+            opacity: 1;
+            transform: scale(1.05);
+        }
+
+            .step.active .step-number {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            }
 
     .step-number {
         display: inline-block;
-        width: 30px;
-        height: 30px;
-        line-height: 30px;
+        width: 40px;
+        height: 40px;
+        line-height: 40px;
         border-radius: 50%;
-        background: var(--primary-color);
+        background: #bdc3c7;
         color: white;
         margin-bottom: 0.5rem;
+        font-weight: bold;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
     }
 
     .step-title {
         display: block;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #2c3e50;
     }
 
     .step-content {
         background: white;
-        padding: 2rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        padding: 2.5rem;
+        border-radius: 12px;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
     }
 
+        .step-content h3 {
+            color: #2c3e50;
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+        }
+
     .instruction-card {
-        background: #f8f9fa;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 2rem;
+        border-radius: 12px;
+        margin: 2rem 0;
+        border-left: 4px solid #667eea;
+    }
+
+        .instruction-card h4 {
+            color: #2c3e50;
+            font-size: 1.3rem;
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+        }
+
+    .instruction-step {
+        display: flex;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
+        transition: all 0.3s ease;
+    }
+
+        .instruction-step:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-color: #667eea;
+        }
+
+        .instruction-step:last-child {
+            margin-bottom: 0;
+        }
+
+    .step-badge {
+        flex-shrink: 0;
+        width: 35px;
+        height: 35px;
+        line-height: 35px;
+        text-align: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 50%;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+
+    .step-details {
+        flex: 1;
+    }
+
+        .step-details strong {
+            color: #2c3e50;
+            font-size: 1.1rem;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .step-details p {
+            margin: 0.5rem 0;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .step-details ul {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+
+            .step-details ul li {
+                margin: 0.5rem 0;
+                color: #555;
+                line-height: 1.8;
+            }
+
+    .config-box, .id-box, .redirect-uri-box {
+        background: #fff;
         padding: 1.5rem;
         border-radius: 8px;
-        margin: 2rem 0;
+        border: 2px dashed #dee2e6;
+        margin: 1rem 0;
     }
+
+        .config-box code, .id-box code {
+            background: #f1f3f5;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            color: #e83e8c;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+        }
+
+    .account-types {
+        list-style: none;
+        padding-left: 0;
+    }
+
+        .account-types li {
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin: 0.5rem 0;
+        }
+
+    .permissions-list {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 6px;
+        margin: 0.5rem 0;
+    }
+
+        .permissions-list p {
+            margin: 0.5rem 0;
+            font-family: 'Courier New', monospace;
+        }
+
+            .permissions-list p code {
+                background: #fff;
+                padding: 0.3rem 0.6rem;
+                border-radius: 4px;
+                color: #0066cc;
+                font-weight: 600;
+            }
+
+    .warning-box {
+        background: #fff3cd;
+        border: 2px solid #ffc107;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
+        .warning-box p {
+            margin: 0.3rem 0;
+            color: #856404;
+        }
+
+    .warning-text {
+        color: #d32f2f;
+        font-weight: 600;
+    }
+
+    .external-link {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+        .external-link:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
 
     .form-group {
         margin-bottom: 1.5rem;
     }
 
-    .form-group label {
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        display: block;
-    }
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: block;
+            color: #2c3e50;
+            font-size: 1rem;
+        }
+
+        .form-group input {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+            .form-group input:focus {
+                border-color: #667eea;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+                outline: none;
+            }
 
     .required {
-        color: red;
+        color: #e74c3c;
     }
 
     .button-group {
         display: flex;
         justify-content: space-between;
         margin-top: 2rem;
+        gap: 1rem;
     }
 
-    .testing-status {
+    .btn {
+        padding: 0.75rem 2rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+        }
+
+    .testing-status, .loading-container {
         text-align: center;
         padding: 3rem;
     }
 
-    .loading-container {
-        text-align: center;
-        padding: 3rem;
+        .testing-status .spinner-border,
+        .loading-container .spinner-border {
+            width: 3rem;
+            height: 3rem;
+            border-width: 0.3rem;
+            border-color: #667eea;
+            border-right-color: transparent;
+        }
+
+    .alert {
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin: 1rem 0;
     }
+
+    .alert-success {
+        background: #d4edda;
+        border: 2px solid #28a745;
+        color: #155724;
+    }
+
+        .alert-success h4 {
+            color: #155724;
+            margin-bottom: 1rem;
+        }
+
+    .alert-danger {
+        background: #f8d7da;
+        border: 2px solid #dc3545;
+        color: #721c24;
+    }
+
+        .alert-danger h4 {
+            color: #721c24;
+            margin-bottom: 1rem;
+        }
+
+    .alert-info {
+        background: #d1ecf1;
+        border: 2px solid #17a2b8;
+        color: #0c5460;
+    }
+
+        .alert-info h4 {
+            color: #0c5460;
+            margin-bottom: 1rem;
+        }
+
+    .mt-2 {
+        margin-top: 0.5rem;
+    }
+
+    .mt-3 {
+        margin-top: 1rem;
+    }
+
+    .text-muted {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+
+    /* Document Library Creation Guide Styles */
+    .library-creation-guide {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border-left: 4px solid #667eea;
+    }
+
+        .library-creation-guide h5 {
+            color: #2c3e50;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+    .guide-intro {
+        color: #555;
+        font-size: 1rem;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+
+    .url-box {
+        background: #fff;
+        padding: 1rem;
+        border-radius: 6px;
+        border: 2px solid #667eea;
+        margin: 0.5rem 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+        .url-box code {
+            flex: 1;
+            background: transparent;
+            color: #667eea;
+            font-size: 0.95rem;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+    .btn-copy {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 600;
+        white-space: nowrap;
+        transition: all 0.3s ease;
+    }
+
+        .btn-copy:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+    .tip {
+        background: #e7f3ff;
+        border-left: 3px solid #2196F3;
+        padding: 0.75rem;
+        margin: 0.75rem 0;
+        border-radius: 4px;
+        color: #0d47a1;
+        font-size: 0.9rem;
+    }
+
+    .important-note {
+        background: #fff3cd;
+        border-left: 3px solid #ffc107;
+        padding: 0.75rem;
+        margin: 0.75rem 0;
+        border-radius: 4px;
+        color: #856404;
+        font-size: 0.95rem;
+        font-weight: 600;
+    }
+
+    .success-box {
+        background: #d4edda;
+        border: 2px solid #28a745;
+        padding: 1rem;
+        border-radius: 6px;
+        color: #155724;
+    }
+
+        .success-box p {
+            margin: 0.25rem 0;
+            color: #155724;
+        }
+
+    .troubleshooting-section {
+        background: #fff;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: 2px solid #dee2e6;
+    }
+
+        .troubleshooting-section h5 {
+            color: #2c3e50;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+    .troubleshooting-item {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border-left: 3px solid #ff6b6b;
+    }
+
+        .troubleshooting-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .troubleshooting-item strong {
+            color: #dc3545;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .troubleshooting-item p {
+            margin: 0.25rem 0;
+            color: #555;
+        }
+
+        .troubleshooting-item code {
+            background: #fff;
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            color: #667eea;
+            font-weight: 600;
+        }
 </style>

@@ -12,7 +12,8 @@ public enum TraceableType
     Assembly = 4,
     Product = 5,
     Package = 6,
-    Shipment = 7
+    Shipment = 7,
+    WorkOrder = 8
 }
 
 public enum TraceStatus

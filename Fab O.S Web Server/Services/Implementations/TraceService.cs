@@ -313,15 +313,47 @@ namespace FabOS.WebServer.Services.Implementations
             var trace = await GetTraceRecordAsync(traceId);
             if (trace == null) return null;
 
+            var materials = await GetMaterialsByTraceAsync(trace.Id);
+            var processes = await GetProcessesByTraceAsync(trace.Id);
+            var documents = await GetDocumentsByTraceAsync(trace.Id);
+
             var report = new TraceReportDto
             {
                 TraceId = trace.TraceId,
                 TraceNumber = trace.TraceNumber,
                 GeneratedDate = DateTime.UtcNow,
                 GeneratedBy = "System",
-                Materials = await GetMaterialsByTraceAsync(trace.Id),
-                Processes = await GetProcessesByTraceAsync(trace.Id),
-                Documents = await GetDocumentsByTraceAsync(trace.Id),
+                Materials = materials.Select(m => new MaterialSummaryDto
+                {
+                    MaterialId = m.Id,
+                    MaterialCode = m.MaterialCode,
+                    MaterialDescription = m.Description,
+                    Quantity = m.Quantity,
+                    Unit = m.Unit,
+                    BatchNumber = m.BatchNumber ?? string.Empty,
+                    ReceivedDate = m.CreatedDate
+                }).ToList(),
+                Processes = processes.Select(p => new ProcessSummaryDto
+                {
+                    ProcessId = p.Id,
+                    OperationName = p.OperationDescription,
+                    StartTime = p.StartTime,
+                    EndTime = p.EndTime,
+                    OperatorName = p.OperatorName ?? string.Empty,
+                    PassedInspection = p.PassedInspection ?? false,
+                    Parameters = p.Parameters.ToDictionary(
+                        param => param.ParameterName,
+                        param => param.ParameterValue)
+                }).ToList(),
+                Documents = documents.Select(d => new DocumentSummaryDto
+                {
+                    DocumentId = d.Id,
+                    DocumentType = d.DocumentType.ToString(),
+                    DocumentNumber = d.Id.ToString(),
+                    Title = d.DocumentName,
+                    UploadedDate = d.UploadDate,
+                    IsVerified = d.IsVerified
+                }).ToList(),
                 Summary = $"Trace report for {trace.TraceNumber}"
             };
 
@@ -389,17 +421,17 @@ namespace FabOS.WebServer.Services.Implementations
             {
                 TakeoffId = takeoffId,
                 GeneratedDate = DateTime.UtcNow,
-                LineItems = new List<BOMLineItem>()
+                LineItems = new List<BOMLineItemDto>()
             };
 
             var groupedItems = measurements
                 .Where(m => m.CatalogueItemId.HasValue)
                 .GroupBy(m => m.CatalogueItemId.Value)
-                .Select(g => new BOMLineItem
+                .Select(g => new BOMLineItemDto
                 {
                     CatalogueItemId = g.Key,
-                    ItemCode = g.First().CatalogueItem?.ItemCode,
-                    Description = g.First().CatalogueItem?.Description,
+                    ItemCode = g.First().CatalogueItem?.ItemCode ?? string.Empty,
+                    Description = g.First().CatalogueItem?.Description ?? string.Empty,
                     Quantity = g.Sum(m => m.Value),
                     Unit = g.First().Unit,
                     Weight = g.Sum(m => m.CalculatedWeight ?? 0)

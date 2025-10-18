@@ -59,9 +59,11 @@ public class Project
 
     public int? CustomerId { get; set; }
 
-    // NEW: Workflow integration fields
+    // NEW: Workflow integration fields - TEMPORARILY DISABLED UNTIL MIGRATION
+    [NotMapped]
     public int? OrderId { get; set; }
-    
+
+    [NotMapped]
     [StringLength(20)]
     public string ProjectType { get; set; } = "Direct"; // Direct, Estimation
 
@@ -72,9 +74,9 @@ public class Project
     [ForeignKey("LastModifiedBy")]
     public virtual User? LastModifiedByUser { get; set; }
 
-    // NEW: Order navigation property (for workflow integration)
-    [ForeignKey("OrderId")]
-    public virtual Order? Order { get; set; }
+    // NEW: Order navigation property (for workflow integration) - TEMPORARILY DISABLED
+    //[ForeignKey("OrderId")]
+    //public virtual Order? Order { get; set; }
 
     [ForeignKey("CustomerId")]
     public virtual Customer? Customer { get; set; }

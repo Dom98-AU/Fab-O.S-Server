@@ -1,0 +1,50 @@
+{
+  "button-tooltip": {
+    "title": "Verborgen gegevens",
+    "tooltip": "Verborgen gegevens"
+  },
+  "sanitizeDocument": {
+    "title": "Document opschonen",
+    "tooltip": "Document opschonen",
+    "dialog": {
+      "title": "Document opschonen verwijdert metagegevens en andere verborgen gegevens van uw PDF-document die mogelijk gevoelige informatie bevatten. Deze functie verwijdert het volgende:",
+      "content": {
+        "metadata": "Metagegevens",
+        "embeddedAttached": "Ingesloten inhoud en aangehechte bestanden",
+        "scripts": "Scripts",
+        "hiddenLayers": "Verborgen lagen",
+        "embeddedSearchIndexes": "Ingesloten zoekindexen",
+        "storedFormData": "Opgeslagen formuliergegevens",
+        "reviewComment": "Gegevens over beoordelingen en opmerkingen",
+        "hiddenDataPreDocSave": "Verborgen gegevens van eerder opgeslagen documenten",
+        "obscuredTextAndImage": "Verborgen tekst en afbeeldingen",
+        "commentsHidden": "Opmerkingen verborgen binnen de tekst van het PDF-bestand",
+        "unreferencedData": "Gegevens zonder referentie",
+        "linksActionsJavascripts": "Koppelingen, acties en JavaScripts",
+        "overlappingObjects": "Overlappende objecten"
+      },
+      "notShowAgain": "Dit bericht niet meer weergeven"
+    }
+  },
+  "removeHiddenInformation": {
+    "title": "Verborgen informatie verwijderen",
+    "tooltip": "Verborgen informatie verwijderen",
+    "dialog": {
+      "title": "Met Verborgen informatie verwijderen wordt de volgende documentinformatie gezocht en verwijderd",
+      "checkboxes": {
+        "metadata": "Metagegevens",
+        "fileAttachments": "Bestandsbijlagen",
+        "bookmarks": "Bladwijzers",
+        "embeddedSearchIndexes": "Ingesloten zoekindex",
+        "commentsAndMarkups": "Opmerkingen en markeringen",
+        "formFields": "Formuliervelden",
+        "hiddenText": "Verborgen tekst",
+        "hiddenLayers": "Verborgen lagen",
+        "deletedOrCroppedContent": "Verwijderde of bijgesneden inhoud",
+        "linksActionsJavascripts": "Koppelingen, acties en JavaScripts",
+        "overlappingObjects": "Overlappende objecten"
+      },
+      "noCheckedAlert": "Selecteer ten minste één item om te verwijderen."
+    }
+  }
+}

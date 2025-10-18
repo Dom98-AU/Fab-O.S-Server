@@ -4,7 +4,7 @@ using FabOS.WebServer.Services.Interfaces;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Data.Contexts;
 using Microsoft.EntityFrameworkCore;
-using Swashbuckle.AspNetCore.Annotations;
+// using Swashbuckle.AspNetCore.Annotations;
 
 namespace FabOS.WebServer.Controllers.Api
 {
@@ -35,10 +35,10 @@ namespace FabOS.WebServer.Controllers.Api
 
         // GET: api/testTrace/catalogueItems
         [HttpGet("catalogueItems")]
-        [SwaggerOperation(Summary = "Get catalogue items", Description = "Retrieves catalogue items with optional category filter")]
-        [SwaggerResponse(200, "Successfully retrieved catalogue items")]
-        [SwaggerResponse(500, "Internal server error")]
-        public async Task<IActionResult> GetCatalogueItems([FromQuery] string category = null, [FromQuery] int limit = 20)
+        // [SwaggerOperation(Summary = "Get catalogue items", Description = "Retrieves catalogue items with optional category filter")]
+        // [SwaggerResponse(200, "Successfully retrieved catalogue items")]
+        // [SwaggerResponse(500, "Internal server error")]
+        public async Task<IActionResult> GetCatalogueItems([FromQuery] string? category = null, [FromQuery] int limit = 20)
         {
             try
             {

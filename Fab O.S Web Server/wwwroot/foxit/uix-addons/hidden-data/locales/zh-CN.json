@@ -1,0 +1,50 @@
+{
+  "button-tooltip": {
+    "title": "隐藏数据",
+    "tooltip": "隐藏数据"
+  },
+  "sanitizeDocument": {
+    "title": "整理文档",
+    "tooltip": "整理文档",
+    "dialog": {
+      "title": "整理文档将从您的PDF文档中移除可能包含敏感信息的元数据或者其它隐藏数据。该功能将移除：",
+      "content": {
+        "metadata": "元数据",
+        "embeddedAttached": "嵌入的内容和附件",
+        "scripts": "脚本",
+        "hiddenLayers": "隐藏图层",
+        "embeddedSearchIndexes": "嵌入的搜索索引",
+        "storedFormData": "存储的表单数据",
+        "reviewComment": "审阅和注释数据",
+        "hiddenDataPreDocSave": "上一次文档保存的隐藏数据",
+        "obscuredTextAndImage": "模糊的文本和图像",
+        "commentsHidden": "包含在PDF文件主体中的隐藏注释",
+        "unreferencedData": "未引用的数据",
+        "linksActionsJavascripts": "链接，动作和Javascript",
+        "overlappingObjects": "重叠的对象"
+      },
+      "notShowAgain": "不再显示该消息"
+    }
+  },
+  "removeHiddenInformation": {
+    "title": "删除隐藏信息",
+    "tooltip": "删除隐藏信息",
+    "dialog": {
+      "title": "删除隐藏信息将搜索并删除以下文档信息",
+      "checkboxes": {
+        "metadata": "元数据",
+        "fileAttachments": "文件附件",
+        "bookmarks": "书签",
+        "embeddedSearchIndexes": "嵌入搜索索引",
+        "commentsAndMarkups": "注释和标记",
+        "formFields": "表单域",
+        "hiddenText": "隐藏文本",
+        "hiddenLayers": "隐藏图层",
+        "deletedOrCroppedContent": "删除或裁剪的内容",
+        "linksActionsJavascripts": "链接，动作和Javascript",
+        "overlappingObjects": "重叠对象"
+      },
+      "noCheckedAlert": "请选择至少一个要删除的条目。"
+    }
+  }
+}

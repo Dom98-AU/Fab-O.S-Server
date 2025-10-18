@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using FabOS.WebServer.Components.Shared.Interfaces;
 using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace FabOS.WebServer.Components.Pages;
 
@@ -16,9 +17,23 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider
     private string searchTerm = "";
     private string viewMode = "grid";
     private bool isLoading = true;
+    private int? filterByCustomerId = null;
+    private Customer? filterCustomer = null;
 
     protected override async Task OnInitializedAsync()
     {
+        // Check for customerId query parameter
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("customerId", out var customerIdValue))
+        {
+            if (int.TryParse(customerIdValue, out int customerId))
+            {
+                filterByCustomerId = customerId;
+                // Load customer details for display
+                filterCustomer = await DbContext.Customers.FindAsync(customerId);
+            }
+        }
+
         await LoadContacts();
     }
 
@@ -27,8 +42,17 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider
         try
         {
             isLoading = true;
-            contacts = await DbContext.CustomerContacts
+            var query = DbContext.CustomerContacts
                 .Include(c => c.Customer)
+                .AsQueryable();
+
+            // Apply customer filter if specified
+            if (filterByCustomerId.HasValue)
+            {
+                query = query.Where(c => c.CustomerId == filterByCustomerId.Value);
+            }
+
+            contacts = await query
                 .OrderBy(c => c.FirstName)
                 .ThenBy(c => c.LastName)
                 .ToListAsync();
