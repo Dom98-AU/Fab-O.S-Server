@@ -5,7 +5,8 @@ using FabOS.WebServer.Models.Calibration;
 namespace FabOS.WebServer.Models.Entities;
 
 /// <summary>
-/// Represents a drawing/document associated with a package and stored in SharePoint
+/// Represents a drawing/document associated with a package and stored in cloud storage
+/// Supports multiple cloud storage providers (SharePoint, Google Drive, Dropbox, Azure Blob)
 /// </summary>
 [Table("PackageDrawings")]
 public class PackageDrawing
@@ -23,6 +24,7 @@ public class PackageDrawing
     [StringLength(500)]
     public string? DrawingTitle { get; set; }
 
+    // LEGACY: SharePoint-specific fields (kept for backward compatibility)
     [Required]
     [StringLength(500)]
     public string SharePointItemId { get; set; } = string.Empty;
@@ -30,6 +32,27 @@ public class PackageDrawing
     [Required]
     [StringLength(1000)]
     public string SharePointUrl { get; set; } = string.Empty;
+
+    // NEW: Multi-provider cloud storage fields
+    /// <summary>
+    /// Cloud storage provider name: "SharePoint", "GoogleDrive", "Dropbox", "AzureBlob"
+    /// If null, defaults to "SharePoint" for backward compatibility
+    /// </summary>
+    [StringLength(50)]
+    public string? StorageProvider { get; set; }
+
+    /// <summary>
+    /// Provider-specific file identifier (e.g., SharePoint ItemId, Google Drive fileId, Dropbox path)
+    /// For new records, this replaces SharePointItemId in a provider-agnostic way
+    /// </summary>
+    [StringLength(500)]
+    public string? ProviderFileId { get; set; }
+
+    /// <summary>
+    /// JSON metadata specific to the storage provider (e.g., ETag, version info, permissions)
+    /// Allows storing provider-specific information without schema changes
+    /// </summary>
+    public string? ProviderMetadata { get; set; }
 
     [StringLength(50)]
     public string FileType { get; set; } = "PDF";

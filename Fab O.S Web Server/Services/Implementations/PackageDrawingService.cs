@@ -1,23 +1,29 @@
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Services.Interfaces;
+using FabOS.WebServer.Services.Implementations.CloudStorage;
+using FabOS.WebServer.Models.CloudStorage;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace FabOS.WebServer.Services.Implementations;
 
 public class PackageDrawingService : IPackageDrawingService
 {
     private readonly ApplicationDbContext _context;
-    private readonly ISharePointService _sharePointService;
+    private readonly ISharePointService _sharePointService; // Still needed for folder management
+    private readonly CloudStorageProviderFactory _storageProviderFactory;
     private readonly ILogger<PackageDrawingService> _logger;
 
     public PackageDrawingService(
         ApplicationDbContext context,
         ISharePointService sharePointService,
+        CloudStorageProviderFactory storageProviderFactory,
         ILogger<PackageDrawingService> logger)
     {
         _context = context;
         _sharePointService = sharePointService;
+        _storageProviderFactory = storageProviderFactory;
         _logger = logger;
     }
 
@@ -94,21 +100,29 @@ public class PackageDrawingService : IPackageDrawingService
             // Get the complete folder path
             var folderPath = await _sharePointService.GetPackageFolderPathAsync(takeoffNumber, revisionCode, packageNumber);
 
-            // Upload to SharePoint using the helper method that accepts folder paths
-            var sharePointFile = await _sharePointService.UploadMultipleFilesAsync(
-                folderPath,
-                new List<(Stream stream, string fileName, string contentType)>
-                {
-                    (fileStream, fileName, "application/pdf")
-                }
-            );
+            // Get cloud storage provider (defaults to SharePoint)
+            var storageProvider = _storageProviderFactory.GetDefaultProvider();
 
-            if (sharePointFile == null || !sharePointFile.Any())
+            // Upload using cloud storage abstraction
+            var uploadRequest = new CloudFileUploadRequest
+            {
+                FolderPath = folderPath,
+                FileName = fileName,
+                Content = fileStream,
+                ContentType = "application/pdf"
+            };
+
+            var uploadResult = await storageProvider.UploadFileAsync(uploadRequest);
+
+            if (uploadResult == null)
             {
                 throw new InvalidOperationException("File upload failed");
             }
 
-            var uploadedFile = sharePointFile.First();
+            // Prepare provider metadata as JSON
+            var providerMetadata = uploadResult.ProviderMetadata != null
+                ? JsonSerializer.Serialize(uploadResult.ProviderMetadata)
+                : null;
 
             // Save reference in database
             var drawing = new PackageDrawing
@@ -116,10 +130,15 @@ public class PackageDrawingService : IPackageDrawingService
                 PackageId = packageId,
                 DrawingNumber = drawingNumber,
                 DrawingTitle = drawingTitle,
-                SharePointItemId = uploadedFile.Id,
-                SharePointUrl = uploadedFile.WebUrl,
+                // Legacy SharePoint fields (for backward compatibility)
+                SharePointItemId = uploadResult.FileId,
+                SharePointUrl = uploadResult.WebUrl,
+                // New multi-provider fields
+                StorageProvider = storageProvider.ProviderName,
+                ProviderFileId = uploadResult.FileId,
+                ProviderMetadata = providerMetadata,
                 FileType = "PDF",
-                FileSize = uploadedFile.Size,
+                FileSize = uploadResult.Size,
                 UploadedDate = DateTime.UtcNow,
                 UploadedBy = uploadedBy,
                 IsActive = true
@@ -157,8 +176,14 @@ public class PackageDrawingService : IPackageDrawingService
                 throw new InvalidOperationException($"Drawing {drawingId} not found");
             }
 
-            // Download from SharePoint
-            return await _sharePointService.DownloadFileAsync(drawing.SharePointItemId);
+            // Get cloud storage provider for this drawing (backward compatible)
+            var storageProvider = _storageProviderFactory.GetProviderForDrawing(drawing);
+
+            // Use ProviderFileId if available, otherwise fall back to legacy SharePointItemId
+            var fileId = drawing.ProviderFileId ?? drawing.SharePointItemId;
+
+            // Download from cloud storage
+            return await storageProvider.DownloadFileAsync(fileId);
         }
         catch (Exception ex)
         {
@@ -229,8 +254,14 @@ public class PackageDrawingService : IPackageDrawingService
                 throw new InvalidOperationException($"Drawing {drawingId} not found");
             }
 
-            // Get SharePoint preview URL
-            return await _sharePointService.GetFileWebUrlAsync(drawing.SharePointItemId);
+            // Get cloud storage provider for this drawing (backward compatible)
+            var storageProvider = _storageProviderFactory.GetProviderForDrawing(drawing);
+
+            // Use ProviderFileId if available, otherwise fall back to legacy SharePointItemId
+            var fileId = drawing.ProviderFileId ?? drawing.SharePointItemId;
+
+            // Get file web URL from cloud storage
+            return await storageProvider.GetFileWebUrlAsync(fileId);
         }
         catch (Exception ex)
         {
