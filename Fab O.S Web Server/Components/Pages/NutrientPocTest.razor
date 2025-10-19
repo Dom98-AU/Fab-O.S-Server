@@ -32,11 +32,33 @@
             Load Sample PDF
         </button>
 
+        <button class="btn btn-warning" @onclick="SaveAndClose" disabled="@(!pdfLoaded)">
+            <i class="fas fa-save"></i>
+            Save & Close PDF
+        </button>
+
+        <button class="btn btn-success" @onclick="ReloadWithData" disabled="@(!pspdfKitLoaded || pdfLoaded || string.IsNullOrEmpty(savedInstantJson))">
+            <i class="fas fa-folder-open"></i>
+            Reload with Saved Data
+        </button>
+
         <button class="btn btn-secondary" @onclick="UnloadPdf" disabled="@(!pdfLoaded)">
             <i class="fas fa-times"></i>
             Unload PDF
         </button>
     </div>
+
+    @if (!string.IsNullOrEmpty(savedInstantJson))
+    {
+        <div class="alert alert-warning">
+            <h4>💾 Saved Data Available</h4>
+            <p>PDF data has been saved. Click "Reload with Saved Data" to restore measurements with calibration.</p>
+            <details>
+                <summary>View Saved Instant JSON</summary>
+                <pre>@savedInstantJson</pre>
+            </details>
+        </div>
+    }
 
     @if (pdfLoaded)
     {
@@ -79,6 +101,7 @@
     private string? detailedError = null;
     private bool measurementCreated = false;
     private string? measurementDataJson = null;
+    private string? savedInstantJson = null;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -114,13 +137,13 @@
             errorMessage = null;
             Logger.LogInformation("Loading sample PDF");
 
-            // Use a sample PDF URL - trying multiple sources for CORS compatibility
-            // Adobe's sample PDF (more reliable for testing)
-            var samplePdfUrl = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+            // Use a minimal PDF data URL for testing
+            // This is a tiny valid PDF that displays "Hello World"
+            var samplePdfUrl = "data:application/pdf;base64,JVBERi0xLjQKJeLjz9MKMyAwIG9iago8PC9UeXBlIC9QYWdlCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyAyIDAgUgovQ29udGVudHMgNCAwIFI+PgplbmRvYmoKNCAwIG9iago8PC9GaWx0ZXIgL0ZsYXRlRGVjb2RlIC9MZW5ndGggNTQ+PgpzdHJlYW0KeJwr5HIK4TI24WJLzs8tykvMSeVSAAGu4JKizLx0Lq7kksS8FC6Q0MTczBQuAKhLC+UKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8L1R5cGUgL0ZvbnQKL1N1YnR5cGUgL1R5cGUxCi9CYXNlRm9udCAvVGltZXMtUm9tYW4KPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1Byb2NTZXQgWy9QREYgL1RleHQgL0ltYWdlQiAvSW1hZ2VDIC9JbWFnZUldCi9Gb250IDw8Ci9GMSA1IDAgUiA+Pgo+PgplbmRvYmoKMSAwIG9iago8PC9UeXBlIC9QYWdlcwovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDYxMiA3OTJdCj4+CmVuZG9iago2IDAgb2JqCjw8Ci9UeXBlIC9DYXRhbG9nCi9QYWdlcyAxIDAgUgo+PgplbmRvYmoKNyAwIG9iago8PAovUHJvZHVjZXIgKFBERktpdCkKPj4KZW5kb2JqCnhyZWYKMCA4CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDI5NCAwMDAwMCBuIAowMDAwMDAwMjE4IDAwMDAwIG4gCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA4NyAwMDAwMCBuIAowMDAwMDAwMjExIDAwMDAwIG4gCjAwMDAwMDAzNjMgMDAwMDAgbiAKMDAwMDAwMDQxMiAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9TaXplIDgKL1Jvb3QgNiAwIFIKL0luZm8gNyAwIFIKPj4Kc3RhcnR4cmVmCjQ1NAolJUVPRgo=";
 
-            // Alternative sources (uncomment to try):
+            // Note: Database endpoint not available for testing
+            // var samplePdfUrl = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
             // var samplePdfUrl = "https://pdfobject.com/pdf/sample.pdf";
-            // var samplePdfUrl = "/api/packagedrawings/1/content";
 
             var result = await JS.InvokeAsync<bool>("nutrientPoc.loadPdf",
                 samplePdfUrl,
@@ -137,6 +160,68 @@
         {
             Logger.LogError(ex, "Error loading PDF");
             errorMessage = $"Load error: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveAndClose()
+    {
+        try
+        {
+            Logger.LogInformation("Saving and closing PDF");
+
+            // Export Instant JSON with all annotations and measurements
+            savedInstantJson = await JS.InvokeAsync<string>("nutrientPoc.exportAndClose");
+
+            pdfLoaded = false;
+            totalPages = 0;
+            measurementCreated = false;
+            measurementDataJson = null;
+
+            Logger.LogInformation($"PDF data saved: {savedInstantJson?.Length ?? 0} characters");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving and closing PDF");
+            errorMessage = $"Save error: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private async Task ReloadWithData()
+    {
+        try
+        {
+            Logger.LogInformation("Reloading PDF with saved data");
+            errorMessage = null;
+
+            if (string.IsNullOrEmpty(savedInstantJson))
+            {
+                errorMessage = "No saved data available";
+                StateHasChanged();
+                return;
+            }
+
+            // Load the PDF first
+            var samplePdfUrl = "data:application/pdf;base64,JVBERi0xLjQKJeLjz9MKMyAwIG9iago8PC9UeXBlIC9QYWdlCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyAyIDAgUgovQ29udGVudHMgNCAwIFI+PgplbmRvYmoKNCAwIG9iago8PC9GaWx0ZXIgL0ZsYXRlRGVjb2RlIC9MZW5ndGggNTQ+PgpzdHJlYW0KeJwr5HIK4TI24WJLzs8tykvMSeVSAAGu4JKizLx0Lq7kksS8FC6Q0MTczBQuAKhLC+UKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8L1R5cGUgL0ZvbnQKL1N1YnR5cGUgL1R5cGUxCi9CYXNlRm9udCAvVGltZXMtUm9tYW4KPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1Byb2NTZXQgWy9QREYgL1RleHQgL0ltYWdlQiAvSW1hZ2VDIC9JbWFnZUldCi9Gb250IDw8Ci9GMSA1IDAgUiA+Pgo+PgplbmRvYmoKMSAwIG9iago8PC9UeXBlIC9QYWdlcwovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDYxMiA3OTJdCj4+CmVuZG9iago2IDAgb2JqCjw8Ci9UeXBlIC9DYXRhbG9nCi9QYWdlcyAxIDAgUgo+PgplbmRvYmoKNyAwIG9iago8PAovUHJvZHVjZXIgKFBERktpdCkKPj4KZW5kb2JqCnhyZWYKMCA4CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDI5NCAwMDAwMCBuIAowMDAwMDAwMjE4IDAwMDAwIG4gCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA4NyAwMDAwMCBuIAowMDAwMDAwMjExIDAwMDAwIG4gCjAwMDAwMDAzNjMgMDAwMDAgbiAKMDAwMDAwMDQxMiAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9TaXplIDgKL1Jvb3QgNiAwIFIKL0luZm8gNyAwIFIKPj4Kc3RhcnR4cmVmCjQ1NAolJUVPRgo=";
+
+            var result = await JS.InvokeAsync<bool>("nutrientPoc.loadPdfWithData",
+                samplePdfUrl,
+                "nutrient-poc-container",
+                savedInstantJson);
+
+            if (!result)
+            {
+                errorMessage = "Failed to reload PDF - check browser console for details";
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error reloading PDF with data");
+            errorMessage = $"Reload error: {ex.Message}";
             StateHasChanged();
         }
     }
@@ -287,6 +372,24 @@
         background: #31d2f2;
     }
 
+    .btn-warning {
+        background: #ffc107;
+        color: #000;
+    }
+
+    .btn-warning:hover:not(:disabled) {
+        background: #e0a800;
+    }
+
+    .btn-success {
+        background: #198754;
+        color: white;
+    }
+
+    .btn-success:hover:not(:disabled) {
+        background: #157347;
+    }
+
     .alert {
         padding: 1rem;
         margin: 1rem 0;
@@ -304,6 +407,12 @@
         background: #d1e7dd;
         border-color: #badbcc;
         color: #0f5132;
+    }
+
+    .alert-warning {
+        background: #fff3cd;
+        border-color: #ffecb5;
+        color: #664d03;
     }
 
     .alert h4 {

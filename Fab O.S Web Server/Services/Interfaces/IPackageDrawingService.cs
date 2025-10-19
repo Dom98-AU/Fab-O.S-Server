@@ -31,6 +31,11 @@ public interface IPackageDrawingService
     Task<Stream> GetDrawingContentAsync(int drawingId);
 
     /// <summary>
+    /// Get drawing PDF content from SharePoint (with embedded measurements and scales)
+    /// </summary>
+    Task<Stream> GetSharePointPdfContentAsync(int drawingId);
+
+    /// <summary>
     /// Delete a drawing (soft delete)
     /// </summary>
     Task<bool> DeleteDrawingAsync(int drawingId);

@@ -205,4 +205,27 @@ public class PackageDrawingController : ControllerBase
             return StatusCode(500, "An error occurred while getting the preview URL");
         }
     }
+
+    /// <summary>
+    /// Get PDF content from SharePoint (with embedded measurements and scales)
+    /// </summary>
+    [HttpGet("{id}/sharepoint-content")]
+    public async Task<IActionResult> GetSharePointPdfContent(int id)
+    {
+        try
+        {
+            var stream = await _drawingService.GetSharePointPdfContentAsync(id);
+            return File(stream, "application/pdf");
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Drawing {DrawingId} not found or not in SharePoint", id);
+            return NotFound();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting SharePoint PDF content for {DrawingId}", id);
+            return StatusCode(500, "An error occurred while retrieving the file from SharePoint");
+        }
+    }
 }

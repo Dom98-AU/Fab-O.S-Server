@@ -10,14 +10,14 @@ namespace FabOS.WebServer.Services.Implementations
     /// </summary>
     public class TakeoffCatalogueService : ITakeoffCatalogueService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly ILogger<TakeoffCatalogueService> _logger;
 
         public TakeoffCatalogueService(
-            ApplicationDbContext context,
+            IDbContextFactory<ApplicationDbContext> contextFactory,
             ILogger<TakeoffCatalogueService> logger)
         {
-            _context = context;
+            _contextFactory = contextFactory;
             _logger = logger;
         }
 
@@ -25,7 +25,9 @@ namespace FabOS.WebServer.Services.Implementations
         {
             try
             {
-                var materials = await _context.CatalogueItems
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var materials = await context.CatalogueItems
                     .Where(c => c.CompanyId == companyId)
                     .Select(c => c.Material)
                     .Distinct()
@@ -48,7 +50,9 @@ namespace FabOS.WebServer.Services.Implementations
         {
             try
             {
-                var categories = await _context.CatalogueItems
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var categories = await context.CatalogueItems
                     .Where(c => c.CompanyId == companyId)
                     .Select(c => c.Category)
                     .Distinct()
@@ -71,7 +75,9 @@ namespace FabOS.WebServer.Services.Implementations
         {
             try
             {
-                var categories = await _context.CatalogueItems
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var categories = await context.CatalogueItems
                     .Where(c => c.CompanyId == companyId && c.Material == material)
                     .Select(c => c.Category)
                     .Distinct()
@@ -95,7 +101,9 @@ namespace FabOS.WebServer.Services.Implementations
         {
             try
             {
-                var items = await _context.CatalogueItems
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var items = await context.CatalogueItems
                     .Where(c => c.CompanyId == companyId && c.Category == category)
                     .OrderBy(c => c.ItemCode)
                     .ToListAsync();
@@ -117,7 +125,9 @@ namespace FabOS.WebServer.Services.Implementations
         {
             try
             {
-                var items = await _context.CatalogueItems
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var items = await context.CatalogueItems
                     .Where(c => c.CompanyId == companyId && c.Material == material && c.Category == category)
                     .OrderBy(c => c.ItemCode)
                     .ToListAsync();
@@ -139,7 +149,9 @@ namespace FabOS.WebServer.Services.Implementations
         {
             try
             {
-                var item = await _context.CatalogueItems
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var item = await context.CatalogueItems
                     .FirstOrDefaultAsync(c => c.Id == id && c.CompanyId == companyId);
 
                 if (item == null)
@@ -160,7 +172,9 @@ namespace FabOS.WebServer.Services.Implementations
         {
             try
             {
-                var items = await _context.CatalogueItems
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var items = await context.CatalogueItems
                     .Where(c => c.CompanyId == companyId &&
                         (c.ItemCode.Contains(searchTerm) ||
                          c.Description.Contains(searchTerm) ||
@@ -306,6 +320,8 @@ namespace FabOS.WebServer.Services.Implementations
                 // Calculate weight based on catalogue item
                 var calculation = await CalculateMeasurementAsync(catalogueItemId, measurementType, value, unit, companyId);
 
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
                 var measurement = new TraceTakeoffMeasurement
                 {
                     TraceTakeoffId = traceTakeoffId,
@@ -319,11 +335,11 @@ namespace FabOS.WebServer.Services.Implementations
                     CreatedDate = DateTime.UtcNow
                 };
 
-                _context.TraceTakeoffMeasurements.Add(measurement);
-                await _context.SaveChangesAsync();
+                context.TraceTakeoffMeasurements.Add(measurement);
+                await context.SaveChangesAsync();
 
                 // Load navigation properties
-                await _context.Entry(measurement)
+                await context.Entry(measurement)
                     .Reference(m => m.CatalogueItem)
                     .LoadAsync();
 
@@ -343,7 +359,9 @@ namespace FabOS.WebServer.Services.Implementations
         {
             try
             {
-                var measurements = await _context.TraceTakeoffMeasurements
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var measurements = await context.TraceTakeoffMeasurements
                     .Include(m => m.CatalogueItem)
                     .Include(m => m.PackageDrawing)
                     .Where(m => m.PackageDrawingId == packageDrawingId)
@@ -370,7 +388,9 @@ namespace FabOS.WebServer.Services.Implementations
         {
             try
             {
-                var measurement = await _context.TraceTakeoffMeasurements
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var measurement = await context.TraceTakeoffMeasurements
                     .Include(m => m.PackageDrawing)
                         .ThenInclude(pd => pd!.Package)
                     .FirstOrDefaultAsync(m => m.Id == measurementId);
@@ -397,7 +417,7 @@ namespace FabOS.WebServer.Services.Implementations
                     measurement.CalculatedWeight = calculation.Weight;
                 }
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 _logger.LogInformation("Updated measurement {Id} with new value {Value}", measurementId, value);
 
@@ -414,7 +434,9 @@ namespace FabOS.WebServer.Services.Implementations
         {
             try
             {
-                var measurement = await _context.TraceTakeoffMeasurements
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var measurement = await context.TraceTakeoffMeasurements
                     .Include(m => m.PackageDrawing)
                         .ThenInclude(pd => pd!.Package)
                     .FirstOrDefaultAsync(m => m.Id == measurementId);
@@ -425,8 +447,8 @@ namespace FabOS.WebServer.Services.Implementations
                     return false;
                 }
 
-                _context.TraceTakeoffMeasurements.Remove(measurement);
-                await _context.SaveChangesAsync();
+                context.TraceTakeoffMeasurements.Remove(measurement);
+                await context.SaveChangesAsync();
 
                 _logger.LogInformation("Deleted measurement {Id}", measurementId);
 

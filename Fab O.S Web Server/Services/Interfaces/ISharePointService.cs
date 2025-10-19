@@ -80,6 +80,15 @@ public interface ISharePointService
     Task<bool> DeleteFileAsync(string driveItemId);
 
     /// <summary>
+    /// Updates/replaces an existing file in SharePoint
+    /// </summary>
+    /// <param name="driveItemId">The ID of the file to replace</param>
+    /// <param name="fileStream">Stream containing the new file content</param>
+    /// <param name="contentType">Content type of the file (e.g., "application/pdf")</param>
+    /// <returns>Updated file information</returns>
+    Task<SharePointFileInfo> UpdateFileAsync(string driveItemId, Stream fileStream, string contentType);
+
+    /// <summary>
     /// Creates a new revision folder
     /// </summary>
     Task<SharePointFolderInfo> CreateRevisionFolderAsync(string takeoffNumber, string revisionCode);

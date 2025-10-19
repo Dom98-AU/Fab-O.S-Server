@@ -790,6 +790,68 @@ public class SharePointService : ISharePointService
         }
     }
 
+    public async Task<SharePointFileInfo> UpdateFileAsync(string driveItemId, Stream fileStream, string contentType)
+    {
+        var settings = await GetCurrentTenantSettingsAsync();
+        if (settings == null)
+        {
+            throw new InvalidOperationException($"SharePoint not configured for company {_tenantService.GetCurrentCompanyId()}");
+        }
+
+        if (settings.UseMockData)
+        {
+            _logger.LogInformation("Mock mode: File {DriveItemId} updated", driveItemId);
+            return CreateMockFileInfo("updated-file.pdf", fileStream.Length, contentType);
+        }
+
+        try
+        {
+            var client = await GetGraphClientAsync();
+            var site = await client.Sites[settings.GetSiteId()].GetAsync();
+
+            if (site?.Id == null)
+                throw new InvalidOperationException("Unable to get SharePoint site");
+
+            var drives = await client.Sites[site.Id].Drives.GetAsync();
+            var drive = drives?.Value?.FirstOrDefault(d => d.Name == settings.DocumentLibrary);
+
+            if (drive?.Id == null)
+                throw new InvalidOperationException($"Document library '{settings.DocumentLibrary}' not found");
+
+            // Update the file content using PUT to /content endpoint
+            // This replaces the file content while keeping the same driveItemId
+            var updatedFile = await client.Drives[drive.Id].Items[driveItemId].Content.PutAsync(fileStream);
+
+            if (updatedFile == null)
+                throw new InvalidOperationException("File update completed but file information not returned");
+
+            _logger.LogInformation("File {DriveItemId} updated successfully for company {CompanyId}",
+                driveItemId, _tenantService.GetCurrentCompanyId());
+
+            return new SharePointFileInfo
+            {
+                Id = updatedFile.Id ?? driveItemId,
+                Name = updatedFile.Name ?? string.Empty,
+                Size = updatedFile.Size ?? fileStream.Length,
+                ContentType = contentType,
+                WebUrl = updatedFile.WebUrl ?? string.Empty,
+                CreatedDateTime = updatedFile.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
+                LastModifiedDateTime = updatedFile.LastModifiedDateTime?.DateTime ?? DateTime.UtcNow,
+                CreatedBy = updatedFile.CreatedBy?.User?.DisplayName ?? "Unknown",
+                ModifiedBy = updatedFile.LastModifiedBy?.User?.DisplayName ?? "Unknown",
+                ETag = updatedFile.ETag,
+                DownloadUrl = updatedFile.AdditionalData?.ContainsKey("@microsoft.graph.downloadUrl") == true ?
+                    updatedFile.AdditionalData["@microsoft.graph.downloadUrl"]?.ToString() : null
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update file {DriveItemId} for company {CompanyId}",
+                driveItemId, _tenantService.GetCurrentCompanyId());
+            throw;
+        }
+    }
+
     public async Task<SharePointFolderInfo> CreateRevisionFolderAsync(string takeoffNumber, string revisionCode)
     {
         return await EnsureTakeoffFolderExistsAsync(takeoffNumber, revisionCode);

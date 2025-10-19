@@ -2,13 +2,14 @@
  * Nutrient (PSPDFKit) Proof of Concept - JavaScript Interop
  *
  * Purpose: Test Nutrient Web SDK integration with Blazor Server
- * Features: Basic PDF loading, measurement tools, annotations
+ * Features: Basic PDF loading, measurement tools, annotations, scale persistence
  */
 
 window.nutrientPoc = {
     instance: null,
     dotNetRef: null,
     licenseKey: null,
+    measurementScaleConfig: null,  // Store current measurement scale configuration
 
     /**
      * Initialize Nutrient viewer
@@ -65,6 +66,12 @@ window.nutrientPoc = {
                 document: documentUrl,
                 baseUrl: baseUrl,
                 licenseKey: this.licenseKey,
+
+                // Preserve measurement scales from document
+                measurementValueConfiguration: (documentScales) => {
+                    console.log('[Nutrient POC] 📏 Document scales loaded:', documentScales);
+                    return documentScales;  // Return document scales to preserve them
+                },
 
                 // Enable measurement tools
                 // Try using 'measure' dropdown which groups measurement tools
@@ -166,6 +173,10 @@ window.nutrientPoc = {
                 if (annotation.isMeasurement) {
                     const measurementData = self.extractMeasurementData(annotation);
                     console.log('[Nutrient POC] Measurement data:', measurementData);
+
+                    // TEST: Export Instant JSON to see if calibration is included
+                    const instantJSON = await self.instance.exportInstantJSON();
+                    console.log('[Nutrient POC] 📋 INSTANT JSON AFTER MEASUREMENT:', JSON.stringify(instantJSON, null, 2));
 
                     // Notify Blazor
                     if (self.dotNetRef) {
@@ -272,6 +283,14 @@ window.nutrientPoc = {
 
             console.log('[Nutrient POC] Attempting to set measurement config:', config);
 
+            // Store configuration for persistence
+            this.measurementScaleConfig = {
+                scale: scale,
+                unitFrom: unitFrom,
+                unitTo: unitTo
+            };
+            console.log('[Nutrient POC] 💾 Stored scale config for persistence:', this.measurementScaleConfig);
+
             // Check if setMeasurementValueConfiguration exists
             if (typeof this.instance.setMeasurementValueConfiguration === 'function') {
                 await this.instance.setMeasurementValueConfiguration(config);
@@ -288,6 +307,150 @@ window.nutrientPoc = {
             console.error('[Nutrient POC] Error setting scale:', error);
             console.error('[Nutrient POC] Measurement tools should still work with default scale');
             return true; // Return true so user can still test measurements
+        }
+    },
+
+    /**
+     * Export PDF document with all measurements and scales, then close
+     * @returns {string} Base64-encoded PDF document
+     */
+    exportAndClose: async function() {
+        console.log('[Nutrient POC] ========================================');
+        console.log('[Nutrient POC] Exporting PDF document and closing');
+
+        if (!this.instance) {
+            console.warn('[Nutrient POC] No instance to export');
+            return null;
+        }
+
+        try {
+            // Export the FULL PDF document with embedded annotations and measurements
+            // This preserves ALL scale data inside the PDF
+            console.log('[Nutrient POC] Exporting PDF via exportPDF()...');
+            const arrayBuffer = await this.instance.exportPDF();
+            console.log('[Nutrient POC] ✓ PDF exported');
+            console.log('[Nutrient POC] PDF size:', arrayBuffer.byteLength, 'bytes');
+
+            // Convert ArrayBuffer to Base64 string for storage
+            const uint8Array = new Uint8Array(arrayBuffer);
+            let binaryString = '';
+            for (let i = 0; i < uint8Array.length; i++) {
+                binaryString += String.fromCharCode(uint8Array[i]);
+            }
+            const base64Pdf = btoa(binaryString);
+            console.log('[Nutrient POC] ✓ PDF converted to Base64');
+            console.log('[Nutrient POC] Base64 length:', base64Pdf.length, 'characters');
+
+            // Unload the instance
+            await PSPDFKit.unload(this.instance);
+            this.instance = null;
+            console.log('[Nutrient POC] ✓ Instance unloaded');
+            console.log('[Nutrient POC] ========================================');
+
+            // Return Base64-encoded PDF
+            return base64Pdf;
+
+        } catch (error) {
+            console.error('[Nutrient POC] Error exporting and closing:', error);
+            console.log('[Nutrient POC] ========================================');
+            throw error;
+        }
+    },
+
+    /**
+     * Load PDF from exported Base64 data
+     * @param {string} documentUrl - IGNORED - we load from the saved PDF instead
+     * @param {string} containerId - Container element ID
+     * @param {string} base64PdfData - Base64-encoded PDF document
+     */
+    loadPdfWithData: async function(documentUrl, containerId, base64PdfData) {
+        console.log('[Nutrient POC] ========================================');
+        console.log('[Nutrient POC] Loading PDF from saved data');
+        console.log('[Nutrient POC] Saved PDF data length:', base64PdfData?.length || 0, 'characters');
+
+        try {
+            // Convert Base64 PDF back to data URL
+            const pdfDataUrl = 'data:application/pdf;base64,' + base64PdfData;
+            console.log('[Nutrient POC] ✓ Created PDF data URL');
+            console.log('[Nutrient POC] Data URL length:', pdfDataUrl.length, 'characters');
+
+            // Configuration for PSPDFKit - load from the EXPORTED PDF
+            // This PDF contains all measurements with embedded scale data
+            const baseUrl = `${window.location.protocol}//${window.location.host}/assets/pspdfkit/`;
+            console.log('[Nutrient POC] Base URL:', baseUrl);
+
+            const configuration = {
+                container: '#' + containerId,
+                document: pdfDataUrl,  // Load from the SAVED PDF, not the original!
+                baseUrl: baseUrl,
+                licenseKey: this.licenseKey,
+
+                // Preserve measurement scales from document
+                measurementValueConfiguration: (documentScales) => {
+                    console.log('[Nutrient POC] 📏 Document scales loaded from saved PDF:', documentScales);
+                    return documentScales;  // Return document scales to preserve them
+                },
+
+                // Enable measurement tools
+                toolbarItems: [
+                    { type: 'sidebar-thumbnails' },
+                    { type: 'sidebar-document-outline' },
+                    { type: 'pager' },
+                    { type: 'pan' },
+                    { type: 'zoom-out' },
+                    { type: 'zoom-in' },
+                    { type: 'zoom-mode' },
+                    { type: 'spacer' },
+                    { type: 'measure' },
+                    { type: 'spacer' },
+                    { type: 'annotate' },
+                    { type: 'ink' },
+                    { type: 'highlighter' },
+                    { type: 'text-highlighter' },
+                    { type: 'signature' },
+                    { type: 'image' },
+                    { type: 'stamp' },
+                    { type: 'note' },
+                    { type: 'text' },
+                    { type: 'line' },
+                    { type: 'arrow' },
+                    { type: 'rectangle' },
+                    { type: 'ellipse' },
+                    { type: 'polygon' },
+                    { type: 'polyline' }
+                ]
+            };
+
+            console.log('[Nutrient POC] Loading PSPDFKit instance from saved PDF...');
+            this.instance = await PSPDFKit.load(configuration);
+
+            console.log('[Nutrient POC] ✓ PSPDFKit instance loaded from saved PDF!');
+            console.log('[Nutrient POC] Total pages:', this.instance.totalPageCount);
+
+            // Setup event listeners
+            this.setupEventListeners();
+
+            // Notify Blazor that PDF loaded
+            if (this.dotNetRef) {
+                await this.dotNetRef.invokeMethodAsync('OnPdfLoaded', this.instance.totalPageCount);
+            }
+
+            console.log('[Nutrient POC] ========================================');
+            return true;
+
+        } catch (error) {
+            console.error('[Nutrient POC] ❌ Error loading PDF from saved data:', error);
+            console.error('[Nutrient POC] Error message:', error.message);
+            console.error('[Nutrient POC] Stack:', error.stack);
+
+            // Notify Blazor of error
+            if (this.dotNetRef) {
+                const errorMsg = error.message || error.toString() || 'Unknown error';
+                await this.dotNetRef.invokeMethodAsync('OnPdfLoadError', errorMsg);
+            }
+
+            console.log('[Nutrient POC] ========================================');
+            return false;
         }
     },
 

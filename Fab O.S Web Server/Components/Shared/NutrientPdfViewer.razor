@@ -82,9 +82,9 @@
                 <div class="tool-group">
                     @if (OnClose.HasDelegate)
                     {
-                        <button class="btn btn-secondary" @onclick="@(async () => { Logger.LogInformation("[NutrientPdfViewer] *** CLOSE BUTTON CLICKED ***"); await HandleCloseAsync(); })">
-                            <i class="fas fa-times"></i>
-                            Close
+                        <button class="btn btn-secondary" @onclick="HandleCloseAsync">
+                            <i class="fas fa-save"></i>
+                            Save & Close
                         </button>
                     }
                 </div>
@@ -245,8 +245,8 @@
                 }
                 else if (PackageDrawingId > 0)
                 {
-                    pdfUrlToLoad = $"/api/packagedrawings/{PackageDrawingId}/content";
-                    Logger.LogInformation("[NutrientPdfViewer] Using API endpoint for PDF (drawing {DrawingId})", PackageDrawingId);
+                    pdfUrlToLoad = $"/api/packagedrawings/{PackageDrawingId}/sharepoint-content";
+                    Logger.LogInformation("[NutrientPdfViewer] Using SharePoint API endpoint for PDF (drawing {DrawingId})", PackageDrawingId);
                 }
 
                 needsToLoadPdf = true;
@@ -839,8 +839,24 @@
                 var calibrationConfig = await JS.InvokeAsync<string>("nutrientViewer.exportMeasurementConfig", containerId);
                 Logger.LogInformation("[NutrientPdfViewer] Exported calibration config: {Length} chars", calibrationConfig?.Length ?? 0);
 
-                var pdfBytes = await JS.InvokeAsync<byte[]>("nutrientViewer.exportPDF", containerId);
-                Logger.LogInformation("[NutrientPdfViewer] Exported PDF: {Length} bytes", pdfBytes?.Length ?? 0);
+                // Export PDF as base64 to avoid SignalR message size limits with large byte arrays
+                var pdfBase64 = await JS.InvokeAsync<string>("nutrientViewer.exportPDF", containerId);
+                Logger.LogInformation("[NutrientPdfViewer] Exported PDF (base64): {Length} chars", pdfBase64?.Length ?? 0);
+
+                // Convert base64 back to bytes
+                byte[]? pdfBytes = null;
+                if (!string.IsNullOrEmpty(pdfBase64))
+                {
+                    try
+                    {
+                        pdfBytes = Convert.FromBase64String(pdfBase64);
+                        Logger.LogInformation("[NutrientPdfViewer] Converted PDF to bytes: {Length} bytes", pdfBytes.Length);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "[NutrientPdfViewer] Error converting base64 to bytes");
+                    }
+                }
 
                 // STEP 2: Save to database synchronously (fast operation)
                 Logger.LogInformation("[NutrientPdfViewer] Step 2: Saving to database...");
@@ -873,7 +889,8 @@
                 Logger.LogInformation("[NutrientPdfViewer] Step 3: Closing modal...");
                 await OnClose.InvokeAsync();
 
-                // STEP 4: Upload to SharePoint in background (slow operation, happens after modal is closed)
+                // STEP 4: Update file in SharePoint in background (slow operation, happens after modal is closed)
+                // Use UpdateFileAsync to replace existing file content (keeps same SharePointItemId)
                 if (pdfBytes != null && pdfBytes.Length > 0)
                 {
                     _ = Task.Run(async () =>
@@ -885,40 +902,34 @@
                             var sharePointSvc = scope.ServiceProvider.GetRequiredService<ISharePointService>();
                             var logger = scope.ServiceProvider.GetRequiredService<ILogger<NutrientPdfViewer>>();
 
-                            logger.LogInformation("[NutrientPdfViewer] Step 4: Uploading to SharePoint in background...");
+                            logger.LogInformation("[NutrientPdfViewer] Step 4: Updating file in SharePoint in background...");
 
                             var drawing = await dbContext.PackageDrawings
-                                .Include(pd => pd.Package)
-                                    .ThenInclude(p => p.Revision)
-                                        .ThenInclude(r => r.Takeoff)
                                 .FirstOrDefaultAsync(pd => pd.Id == PackageDrawingId);
 
-                            if (drawing != null)
+                            if (drawing != null && !string.IsNullOrEmpty(drawing.SharePointItemId))
                             {
-                                var takeoffNumber = drawing.Package?.Revision?.Takeoff?.TakeoffNumber;
-                                var revisionCode = drawing.Package?.Revision?.RevisionCode;
-                                var packageNumber = drawing.Package?.PackageNumber;
-                                var fileName = !string.IsNullOrEmpty(drawing.SharePointUrl)
-                                    ? Path.GetFileName(new Uri(drawing.SharePointUrl).LocalPath)
-                                    : $"{drawing.DrawingNumber}.pdf";
+                                // Update the existing file in SharePoint using its SharePointItemId
+                                // This replaces the file content while keeping the same ID
+                                using var pdfStream = new MemoryStream(pdfBytes);
+                                var updatedFile = await sharePointSvc.UpdateFileAsync(
+                                    drawing.SharePointItemId,
+                                    pdfStream,
+                                    "application/pdf"
+                                );
 
-                                if (!string.IsNullOrEmpty(takeoffNumber) && !string.IsNullOrEmpty(revisionCode) &&
-                                    !string.IsNullOrEmpty(packageNumber) && !string.IsNullOrEmpty(fileName))
-                                {
-                                    var folderPath = $"Takeoffs/{takeoffNumber}/{revisionCode}/PKG-{packageNumber}";
-                                    var files = new List<(Stream stream, string fileName, string contentType)>
-                                    {
-                                        (new MemoryStream(pdfBytes), fileName, "application/pdf")
-                                    };
-
-                                    await sharePointSvc.UploadMultipleFilesAsync(folderPath, files);
-                                    logger.LogInformation("[NutrientPdfViewer] ✓ PDF uploaded to SharePoint: {Path}/{File}", folderPath, fileName);
-                                }
+                                logger.LogInformation("[NutrientPdfViewer] ✓ PDF updated in SharePoint: {FileName} (ID: {ItemId})",
+                                    updatedFile.Name, updatedFile.Id);
+                            }
+                            else
+                            {
+                                logger.LogWarning("[NutrientPdfViewer] Cannot update SharePoint file - SharePointItemId is null or empty for drawing {DrawingId}",
+                                    PackageDrawingId);
                             }
                         }
                         catch (Exception spEx)
                         {
-                            Logger.LogError(spEx, "[NutrientPdfViewer] Error uploading to SharePoint in background");
+                            Logger.LogError(spEx, "[NutrientPdfViewer] Error updating file in SharePoint in background");
                         }
                     });
                 }
@@ -940,6 +951,40 @@
             catch (Exception closeEx)
             {
                 Logger.LogError(closeEx, "[NutrientPdfViewer] Error closing modal");
+            }
+        }
+    }
+
+    /// <summary>
+    /// SIMPLIFIED TEST VERSION - just close the modal, no exports
+    /// This tests if the SignalR circuit can handle the close operation
+    /// </summary>
+    private async Task HandleCloseTestAsync()
+    {
+        try
+        {
+            Logger.LogInformation("[NutrientPdfViewer] ========================================");
+            Logger.LogInformation("[NutrientPdfViewer] SIMPLIFIED TEST CLOSE - START");
+            Logger.LogInformation("[NutrientPdfViewer] PackageDrawingId: {DrawingId}", PackageDrawingId);
+            Logger.LogInformation("[NutrientPdfViewer] ========================================");
+
+            // Just close the modal - no exports, no database operations
+            await OnClose.InvokeAsync();
+
+            Logger.LogInformation("[NutrientPdfViewer] ✓ Modal closed successfully (test mode)");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error in HandleCloseTestAsync");
+
+            // Always try to close the modal even if there's an error
+            try
+            {
+                await OnClose.InvokeAsync();
+            }
+            catch (Exception closeEx)
+            {
+                Logger.LogError(closeEx, "[NutrientPdfViewer] Error closing modal in test handler");
             }
         }
     }

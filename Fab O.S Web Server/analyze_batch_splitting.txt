@@ -1,0 +1,29 @@
+ANALYZING MIGRATIONRUNNER BATCH SPLITTING BUG
+==============================================
+
+The MigrationRunner.cs splits SQL by these delimiters:
+- "\nGO\n"
+- "\nGO\r\n"
+- "\r\nGO\r\n"
+- "\r\nGO\n"
+
+Let's check the apply_revision_only.sql file format...
+
+Looking at the file, it uses:
+- "GO" on its own line
+
+The file might be using different line endings or spacing than what the splitter expects!
+
+HYPOTHESIS:
+If the file uses "GO" with different whitespace or line endings than the split patterns,
+the entire SQL file might be treated as ONE GIANT BATCH.
+
+When executed as a single batch with nested IF statements and multiple table creations,
+SQL Server might fail with an error like:
+- "Incorrect syntax near..."
+- "Must declare the scalar variable..."
+- Or some parsing error
+
+The try-catch in MigrationRunner catches the exception but still prints success!
+
+Let me verify the actual line endings and GO statement format...

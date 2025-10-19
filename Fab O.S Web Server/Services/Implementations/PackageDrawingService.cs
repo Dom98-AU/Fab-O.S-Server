@@ -167,6 +167,31 @@ public class PackageDrawingService : IPackageDrawingService
         }
     }
 
+    public async Task<Stream> GetSharePointPdfContentAsync(int drawingId)
+    {
+        try
+        {
+            var drawing = await _context.PackageDrawings.FindAsync(drawingId);
+            if (drawing == null)
+            {
+                throw new InvalidOperationException($"Drawing {drawingId} not found");
+            }
+
+            if (string.IsNullOrEmpty(drawing.SharePointItemId))
+            {
+                throw new InvalidOperationException($"Drawing {drawingId} does not have a SharePoint item ID");
+            }
+
+            // Download from SharePoint (includes embedded measurements and scales)
+            return await _sharePointService.DownloadFileAsync(drawing.SharePointItemId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting SharePoint PDF content for {DrawingId}", drawingId);
+            throw;
+        }
+    }
+
     public async Task<bool> DeleteDrawingAsync(int drawingId)
     {
         try

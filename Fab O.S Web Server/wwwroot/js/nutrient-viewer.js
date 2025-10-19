@@ -310,6 +310,39 @@ window.nutrientViewer = {
                     { type: 'export-pdf' }
                 ],
 
+                // Measurement value configuration callback
+                // This callback receives scales stored in the document (from Instant JSON)
+                // and allows us to add custom scales or modify existing ones
+                measurementValueConfiguration: (documentScales) => {
+                    console.log('[Nutrient Viewer] ============================================');
+                    console.log('[Nutrient Viewer] 📏 Measurement scales loaded from document:');
+                    console.log('[Nutrient Viewer] Document scales:', documentScales);
+                    console.log('[Nutrient Viewer] Number of scales:', documentScales?.length || 0);
+
+                    if (documentScales && documentScales.length > 0) {
+                        documentScales.forEach((scaleObj, index) => {
+                            console.log(`[Nutrient Viewer]   Scale ${index + 1}:`, {
+                                name: scaleObj.name,
+                                unitFrom: scaleObj.scale?.unitFrom,
+                                unitTo: scaleObj.scale?.unitTo,
+                                from: scaleObj.scale?.from,
+                                to: scaleObj.scale?.to,
+                                precision: scaleObj.precision,
+                                selected: scaleObj.selected
+                            });
+                        });
+                    } else {
+                        console.log('[Nutrient Viewer] No document scales found (PDF has no saved calibration)');
+                    }
+
+                    console.log('[Nutrient Viewer] ✅ Returning document scales (Nutrient handles persistence automatically)');
+                    console.log('[Nutrient Viewer] ============================================');
+
+                    // Return the document scales as-is to preserve calibration
+                    // Nutrient automatically saves these with the document via Instant JSON
+                    return documentScales || [];
+                },
+
                 // Annotation presets with thinner strokeWidth for measurement tools
                 // Include both strokeWidth and lineWidth for compatibility
                 annotationPresets: {
@@ -536,40 +569,69 @@ window.nutrientViewer = {
 
         // Listen for annotation preset updates (includes calibration changes)
         instance.addEventListener('annotationPresets.update', async (event) => {
-            console.log('[Nutrient Viewer] Annotation presets updated');
+            console.log('[Nutrient Viewer] ============================================');
+            console.log('[Nutrient Viewer] 🔔 ANNOTATION PRESETS UPDATE EVENT FIRED!');
+            console.log('[Nutrient Viewer] Event object:', event);
+            console.log('[Nutrient Viewer] Container ID:', containerId);
 
             try {
                 // Get the updated presets
                 const presets = await instance.getAnnotationPresets();
-                console.log('[Nutrient Viewer] Current presets:', presets);
+                console.log('[Nutrient Viewer] 📋 Current presets (full object):', presets);
+                console.log('[Nutrient Viewer] 📋 Preset keys:', Object.keys(presets));
+
+                // Log each measurement type preset
+                console.log('[Nutrient Viewer] 📏 distanceMeasurement preset:', presets.distanceMeasurement);
+                console.log('[Nutrient Viewer] 📏 perimeterMeasurement preset:', presets.perimeterMeasurement);
+                console.log('[Nutrient Viewer] 📏 rectangleAreaMeasurement preset:', presets.rectangleAreaMeasurement);
+                console.log('[Nutrient Viewer] 📏 ellipseAreaMeasurement preset:', presets.ellipseAreaMeasurement);
+                console.log('[Nutrient Viewer] 📏 polygonAreaMeasurement preset:', presets.polygonAreaMeasurement);
 
                 // Check if distance measurement preset has scale configuration
                 if (presets.distanceMeasurement?.measurementValueConfiguration) {
                     const config = presets.distanceMeasurement.measurementValueConfiguration;
-                    console.log('[Nutrient Viewer] Distance measurement config:', config);
+                    console.log('[Nutrient Viewer] ✅ Distance measurement config found:', config);
+                    console.log('[Nutrient Viewer] Config keys:', Object.keys(config));
 
                     // Check if scale is configured
                     if (config.scale) {
                         const scale = config.scale;
-                        console.log('[Nutrient Viewer] Scale detected:', scale);
+                        console.log('[Nutrient Viewer] 🎯 SCALE DETECTED!');
+                        console.log('[Nutrient Viewer] Scale object:', scale);
+                        console.log('[Nutrient Viewer] Scale.from:', scale.from);
+                        console.log('[Nutrient Viewer] Scale.to:', scale.to);
+                        console.log('[Nutrient Viewer] Scale.unitFrom:', scale.unitFrom);
+                        console.log('[Nutrient Viewer] Scale.unitTo:', scale.unitTo);
 
                         // Extract scale information
                         const scaleRatio = scale.from || 50; // Default 1:50
                         const unit = scale.unitFrom || 'm';
                         const currentPage = instance.viewState.currentPageIndex;
 
-                        console.log(`[Nutrient Viewer] Calibration detected: 1:${scaleRatio} (${unit}) on page ${currentPage}`);
+                        console.log(`[Nutrient Viewer] 🎉 CALIBRATION DETECTED: 1:${scaleRatio} (${unit}) on page ${currentPage}`);
 
                         // Notify Blazor about calibration change
                         if (instanceData.dotNetRef) {
+                            console.log('[Nutrient Viewer] 📡 Sending calibration update to Blazor...');
                             await instanceData.dotNetRef.invokeMethodAsync('OnCalibrationUpdated', scaleRatio, unit, currentPage);
-                            console.log('[Nutrient Viewer] ✓ Calibration update sent to Blazor');
+                            console.log('[Nutrient Viewer] ✓ Calibration update sent to Blazor successfully');
+                        } else {
+                            console.warn('[Nutrient Viewer] ⚠️ dotNetRef is null - cannot notify Blazor');
                         }
+                    } else {
+                        console.log('[Nutrient Viewer] ⚠️ No scale found in measurementValueConfiguration');
+                        console.log('[Nutrient Viewer] Config object:', config);
                     }
+                } else {
+                    console.log('[Nutrient Viewer] ⚠️ No measurementValueConfiguration in distanceMeasurement preset');
+                    console.log('[Nutrient Viewer] distanceMeasurement preset:', presets.distanceMeasurement);
                 }
             } catch (error) {
-                console.error('[Nutrient Viewer] Error processing preset update:', error);
+                console.error('[Nutrient Viewer] ❌ Error processing preset update:', error);
+                console.error('[Nutrient Viewer] Error stack:', error.stack);
             }
+
+            console.log('[Nutrient Viewer] ============================================');
         });
 
         console.log('[Nutrient Viewer] Event listeners setup complete');
@@ -1111,17 +1173,17 @@ window.nutrientViewer = {
             // PSPDFKit measurement configuration
             // The scale is applied through measurement presets
             // For a 1:50 scale, 1 unit in PDF = 50 units in real world
-            await instanceData.instance.setAnnotationPresets((presets) => {
-                const scaleConfig = {
-                    scale: {
-                        unitFrom: unit,  // Real-world unit
-                        unitTo: unit,    // PDF unit (same)
-                        from: scale,     // Real-world distance
-                        to: 1            // PDF distance
-                    },
-                    precision: 2  // Decimal places
-                };
+            const scaleConfig = {
+                scale: {
+                    unitFrom: unit,  // Real-world unit
+                    unitTo: unit,    // PDF unit (same)
+                    from: scale,     // Real-world distance
+                    to: 1            // PDF distance
+                },
+                precision: 2  // Decimal places
+            };
 
+            await instanceData.instance.setAnnotationPresets((presets) => {
                 // Apply to all measurement types
                 if (presets.distanceMeasurement) {
                     presets.distanceMeasurement = {
@@ -1172,120 +1234,10 @@ window.nutrientViewer = {
     },
 
     /**
-     * Export measurement value configuration (calibration scales)
-     * @param {string} containerId - Container ID
-     * @returns {Promise<string>} JSON string of measurement configuration or null
-     */
-    exportMeasurementConfig: async function(containerId) {
-        const instanceData = this.instances[containerId];
-        if (!instanceData?.instance) {
-            console.warn('[Nutrient Viewer] Cannot export measurement config - no instance');
-            return null;
-        }
-
-        try {
-            console.log('[Nutrient Viewer] Exporting measurement configuration...');
-
-            // Get current annotation presets which contain measurementValueConfiguration
-            const presets = await instanceData.instance.getAnnotationPresets();
-
-            // Extract measurement configurations from all measurement types
-            const measurementConfig = {
-                distanceMeasurement: presets.distanceMeasurement?.measurementValueConfiguration || null,
-                perimeterMeasurement: presets.perimeterMeasurement?.measurementValueConfiguration || null,
-                rectangleAreaMeasurement: presets.rectangleAreaMeasurement?.measurementValueConfiguration || null,
-                ellipseAreaMeasurement: presets.ellipseAreaMeasurement?.measurementValueConfiguration || null,
-                polygonAreaMeasurement: presets.polygonAreaMeasurement?.measurementValueConfiguration || null
-            };
-
-            const configJson = JSON.stringify(measurementConfig);
-            console.log('[Nutrient Viewer] ✓ Exported measurement config:', configJson);
-            return configJson;
-
-        } catch (error) {
-            console.error('[Nutrient Viewer] Error exporting measurement config:', error);
-            return null;
-        }
-    },
-
-    /**
-     * Import measurement value configuration (calibration scales)
-     * @param {string} containerId - Container ID
-     * @param {string} configJson - JSON string of measurement configuration
-     * @returns {Promise<object>} Success result
-     */
-    importMeasurementConfig: async function(containerId, configJson) {
-        const instanceData = this.instances[containerId];
-        if (!instanceData?.instance) {
-            console.warn('[Nutrient Viewer] Cannot import measurement config - no instance');
-            return { success: false, error: 'No instance' };
-        }
-
-        if (!configJson) {
-            console.log('[Nutrient Viewer] No measurement config to import');
-            return { success: true, message: 'No config provided' };
-        }
-
-        try {
-            console.log('[Nutrient Viewer] Importing measurement configuration...');
-
-            const measurementConfig = JSON.parse(configJson);
-            console.log('[Nutrient Viewer] Parsed measurement config:', measurementConfig);
-
-            // Apply measurement configurations to annotation presets
-            await instanceData.instance.setAnnotationPresets((presets) => {
-                if (measurementConfig.distanceMeasurement) {
-                    presets.distanceMeasurement = {
-                        ...presets.distanceMeasurement,
-                        measurementValueConfiguration: measurementConfig.distanceMeasurement
-                    };
-                }
-
-                if (measurementConfig.perimeterMeasurement) {
-                    presets.perimeterMeasurement = {
-                        ...presets.perimeterMeasurement,
-                        measurementValueConfiguration: measurementConfig.perimeterMeasurement
-                    };
-                }
-
-                if (measurementConfig.rectangleAreaMeasurement) {
-                    presets.rectangleAreaMeasurement = {
-                        ...presets.rectangleAreaMeasurement,
-                        measurementValueConfiguration: measurementConfig.rectangleAreaMeasurement
-                    };
-                }
-
-                if (measurementConfig.ellipseAreaMeasurement) {
-                    presets.ellipseAreaMeasurement = {
-                        ...presets.ellipseAreaMeasurement,
-                        measurementValueConfiguration: measurementConfig.ellipseAreaMeasurement
-                    };
-                }
-
-                if (measurementConfig.polygonAreaMeasurement) {
-                    presets.polygonAreaMeasurement = {
-                        ...presets.polygonAreaMeasurement,
-                        measurementValueConfiguration: measurementConfig.polygonAreaMeasurement
-                    };
-                }
-
-                console.log('[Nutrient Viewer] ✓ Measurement config applied to presets');
-                return presets;
-            });
-
-            console.log('[Nutrient Viewer] ✓ Measurement configuration imported successfully');
-            return { success: true };
-
-        } catch (error) {
-            console.error('[Nutrient Viewer] Error importing measurement config:', error);
-            return { success: false, error: error.message };
-        }
-    },
-
-    /**
      * Export PDF with embedded annotations for SharePoint upload
+     * Returns base64-encoded PDF to avoid SignalR message size limits with large byte arrays
      * @param {string} containerId - Container ID
-     * @returns {Promise<number[]>} PDF as byte array or null
+     * @returns {Promise<string>} Base64-encoded PDF or null
      */
     exportPDF: async function(containerId) {
         const instanceData = this.instances[containerId];
@@ -1300,15 +1252,137 @@ window.nutrientViewer = {
             // Export PDF with all annotations embedded
             const arrayBuffer = await instanceData.instance.exportPDF();
 
-            // Convert ArrayBuffer to byte array for C# interop
-            const byteArray = Array.from(new Uint8Array(arrayBuffer));
+            console.log(`[Nutrient Viewer] PDF exported from PSPDFKit (${arrayBuffer.byteLength} bytes)`);
 
-            console.log(`[Nutrient Viewer] ✓ PDF exported successfully (${byteArray.length} bytes)`);
-            return byteArray;
+            // Convert ArrayBuffer to Base64 to avoid SignalR message size limits
+            // This is more efficient than transferring large byte arrays over SignalR
+            const uint8Array = new Uint8Array(arrayBuffer);
+            let binaryString = '';
+            const chunkSize = 8192;
+
+            // Build binary string in chunks to avoid stack overflow
+            for (let i = 0; i < uint8Array.length; i += chunkSize) {
+                const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+                binaryString += String.fromCharCode.apply(null, chunk);
+            }
+
+            const base64 = btoa(binaryString);
+
+            console.log(`[Nutrient Viewer] ✓ PDF exported successfully (${arrayBuffer.byteLength} bytes, base64: ${base64.length} chars)`);
+            return base64;
 
         } catch (error) {
-            console.error('[Nutrient Viewer] Error exporting PDF:', error);
+            console.error('[Nutrient Viewer] ❌ Error exporting PDF:', error);
+            console.error('[Nutrient Viewer] Error type:', error.constructor.name);
+            console.error('[Nutrient Viewer] Error message:', error.message);
+            console.error('[Nutrient Viewer] Error stack:', error.stack);
             return null;
+        }
+    },
+
+    /**
+     * Export measurement/calibration configuration (DEPRECATED)
+     *
+     * NOTE: This function is no longer needed. Measurement scales are automatically
+     * embedded in the PDF when using exportPDF(), and are automatically extracted
+     * from the PDF using the measurementValueConfiguration callback on load.
+     *
+     * Returning null here prevents errors while maintaining API compatibility.
+     *
+     * @param {string} containerId - Container ID
+     * @returns {Promise<null>} Always returns null (scales embedded in PDF)
+     */
+    exportMeasurementConfig: async function(containerId) {
+        console.log('[Nutrient Viewer] Skipping measurement config export - scales are automatically embedded in PDF via exportPDF()');
+        return null;
+    },
+
+    /**
+     * Import measurement/calibration configuration (annotation presets with scale info)
+     * This restores the calibration scale settings
+     * @param {string} containerId - Container ID
+     * @param {string} configJSON - JSON string with calibration config
+     * @returns {Promise<object>} Success result
+     */
+    importMeasurementConfig: async function(containerId, configJSON) {
+        const instanceData = this.instances[containerId];
+        if (!instanceData?.instance) {
+            console.warn('[Nutrient Viewer] Cannot import measurement config - no instance');
+            return { success: false, error: 'No instance' };
+        }
+
+        if (!configJSON) {
+            console.log('[Nutrient Viewer] No measurement config to import');
+            return { success: true, message: 'No config to import' };
+        }
+
+        try {
+            console.log('[Nutrient Viewer] Importing measurement/calibration configuration...');
+
+            const config = JSON.parse(configJSON);
+            console.log('[Nutrient Viewer] Parsed config:', config);
+
+            // Apply the measurement configuration to annotation presets
+            await instanceData.instance.setAnnotationPresets((presets) => {
+                // Apply distance measurement config
+                if (config.distanceMeasurement) {
+                    presets.distanceMeasurement = {
+                        ...presets.distanceMeasurement,
+                        measurementValueConfiguration: config.distanceMeasurement
+                    };
+                    console.log('[Nutrient Viewer] ✓ Applied distanceMeasurement config');
+                }
+
+                // Apply perimeter measurement config
+                if (config.perimeterMeasurement) {
+                    presets.perimeterMeasurement = {
+                        ...presets.perimeterMeasurement,
+                        measurementValueConfiguration: config.perimeterMeasurement
+                    };
+                    console.log('[Nutrient Viewer] ✓ Applied perimeterMeasurement config');
+                }
+
+                // Apply rectangle area measurement config
+                if (config.rectangleAreaMeasurement) {
+                    presets.rectangleAreaMeasurement = {
+                        ...presets.rectangleAreaMeasurement,
+                        measurementValueConfiguration: config.rectangleAreaMeasurement
+                    };
+                    console.log('[Nutrient Viewer] ✓ Applied rectangleAreaMeasurement config');
+                }
+
+                // Apply ellipse area measurement config
+                if (config.ellipseAreaMeasurement) {
+                    presets.ellipseAreaMeasurement = {
+                        ...presets.ellipseAreaMeasurement,
+                        measurementValueConfiguration: config.ellipseAreaMeasurement
+                    };
+                    console.log('[Nutrient Viewer] ✓ Applied ellipseAreaMeasurement config');
+                }
+
+                // Apply polygon area measurement config
+                if (config.polygonAreaMeasurement) {
+                    presets.polygonAreaMeasurement = {
+                        ...presets.polygonAreaMeasurement,
+                        measurementValueConfiguration: config.polygonAreaMeasurement
+                    };
+                    console.log('[Nutrient Viewer] ✓ Applied polygonAreaMeasurement config');
+                }
+
+                return presets;
+            });
+
+            // Restore current scale in instance data
+            if (config.currentScale) {
+                instanceData.currentScale = config.currentScale;
+            }
+
+            console.log('[Nutrient Viewer] ✓ Measurement config imported successfully');
+            return { success: true };
+
+        } catch (error) {
+            console.error('[Nutrient Viewer] Error importing measurement config:', error);
+            return { success: false, error: error.message };
         }
     }
 };
