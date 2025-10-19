@@ -199,6 +199,13 @@ builder.Services.Configure<FabOS.WebServer.Models.Configuration.SharePointSettin
 builder.Services.AddScoped<ISharePointService, SharePointService>();
 builder.Services.AddScoped<ISharePointSyncService, SharePointSyncService>();
 
+// Register Cloud Storage Providers (Multi-provider support for SharePoint, GoogleDrive, Dropbox, AzureBlob)
+builder.Services.AddScoped<FabOS.WebServer.Services.Implementations.CloudStorage.SharePointStorageProvider>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Implementations.CloudStorage.GoogleDriveStorageProvider>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Implementations.CloudStorage.DropboxStorageProvider>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Implementations.CloudStorage.AzureBlobStorageProvider>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Implementations.CloudStorage.CloudStorageProviderFactory>();
+
 // Register Trace and Takeoff services
 builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 builder.Services.AddScoped<ITraceService, TraceService>();
