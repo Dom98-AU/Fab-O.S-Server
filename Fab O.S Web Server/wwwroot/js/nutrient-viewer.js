@@ -81,30 +81,16 @@ window.nutrientViewer = {
     },
 
     /**
-     * Load PDF document from URL
+     * Build PSPDFKit configuration object (shared between loadPdf and reloadInstantJson)
      * @param {string} containerId - Container element ID
-     * @param {string} documentUrl - URL to PDF document (can be API endpoint)
+     * @param {string} documentUrl - URL to PDF document
+     * @param {object} instantJSON - Optional Instant JSON to load
+     * @returns {object} PSPDFKit configuration object
      */
-    loadPdf: async function(containerId, documentUrl) {
-        console.log(`[Nutrient Viewer] Loading PDF in ${containerId} from: ${documentUrl}`);
+    buildConfiguration: function(containerId, documentUrl, instantJSON = null) {
+        const baseUrl = `${window.location.protocol}//${window.location.host}/assets/pspdfkit/`;
 
-        try {
-            const instanceData = this.instances[containerId];
-            if (!instanceData) {
-                throw new Error('Viewer not initialized. Call initialize() first.');
-            }
-
-            // Unload existing instance if any
-            if (instanceData.instance) {
-                await PSPDFKit.unload(instanceData.instance);
-                instanceData.instance = null;
-            }
-
-            // PSPDFKit requires an absolute URL for baseUrl
-            const baseUrl = `${window.location.protocol}//${window.location.host}/assets/pspdfkit/`;
-            console.log(`[Nutrient Viewer] Base URL: ${baseUrl}`);
-
-            const configuration = {
+        const configuration = {
                 container: '#' + containerId,
                 document: documentUrl,
                 baseUrl: baseUrl,
@@ -410,8 +396,37 @@ window.nutrientViewer = {
                 annotationTooltipCallback: (annotation) => {
                     // Return empty array to hide all tooltips
                     return [];
-                }
+                },
+
+                // Add Instant JSON if provided (for reload scenarios)
+                ...(instantJSON && { instantJSON: instantJSON })
             };
+
+            return configuration;
+        },
+
+    /**
+     * Load PDF document from URL
+     * @param {string} containerId - Container element ID
+     * @param {string} documentUrl - URL to PDF document (can be API endpoint)
+     */
+    loadPdf: async function(containerId, documentUrl) {
+        console.log(`[Nutrient Viewer] Loading PDF in ${containerId} from: ${documentUrl}`);
+
+        try {
+            const instanceData = this.instances[containerId];
+            if (!instanceData) {
+                throw new Error('Viewer not initialized. Call initialize() first.');
+            }
+
+            // Unload existing instance if any
+            if (instanceData.instance) {
+                await PSPDFKit.unload(instanceData.instance);
+                instanceData.instance = null;
+            }
+
+            // Build configuration using shared function
+            const configuration = this.buildConfiguration(containerId, documentUrl);
 
             console.log('[Nutrient Viewer] Loading PSPDFKit instance...');
             instanceData.instance = await PSPDFKit.load(configuration);
@@ -484,6 +499,12 @@ window.nutrientViewer = {
                     // Export Instant JSON
                     const instantJSON = await instance.exportInstantJSON();
                     const instantJSONString = JSON.stringify(instantJSON);
+
+                    // DEBUG: Log what we're about to save
+                    console.log('[Nutrient Viewer] 🔍 DEBUG: Exported Instant JSON length:', instantJSONString.length);
+                    console.log('[Nutrient Viewer] 🔍 DEBUG: Exported Instant JSON preview (first 500 chars):', instantJSONString.substring(0, 500));
+                    console.log('[Nutrient Viewer] 🔍 DEBUG: Number of operations:', instantJSON?.operations?.length || 0);
+                    console.log('[Nutrient Viewer] 🔍 DEBUG: Instant JSON object keys:', Object.keys(instantJSON || {}));
 
                     // Extract package drawing ID from the document URL
                     const urlMatch = instanceData.documentUrl?.match(/\/api\/packagedrawings\/(\d+)/);
@@ -1339,14 +1360,37 @@ window.nutrientViewer = {
 
             const parsed = JSON.parse(instantJSON);
 
-            // Validate operations array exists and is not empty
-            if (!parsed.operations || parsed.operations.length === 0) {
-                console.log('[Nutrient Viewer] Instant JSON contains no operations, skipping import');
-                return { success: true, message: 'No operations to import' };
+            // Check if there's any content to import
+            // Nutrient exports Instant JSON with "annotations" array
+            // Operations are for incremental changes (separate format)
+            const hasAnnotations = parsed.annotations && parsed.annotations.length > 0;
+            const hasOperations = parsed.operations && parsed.operations.length > 0;
+
+            if (!hasAnnotations && !hasOperations) {
+                console.log('[Nutrient Viewer] Instant JSON contains no annotations or operations, skipping import');
+                return { success: true, message: 'No content to import' };
             }
 
-            await instanceData.instance.applyOperations(parsed);
-            console.log('[Nutrient Viewer] ✓ Annotations imported successfully');
+            console.log(`[Nutrient Viewer] 🔍 DEBUG: Importing - annotations: ${parsed.annotations?.length || 0}, operations: ${parsed.operations?.length || 0}`);
+
+            // For Instant JSON (annotations array): Use applyOperations with applyInstantJson operation type
+            // For operations array: Pass operations directly to applyOperations
+            if (hasAnnotations) {
+                // PSPDFKit/Nutrient Web SDK: applyOperations accepts an array of operation objects
+                // To import Instant JSON, use operation type "applyInstantJson"
+                await instanceData.instance.applyOperations([
+                    {
+                        type: "applyInstantJson",
+                        instantJson: parsed
+                    }
+                ]);
+                console.log('[Nutrient Viewer] ✓ Instant JSON imported successfully via applyOperations([{type: "applyInstantJson"}])');
+            } else if (hasOperations) {
+                // For incremental operations, pass the operations array directly
+                await instanceData.instance.applyOperations(parsed.operations);
+                console.log('[Nutrient Viewer] ✓ Operations applied successfully via applyOperations()');
+            }
+
             return { success: true };
         } catch (error) {
             console.error('[Nutrient Viewer] Error importing annotations:', error);
@@ -1356,6 +1400,8 @@ window.nutrientViewer = {
 
     /**
      * Reload Instant JSON from database (for multi-tab sync)
+     * Uses applyOperations() for seamless annotation updates without full reload
+     * Requires Document Creation license
      * @param {string} containerId - Container element ID
      * @param {number} packageDrawingId - Package drawing ID
      */
@@ -1389,33 +1435,65 @@ window.nutrientViewer = {
             const drawing = await response.json();
             const instantJson = drawing.instantJson;
 
+            console.log('[Nutrient Viewer] 🔍 Received from database - instantJson length:', instantJson?.length || 0);
+
             if (!instantJson) {
                 console.log('[Nutrient Viewer] No Instant JSON in database, skipping reload');
-                instanceData.autosaveEnabled = true; // Re-enable autosave
+                instanceData.autosaveEnabled = true;
                 return { success: true, message: 'No annotations to reload' };
             }
 
-            // Clear existing annotations first
-            const annotations = await instanceData.instance.getAnnotations(0); // Get all annotations from first page
-            if (annotations.size > 0) {
-                console.log(`[Nutrient Viewer] Removing ${annotations.size} existing annotations...`);
-                await instanceData.instance.delete(annotations);
+            // Parse Instant JSON
+            let parsedInstantJson = null;
+            try {
+                parsedInstantJson = JSON.parse(instantJson);
+                console.log('[Nutrient Viewer] ✓ Parsed Instant JSON - annotations:', parsedInstantJson.annotations?.length || 0);
+            } catch (parseError) {
+                console.error('[Nutrient Viewer] Failed to parse Instant JSON:', parseError);
+                instanceData.autosaveEnabled = true;
+                return { success: false, error: 'Failed to parse Instant JSON' };
             }
 
-            // Import the fresh Instant JSON
-            const result = await this.importAnnotations(containerId, instantJson);
-
-            if (result.success) {
-                console.log('[Nutrient Viewer] ✓ Instant JSON reloaded successfully from database');
+            // Clear existing annotations from all pages
+            console.log('[Nutrient Viewer] 🗑️ Clearing existing annotations...');
+            const allAnnotations = [];
+            for (let pageIndex = 0; pageIndex < instanceData.instance.totalPageCount; pageIndex++) {
+                const pageAnnotations = await instanceData.instance.getAnnotations(pageIndex);
+                allAnnotations.push(...pageAnnotations.toArray());
             }
+
+            if (allAnnotations.length > 0) {
+                console.log(`[Nutrient Viewer] Removing ${allAnnotations.length} existing annotations...`);
+                await instanceData.instance.delete(allAnnotations);
+            }
+
+            // Apply Instant JSON using applyOperations (requires Document Creation license)
+            console.log('[Nutrient Viewer] 📥 Applying Instant JSON via applyOperations...');
+            await instanceData.instance.applyOperations([
+                {
+                    type: "applyInstantJson",
+                    instantJson: parsedInstantJson
+                }
+            ]);
+
+            console.log('[Nutrient Viewer] ✓ Instant JSON applied successfully - seamless update without full reload');
 
             // RE-ENABLE autosave after reload completes
             instanceData.autosaveEnabled = true;
             console.log('[Nutrient Viewer] ✅ Autosave re-enabled after reload');
 
-            return result;
+            return { success: true };
+
         } catch (error) {
-            console.error('[Nutrient Viewer] Error reloading Instant JSON:', error);
+            console.error('[Nutrient Viewer] ❌ Error reloading Instant JSON:', error);
+            console.error('[Nutrient Viewer] Error details:', error.message);
+
+            // Check if it's a license error
+            if (error.message && error.message.includes('license')) {
+                console.error('[Nutrient Viewer] ⚠️ LICENSE ERROR: Document Creation license required for applyOperations()');
+                console.error('[Nutrient Viewer] Please update license key to include Document Creation feature');
+            }
+
             // Make sure to re-enable autosave even if reload fails
             instanceData.autosaveEnabled = true;
             return { success: false, error: error.message };
