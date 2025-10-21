@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using FabOS.WebServer.Services.Interfaces;
 using FabOS.WebServer.Models.Entities;
+using FabOS.WebServer.Hubs;
+using FabOS.WebServer.Data.Contexts;
+using Microsoft.EntityFrameworkCore;
 
 namespace FabOS.WebServer.Controllers.Api;
 
@@ -12,13 +15,19 @@ public class PackageDrawingController : ControllerBase
 {
     private readonly IPackageDrawingService _drawingService;
     private readonly ILogger<PackageDrawingController> _logger;
+    private readonly IMeasurementHubService _measurementHubService;
+    private readonly ApplicationDbContext _context;
 
     public PackageDrawingController(
         IPackageDrawingService drawingService,
-        ILogger<PackageDrawingController> logger)
+        ILogger<PackageDrawingController> logger,
+        IMeasurementHubService measurementHubService,
+        ApplicationDbContext context)
     {
         _drawingService = drawingService;
         _logger = logger;
+        _measurementHubService = measurementHubService;
+        _context = context;
     }
 
     /// <summary>
@@ -228,4 +237,48 @@ public class PackageDrawingController : ControllerBase
             return StatusCode(500, "An error occurred while retrieving the file from SharePoint");
         }
     }
+
+    /// <summary>
+    /// Save Instant JSON for autosave functionality
+    /// Called automatically from JavaScript when annotations change
+    /// </summary>
+    [HttpPost("{id}/instant-json")]
+    public async Task<IActionResult> SaveInstantJson(int id, [FromBody] SaveInstantJsonRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("[API] SaveInstantJson called for drawing {DrawingId}, JSON length: {Length}",
+                id, request.InstantJson?.Length ?? 0);
+
+            // Get the drawing
+            var drawing = await _context.PackageDrawings.FindAsync(id);
+            if (drawing == null)
+            {
+                return NotFound(new { message = "Drawing not found" });
+            }
+
+            // Update Instant JSON
+            drawing.InstantJson = request.InstantJson;
+            drawing.InstantJsonLastUpdated = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("[API] ✓ Instant JSON saved for drawing {DrawingId}", id);
+
+            // Broadcast SignalR event to notify other tabs
+            await _measurementHubService.NotifyInstantJsonUpdatedAsync(id);
+
+            return Ok(new { success = true, message = "Instant JSON saved successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[API] Error saving Instant JSON for drawing {DrawingId}", id);
+            return StatusCode(500, new { message = "An error occurred while saving Instant JSON" });
+        }
+    }
+}
+
+public class SaveInstantJsonRequest
+{
+    public string? InstantJson { get; set; }
 }

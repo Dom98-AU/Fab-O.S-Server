@@ -12,13 +12,16 @@ public class PdfCalibrationService : IPdfCalibrationService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<PdfCalibrationService> _logger;
+    private readonly FabOS.WebServer.Hubs.IMeasurementHubService _measurementHubService;
 
     public PdfCalibrationService(
         ApplicationDbContext context,
-        ILogger<PdfCalibrationService> logger)
+        ILogger<PdfCalibrationService> logger,
+        FabOS.WebServer.Hubs.IMeasurementHubService measurementHubService)
     {
         _context = context;
         _logger = logger;
+        _measurementHubService = measurementHubService;
     }
 
     public async Task<PdfScaleCalibration> SaveCalibrationAsync(
@@ -244,6 +247,9 @@ public class PdfCalibrationService : IPdfCalibrationService
     {
         try
         {
+            _logger.LogInformation("[PdfCalibrationService] ============================================");
+            _logger.LogInformation("[PdfCalibrationService] DeleteAnnotationAsync called for {AnnotationId}", annotationId);
+
             var annotation = await _context.PdfAnnotations
                 .FirstOrDefaultAsync(a => a.AnnotationId == annotationId && a.CompanyId == companyId);
 
@@ -253,10 +259,61 @@ public class PdfCalibrationService : IPdfCalibrationService
                 return false;
             }
 
+            _logger.LogInformation("[PdfCalibrationService] Annotation found:");
+            _logger.LogInformation("[PdfCalibrationService]   - Id: {Id}", annotation.Id);
+            _logger.LogInformation("[PdfCalibrationService]   - AnnotationId: {AnnotationId}", annotation.AnnotationId);
+            _logger.LogInformation("[PdfCalibrationService]   - PackageDrawingId: {PackageDrawingId}", annotation.PackageDrawingId);
+            _logger.LogInformation("[PdfCalibrationService]   - TraceTakeoffMeasurementId: {MeasurementId}", annotation.TraceTakeoffMeasurementId);
+            _logger.LogInformation("[PdfCalibrationService]   - IsMeasurement: {IsMeasurement}", annotation.IsMeasurement);
+
+            int? deletedMeasurementId = null;
+            int packageDrawingId = annotation.PackageDrawingId;
+
+            // CASCADE DELETE: If this annotation is linked to a measurement, delete the measurement first
+            if (annotation.TraceTakeoffMeasurementId.HasValue)
+            {
+                _logger.LogInformation("[PdfCalibrationService] ✓ Annotation IS linked to measurement {MeasurementId}, deleting measurement...",
+                    annotation.TraceTakeoffMeasurementId.Value);
+
+                var linkedMeasurement = await _context.TraceTakeoffMeasurements
+                    .FirstOrDefaultAsync(m => m.Id == annotation.TraceTakeoffMeasurementId.Value);
+
+                if (linkedMeasurement != null)
+                {
+                    deletedMeasurementId = linkedMeasurement.Id;
+                    _context.TraceTakeoffMeasurements.Remove(linkedMeasurement);
+                    _logger.LogInformation("[PdfCalibrationService] Cascade deleting linked measurement {MeasurementId} for annotation {AnnotationId}",
+                        linkedMeasurement.Id, annotationId);
+                }
+                else
+                {
+                    _logger.LogWarning("[PdfCalibrationService] ✗ Linked measurement {MeasurementId} not found in database!",
+                        annotation.TraceTakeoffMeasurementId.Value);
+                }
+            }
+            else
+            {
+                _logger.LogWarning("[PdfCalibrationService] ✗ Annotation is NOT linked to any measurement (TraceTakeoffMeasurementId is NULL)");
+            }
+
+            // Now delete the annotation
             _context.PdfAnnotations.Remove(annotation);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("[PdfCalibrationService] ✓ Annotation {AnnotationId} deleted", annotationId);
+            _logger.LogInformation("[PdfCalibrationService] ✓ Annotation {AnnotationId} deleted from database", annotationId);
+
+            // Broadcast deletion via SignalR Hub to ALL connected clients (multi-tab/multi-user support)
+            if (deletedMeasurementId.HasValue)
+            {
+                _logger.LogInformation("[PdfCalibrationService] ✓ Broadcasting MeasurementDeleted via SignalR Hub for PackageDrawingId={PackageDrawingId}, MeasurementId={MeasurementId}, AnnotationId={AnnotationId}",
+                    packageDrawingId, deletedMeasurementId.Value, annotationId);
+                await _measurementHubService.NotifyMeasurementDeletedAsync(packageDrawingId, deletedMeasurementId.Value, annotationId);
+            }
+
+            // DEPRECATED: Keep static event for backward compatibility (will be removed in future)
+            // MeasurementNotificationService.NotifyMeasurementDeleted(packageDrawingId, deletedMeasurementId);
+
+            _logger.LogInformation("[PdfCalibrationService] ============================================");
             return true;
         }
         catch (Exception ex)

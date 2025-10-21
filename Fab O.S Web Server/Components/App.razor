@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="css/table-view-toolbar.css" />
     <link rel="stylesheet" href="css/frozen-columns.css" />
     <link rel="stylesheet" href="css/view-controls.css" />
-    <link rel="stylesheet" href="css/takeoff-catalogue.css" />
+    <link rel="stylesheet" href="css/takeoff-catalogue.css?v=20251020" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
     <!-- Nutrient (PSPDFKit) Web SDK -->
@@ -38,10 +38,14 @@
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
 
+    <!-- DEPRECATED: JavaScript SignalR client (replaced with C# HubConnection in TakeoffMeasurementPanel) -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script> -->
+    <!-- <script src="js/measurement-hub-client.js?v=3"></script> -->
+
     <!-- Nutrient (PSPDFKit) Web SDK -->
     <script src="assets/pspdfkit/pspdfkit.js"></script>
     <script src="js/nutrient-poc.js?v=1"></script>
-    <script src="js/nutrient-viewer.js?v=11"></script>
+    <script src="js/nutrient-viewer.js?v=26"></script>
 
     <!-- Existing PDF.js viewers (keep for backward compatibility) -->
     <script src="js/pdf-takeoff-viewer.js?v=3"></script>

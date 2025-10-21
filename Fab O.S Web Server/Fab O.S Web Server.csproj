@@ -58,6 +58,9 @@
     
     <!-- Microsoft Graph for SharePoint -->
     <PackageReference Include="Microsoft.Graph" Version="5.42.0" />
+
+    <!-- SignalR Client for C# hub connections -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

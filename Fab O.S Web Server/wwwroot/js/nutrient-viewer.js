@@ -11,6 +11,30 @@ window.nutrientViewer = {
     // Development license: Webviewer + Annotation + Comments & Replies + Content Editor + Document Editor + Measurement tools
     defaultLicenseKey: "0D8AjKw9jGNdbWXn4JuDDwXVzN6ZSL76NEVWU-A4Y99C8w3THXzIxgncCIBrePSL8qVAFiwszAUotFXjPkfwAr2A1y5hq_Tj-poiQNtLJVhnUudMaeGTVuIG_fbRc5KHQpUFBKnlaBnpXfVlopPjmKa8oDdG_tYfvSIv7Cv802oIRjjEwXfSjw0w8vAFnSqhgMO65NT-df7pljLwhHCkGSgXXQte3vTzi4xzhWJxGBUSDko1iE37nLLwJoZtdLJRxIZAQOJR85LkCnZ9GZXJkZDGciMbam2H3w9wD_50wDB3oGQFSm8aXEZCKS-hsRNV_6dHjSHcAU3xpihrzrrcAzuRDY6ilO5xQvQP",
 
+    // Color pool management for distinct catalogue item colors
+    colorPool: [
+        { r: 65, g: 105, b: 225 },      // Royal Blue
+        { r: 255, g: 140, b: 0 },       // Dark Orange
+        { r: 34, g: 139, b: 34 },       // Forest Green
+        { r: 220, g: 20, b: 60 },       // Crimson
+        { r: 138, g: 43, b: 226 },      // Blue Violet
+        { r: 0, g: 139, b: 139 },       // Dark Cyan
+        { r: 199, g: 21, b: 133 },      // Medium Violet Red
+        { r: 70, g: 130, b: 180 },      // Steel Blue
+        { r: 178, g: 34, b: 34 },       // Firebrick
+        { r: 50, g: 205, b: 50 },       // Lime Green
+        { r: 255, g: 165, b: 0 },       // Orange
+        { r: 147, g: 112, b: 219 },     // Medium Purple
+        { r: 0, g: 128, b: 0 },         // Green
+        { r: 255, g: 99, b: 71 },       // Tomato
+        { r: 75, g: 0, b: 130 },        // Indigo
+        { r: 139, g: 0, b: 0 },         // Dark Red
+        { r: 100, g: 149, b: 237 },     // Cornflower Blue
+        { r: 255, g: 127, b: 80 },      // Coral
+        { r: 0, g: 206, b: 209 },       // Dark Turquoise
+        { r: 72, g: 61, b: 139 }        // Dark Slate Blue
+    ],
+
     /**
      * Initialize Nutrient viewer
      * @param {string} containerId - HTML element ID for PDF container
@@ -39,7 +63,9 @@ window.nutrientViewer = {
                     dotNetRef: dotNetReference,
                     annotations: [],
                     currentScale: 50, // Default 1:50
-                    selectedCatalogueItem: null // For catalogue-aware measurements
+                    selectedCatalogueItem: null, // For catalogue-aware measurements
+                    colorPoolIndex: 0, // Track next available color from pool
+                    usedColors: new Set() // Track which colors are currently in use
                 };
             } else {
                 this.instances[containerId].dotNetRef = dotNetReference;
@@ -90,6 +116,13 @@ window.nutrientViewer = {
                 snapToContentVertices: true,   // Snap to line endpoints
                 snapToContentEdges: true,      // Snap to line midpoints
                 snapDistance: 10,              // Pixels within which snapping activates
+
+                // Hide annotation tooltips for measurement annotations
+                annotationTooltipCallback: (annotation) => {
+                    // Hide all tooltips - we don't want any tooltips showing during measurements
+                    // This includes "Line Width", measurement values, etc.
+                    return [];
+                },
 
                 // Toolbar configuration with measurement tools
                 toolbarItems: [
@@ -373,82 +406,19 @@ window.nutrientViewer = {
                     }
                 },
 
-                // Annotation tooltip callback to add line thickness control
+                // Hide all annotation tooltips - no tooltips needed for measurements
                 annotationTooltipCallback: (annotation) => {
-                    // Only show thickness control for annotations that support strokeWidth
-                    if (annotation.strokeWidth === undefined) {
-                        return null;
-                    }
-
-                    // DO NOT show tooltip for distance measurements (toolbar already has width control)
-                    // Only show for calibration and other annotation types
-                    if (annotation.isMeasurement && annotation.measurementType === 'distance') {
-                        console.log('[Nutrient Viewer] Suppressing tooltip for distance measurement');
-                        return null;
-                    }
-
-                    return [
-                        {
-                            type: "custom",
-                            title: "Line Thickness",
-                            id: "line-thickness-control",
-                            node: (() => {
-                                const container = document.createElement('div');
-                                container.style.cssText = 'padding: 8px; min-width: 200px;';
-
-                                const label = document.createElement('label');
-                                label.textContent = 'Line Width: ';
-                                label.style.cssText = 'font-weight: 600; display: block; margin-bottom: 4px;';
-
-                                const sliderContainer = document.createElement('div');
-                                sliderContainer.style.cssText = 'display: flex; align-items: center; gap: 8px;';
-
-                                const slider = document.createElement('input');
-                                slider.type = 'range';
-                                slider.min = '1';
-                                slider.max = '10';
-                                slider.step = '0.5';
-                                slider.value = annotation.strokeWidth;
-                                slider.style.cssText = 'flex: 1;';
-
-                                const valueDisplay = document.createElement('span');
-                                valueDisplay.textContent = annotation.strokeWidth + 'pt';
-                                valueDisplay.style.cssText = 'min-width: 40px; text-align: right; font-weight: 600;';
-
-                                // Get the instance to update the annotation
-                                const containerId = Object.keys(nutrientViewer.instances).find(id =>
-                                    nutrientViewer.instances[id].instance
-                                );
-                                const instanceData = nutrientViewer.instances[containerId];
-
-                                slider.addEventListener('input', async (e) => {
-                                    const newWidth = parseFloat(e.target.value);
-                                    valueDisplay.textContent = newWidth + 'pt';
-
-                                    if (instanceData?.instance) {
-                                        try {
-                                            const updated = annotation.set('strokeWidth', newWidth);
-                                            await instanceData.instance.update(updated);
-                                        } catch (error) {
-                                            console.error('[Nutrient Viewer] Error updating stroke width:', error);
-                                        }
-                                    }
-                                });
-
-                                sliderContainer.appendChild(slider);
-                                sliderContainer.appendChild(valueDisplay);
-                                container.appendChild(label);
-                                container.appendChild(sliderContainer);
-
-                                return container;
-                            })()
-                        }
-                    ];
+                    // Return empty array to hide all tooltips
+                    return [];
                 }
             };
 
             console.log('[Nutrient Viewer] Loading PSPDFKit instance...');
             instanceData.instance = await PSPDFKit.load(configuration);
+
+            // Store the document URL for later use (e.g., extracting package drawing ID)
+            instanceData.documentUrl = documentUrl;
+            console.log('[Nutrient Viewer] Stored document URL:', documentUrl);
 
             console.log(`[Nutrient Viewer] ✓ PSPDFKit instance loaded successfully! (${instanceData.instance.totalPageCount} pages)`);
 
@@ -490,6 +460,46 @@ window.nutrientViewer = {
         const instance = instanceData.instance;
         const self = this;
 
+        // Debounced autosave function - saves Instant JSON after 2 seconds of inactivity
+        let autosaveTimer = null;
+        const triggerAutosave = () => {
+            if (autosaveTimer) {
+                clearTimeout(autosaveTimer);
+            }
+
+            autosaveTimer = setTimeout(async () => {
+                console.log('[Nutrient Viewer] 💾 Autosave triggered...');
+                try {
+                    // Export Instant JSON
+                    const instantJSON = await instance.exportInstantJSON();
+                    const instantJSONString = JSON.stringify(instantJSON);
+
+                    // Extract package drawing ID from the document URL
+                    const urlMatch = instanceData.documentUrl?.match(/\/api\/packagedrawings\/(\d+)/);
+                    const packageDrawingId = urlMatch ? parseInt(urlMatch[1]) : null;
+
+                    if (packageDrawingId) {
+                        // Save to database via API
+                        const response = await fetch(`/api/packagedrawings/${packageDrawingId}/instant-json`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ instantJson: instantJSONString })
+                        });
+
+                        if (response.ok) {
+                            console.log('[Nutrient Viewer] ✓ Autosave successful - Instant JSON saved to database');
+                        } else {
+                            console.error('[Nutrient Viewer] ✗ Autosave failed:', await response.text());
+                        }
+                    }
+                } catch (error) {
+                    console.error('[Nutrient Viewer] ✗ Autosave error:', error);
+                }
+            }, 2000); // 2 second debounce
+        };
+
         // Listen for annotation creation
         instance.addEventListener('annotations.create', async (annotations) => {
             console.log('[Nutrient Viewer] ============================================');
@@ -498,12 +508,45 @@ window.nutrientViewer = {
             for (const annotation of annotations) {
                 console.log(`[Nutrient Viewer] Annotation type: ${annotation.constructor.name}`);
                 console.log(`[Nutrient Viewer] Annotation ID: ${annotation.id}`);
-                console.log(`[Nutrient Viewer] Is measurement: ${annotation.isMeasurement}`);
+                const isMeasurement = typeof annotation.isMeasurement === 'function' ? annotation.isMeasurement() : annotation.isMeasurement;
+                console.log(`[Nutrient Viewer] Is measurement: ${isMeasurement}`);
 
-                if (annotation.isMeasurement) {
+                // Log the actual colors BEFORE we update them
+                if (annotation.strokeColor) {
+                    console.log(`[Nutrient Viewer] Original annotation stroke color: rgb(${Math.round(annotation.strokeColor.r)}, ${Math.round(annotation.strokeColor.g)}, ${Math.round(annotation.strokeColor.b)})`);
+                } else {
+                    console.log(`[Nutrient Viewer] ✗ No stroke color on annotation`);
+                }
+
+                // Check if this is a measurement annotation AND we have a selected catalogue item with assigned color
+                if (isMeasurement && instanceData.selectedCatalogueItem?.assignedColor) {
+                    const colorRGB = instanceData.selectedCatalogueItem.assignedColor;
+                    const color = new PSPDFKit.Color(colorRGB);
+                    console.log(`[Nutrient Viewer] 🎨 Applying catalogue color to annotation: rgb(${colorRGB.r}, ${colorRGB.g}, ${colorRGB.b})`);
+
+                    try {
+                        // Update annotation with the assigned color
+                        const updatedAnnotation = annotation
+                            .set('strokeColor', color)
+                            .set('fillColor', color.set('a', 0.3)); // Semi-transparent fill
+
+                        await instance.update(updatedAnnotation);
+                        console.log(`[Nutrient Viewer] ✓ Updated annotation ${annotation.id} with catalogue color`);
+                    } catch (error) {
+                        console.error(`[Nutrient Viewer] ✗ Failed to update annotation color:`, error);
+                    }
+                }
+
+                if (isMeasurement) {
                     console.log(`[Nutrient Viewer] Measurement type: ${annotation.measurementType}`);
                     console.log(`[Nutrient Viewer] Measurement value: ${annotation.measurementValue}`);
                     console.log(`[Nutrient Viewer] Measurement config:`, annotation.measurementValueConfiguration);
+                    console.log(`[Nutrient Viewer] Measurement scale:`, annotation.measurementScale);
+                    console.log(`[Nutrient Viewer] Annotation subject:`, annotation.subject);
+                    console.log(`[Nutrient Viewer] Annotation contents:`, annotation.contents);
+                    console.log(`[Nutrient Viewer] Annotation note:`, annotation.note);
+                    console.log(`[Nutrient Viewer] Start point:`, annotation.startPoint);
+                    console.log(`[Nutrient Viewer] End point:`, annotation.endPoint);
                 }
 
                 // Extract annotation data
@@ -515,7 +558,57 @@ window.nutrientViewer = {
                     console.log(`[Nutrient Viewer] Selected catalogue item: ${instanceData.selectedCatalogueItem.itemCode} - ${instanceData.selectedCatalogueItem.description}`);
                 }
 
-                // If this is a measurement annotation and a catalogue item is selected, calculate
+                // IMPORTANT: Save annotation to database FIRST via HTTP API (more reliable than JS interop)
+                console.log('[Nutrient Viewer] Saving annotation to database via HTTP API...');
+                try {
+                    // Extract package drawing ID from the document URL
+                    // URL format: /api/packagedrawings/{id}/sharepoint-content
+                    const urlMatch = instanceData.documentUrl?.match(/\/api\/packagedrawings\/(\d+)/);
+                    const packageDrawingId = urlMatch ? parseInt(urlMatch[1]) : null;
+
+                    if (packageDrawingId) {
+                        // Create a simple JSON representation of the annotation
+                        const instantJson = JSON.stringify({
+                            id: annotation.id,
+                            type: annotationData.type,
+                            pageIndex: annotationData.pageIndex,
+                            isMeasurement: annotationData.isMeasurement,
+                            coordinates: annotationData.coordinates
+                        });
+
+                        const saveRequest = {
+                            annotationId: annotation.id,
+                            packageDrawingId: packageDrawingId,
+                            annotationType: annotationData.type,
+                            pageIndex: annotationData.pageIndex,
+                            isMeasurement: annotationData.isMeasurement,
+                            instantJson: instantJson
+                        };
+
+                        console.log('[Nutrient Viewer] Saving annotation:', saveRequest);
+
+                        const response = await fetch('/api/takeoff/catalogue/annotations', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(saveRequest)
+                        });
+
+                        if (response.ok) {
+                            console.log('[Nutrient Viewer] ✓ Annotation saved to database successfully');
+                        } else {
+                            const errorText = await response.text();
+                            console.error('[Nutrient Viewer] ✗ Failed to save annotation:', errorText);
+                        }
+                    } else {
+                        console.error('[Nutrient Viewer] ✗ Could not extract packageDrawingId from URL:', instanceData.documentUrl);
+                    }
+                } catch (error) {
+                    console.error('[Nutrient Viewer] ✗ Error saving annotation:', error);
+                }
+
+                // THEN calculate measurement (so annotation exists in DB for linking)
                 if (annotationData.isMeasurement && instanceData.selectedCatalogueItem) {
                     console.log('[Nutrient Viewer] ✓ TRIGGERING MEASUREMENT CALCULATION');
                     console.log(`[Nutrient Viewer] Calling calculateMeasurement for annotation ${annotation.id}`);
@@ -528,17 +621,11 @@ window.nutrientViewer = {
                         console.log('[Nutrient Viewer] ✗ Skipping calculation - no catalogue item selected');
                     }
                 }
-
-                // Notify Blazor
-                console.log('[Nutrient Viewer] Notifying Blazor about annotation creation');
-                if (instanceData.dotNetRef) {
-                    await instanceData.dotNetRef.invokeMethodAsync('OnAnnotationCreated', annotationData);
-                    console.log('[Nutrient Viewer] ✓ Blazor notified successfully');
-                } else {
-                    console.error('[Nutrient Viewer] ✗ dotNetRef is null - cannot notify Blazor');
-                }
             }
             console.log('[Nutrient Viewer] ============================================');
+
+            // Trigger autosave after annotation creation
+            triggerAutosave();
         });
 
         // Listen for annotation updates
@@ -553,18 +640,52 @@ window.nutrientViewer = {
                     await instanceData.dotNetRef.invokeMethodAsync('OnAnnotationUpdated', annotationData);
                 }
             }
+
+            // Trigger autosave after annotation update
+            triggerAutosave();
         });
 
         // Listen for annotation deletion
         instance.addEventListener('annotations.delete', async (annotations) => {
+            console.log(`[Nutrient Viewer] ============================================`);
             console.log(`[Nutrient Viewer] Annotation(s) deleted: ${annotations.size}`);
 
             for (const annotation of annotations) {
-                // Notify Blazor
-                if (instanceData.dotNetRef) {
-                    await instanceData.dotNetRef.invokeMethodAsync('OnAnnotationDeleted', annotation.id);
+                console.log(`[Nutrient Viewer] Deleting annotation ID: ${annotation.id}`);
+
+                // Call HTTP API endpoint to delete annotation and linked measurement (more reliable than JS interop)
+                try {
+                    console.log(`[Nutrient Viewer] Calling API DELETE /api/takeoff/catalogue/annotations/${annotation.id}...`);
+
+                    const response = await fetch(`/api/takeoff/catalogue/annotations/${annotation.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        console.log(`[Nutrient Viewer] ✓ API successfully deleted annotation and linked measurement:`, result);
+
+                        // Notify UI panel to refresh via SignalR event (handled by server)
+                        console.log(`[Nutrient Viewer] ✓ Server should trigger UI refresh via SignalR`);
+                    } else {
+                        const errorText = await response.text();
+                        console.error(`[Nutrient Viewer] ✗ API error deleting annotation: ${response.status} ${response.statusText}`, errorText);
+                    }
+                } catch (error) {
+                    console.error(`[Nutrient Viewer] ✗ Error calling deletion API:`);
+                    console.error(`[Nutrient Viewer] Error message: ${error.message}`);
+                    console.error(`[Nutrient Viewer] Error stack:`, error.stack);
+                    console.error(`[Nutrient Viewer] Full error:`, error);
                 }
             }
+
+            console.log(`[Nutrient Viewer] ============================================`);
+
+            // Trigger autosave after annotation deletion
+            triggerAutosave();
         });
 
         // Listen for annotation preset updates (includes calibration changes)
@@ -752,13 +873,38 @@ window.nutrientViewer = {
     },
 
     /**
-     * Get color for a category (helper function)
-     * Maps catalogue categories to trace colors
+     * Get next available color from the color pool
+     * Cycles through colors and ensures maximum visual distinction
+     * @param {string} containerId - Container element ID
+     * @returns {object} RGB color object { r, g, b }
+     */
+    getNextAvailableColor: function(containerId) {
+        const instanceData = this.instances[containerId];
+        if (!instanceData) {
+            console.warn('[Nutrient Viewer] Cannot get color - no instance');
+            return this.colorPool[0]; // Return first color as fallback
+        }
+
+        // Get the next color from the pool using round-robin
+        const color = this.colorPool[instanceData.colorPoolIndex];
+
+        // Increment index and wrap around
+        instanceData.colorPoolIndex = (instanceData.colorPoolIndex + 1) % this.colorPool.length;
+
+        console.log(`[Nutrient Viewer] Assigned color from pool: rgb(${color.r}, ${color.g}, ${color.b}), next index: ${instanceData.colorPoolIndex}`);
+
+        return color;
+    },
+
+    /**
+     * Get color for a category (DEPRECATED - kept for backward compatibility)
+     * Use getNextAvailableColor() instead for better color distribution
      * @param {string} category - Category name
      * @returns {object} PSPDFKit Color object
      */
     getCategoryColor: function(category) {
-        // Color mapping for different categories
+        // This function is now deprecated in favor of color pool system
+        // Keeping it for backward compatibility but not used in new code
         const categoryColors = {
             'Universal Beams': { r: 65, g: 105, b: 225 },      // Royal Blue
             'Universal Columns': { r: 70, g: 130, b: 180 },    // Steel Blue
@@ -792,11 +938,12 @@ window.nutrientViewer = {
 
     /**
      * Set selected catalogue item for measurements
+     * Uses color pool system to assign unique colors to each catalogue item
      * @param {string} containerId - Container element ID
      * @param {number} catalogueItemId - Catalogue item ID
      * @param {string} itemCode - Item code
      * @param {string} description - Item description
-     * @param {string} category - Category for color mapping
+     * @param {string} category - Category (for reference, not used for color mapping)
      */
     setSelectedCatalogueItem: async function(containerId, catalogueItemId, itemCode, description, category) {
         const instanceData = this.instances[containerId];
@@ -812,47 +959,67 @@ window.nutrientViewer = {
         console.log(`[Nutrient Viewer]   - Description: ${description}`);
         console.log(`[Nutrient Viewer]   - Category: ${category}`);
 
+        // Get next available color from the pool
+        const colorRGB = this.getNextAvailableColor(containerId);
+        const color = new PSPDFKit.Color(colorRGB);
+
         instanceData.selectedCatalogueItem = {
             id: catalogueItemId,
             itemCode: itemCode,
             description: description,
-            category: category
+            category: category,
+            assignedColor: colorRGB // Store the assigned color for this catalogue item
         };
 
-        console.log(`[Nutrient Viewer] Catalogue item stored in instance data`);
+        console.log(`[Nutrient Viewer] Catalogue item stored with assigned color: rgb(${colorRGB.r}, ${colorRGB.g}, ${colorRGB.b})`);
 
-        // Auto-select trace color based on category
-        if (category && instanceData.instance) {
-            const color = this.getCategoryColor(category);
-            console.log(`[Nutrient Viewer] Setting trace color for category '${category}':`, color);
+        // Update annotation presets with the new color
+        if (instanceData.instance) {
+            console.log(`[Nutrient Viewer] Setting annotation color: rgb(${colorRGB.r}, ${colorRGB.g}, ${colorRGB.b})`);
 
-            // Update annotation presets with the new color
             await instanceData.instance.setAnnotationPresets((presets) => {
                 presets.distanceMeasurement = {
                     ...presets.distanceMeasurement,
-                    strokeColor: color
+                    strokeColor: color,
+                    fillColor: color.set('a', 0.3) // Semi-transparent fill
                 };
                 presets.perimeterMeasurement = {
                     ...presets.perimeterMeasurement,
-                    strokeColor: color
+                    strokeColor: color,
+                    fillColor: color.set('a', 0.3)
                 };
                 presets.rectangleAreaMeasurement = {
                     ...presets.rectangleAreaMeasurement,
-                    strokeColor: color
+                    strokeColor: color,
+                    fillColor: color.set('a', 0.3)
                 };
                 presets.ellipseAreaMeasurement = {
                     ...presets.ellipseAreaMeasurement,
-                    strokeColor: color
+                    strokeColor: color,
+                    fillColor: color.set('a', 0.3)
                 };
                 presets.polygonAreaMeasurement = {
                     ...presets.polygonAreaMeasurement,
-                    strokeColor: color
+                    strokeColor: color,
+                    fillColor: color.set('a', 0.3)
                 };
 
-                console.log('[Nutrient Viewer] ✓ Trace color updated for all measurement types');
+                console.log('[Nutrient Viewer] ✓ Color updated for all measurement types');
                 return presets;
             });
+
+            // Force update the UI by refreshing the annotation toolbar state
+            // This makes the color change visible immediately in the UI
+            const currentTool = await instanceData.instance.getActiveAnnotationTool();
+            if (currentTool) {
+                // Re-set the same tool to force UI refresh with new color
+                await instanceData.instance.setActiveAnnotationTool(null);
+                await instanceData.instance.setActiveAnnotationTool(currentTool);
+                console.log('[Nutrient Viewer] ✓ Refreshed annotation toolbar to show new color');
+            }
         }
+
+        console.log('[Nutrient Viewer] ============================================');
     },
 
     /**
@@ -893,28 +1060,97 @@ window.nutrientViewer = {
             // Extract measurement value and type
             let measurementValue = 0;
             let measurementType = 'linear';
-            let unit = 'm';
+            let unit = 'm'; // Default unit
+            let measurementLabel = '';
 
-            console.log(`[Nutrient Viewer] Annotation measurementValue property: ${annotation.measurementValue}`);
-            if (annotation.measurementValue !== undefined) {
-                measurementValue = annotation.measurementValue;
-                console.log(`[Nutrient Viewer] ✓ Measurement value extracted: ${measurementValue}`);
+            // Try to get measurement value using PSPDFKit's getMeasurementDetails() method
+            if (typeof annotation.getMeasurementDetails === 'function') {
+                try {
+                    const measurementDetails = annotation.getMeasurementDetails();
+                    if (measurementDetails && measurementDetails.value !== undefined) {
+                        measurementValue = measurementDetails.value;
+                        measurementLabel = measurementDetails.label || '';
+                        console.log(`[Nutrient Viewer] ✓ Measurement value from getMeasurementDetails(): ${measurementValue}`);
+                        console.log(`[Nutrient Viewer] Measurement label: ${measurementLabel}`);
+
+                        // Extract unit from label (e.g., "3.09 in" -> "in")
+                        if (measurementLabel) {
+                            const unitMatch = measurementLabel.match(/\s+(in|ft|m|mm|cm|km|yd)$/i);
+                            if (unitMatch) {
+                                unit = unitMatch[1].toLowerCase();
+                                console.log(`[Nutrient Viewer] ✓ Extracted unit from label: ${unit}`);
+                            }
+                        }
+                    } else {
+                        console.warn('[Nutrient Viewer] getMeasurementDetails() returned undefined value');
+                    }
+                } catch (error) {
+                    console.error('[Nutrient Viewer] Error calling getMeasurementDetails():', error);
+                }
             } else {
-                console.error('[Nutrient Viewer] ✗ Measurement value is undefined!');
+                console.log(`[Nutrient Viewer] Annotation measurementValue property: ${annotation.measurementValue}`);
+                if (annotation.measurementValue !== undefined) {
+                    measurementValue = annotation.measurementValue;
+                    console.log(`[Nutrient Viewer] ✓ Measurement value from property: ${measurementValue}`);
+                } else {
+                    console.error('[Nutrient Viewer] ✗ Measurement value is undefined and getMeasurementDetails() not available!');
+                }
             }
 
-            // Determine measurement type from annotation
+            // Try to get unit from measurement scale if not already extracted
+            if (unit === 'm' && annotation.measurementScale) {
+                const scale = annotation.measurementScale;
+                if (scale.unitTo) {
+                    unit = scale.unitTo.toLowerCase();
+                    console.log(`[Nutrient Viewer] ✓ Using unit from measurementScale.unitTo: ${unit}`);
+                } else if (scale.unitFrom) {
+                    unit = scale.unitFrom.toLowerCase();
+                    console.log(`[Nutrient Viewer] ✓ Using unit from measurementScale.unitFrom: ${unit}`);
+                }
+            }
+
+            // Determine measurement type from annotation using PSPDFKit properties
             console.log(`[Nutrient Viewer] Annotation measurementType property: ${annotation.measurementType}`);
+            console.log(`[Nutrient Viewer] Annotation subject property: ${annotation.subject}`);
+            console.log(`[Nutrient Viewer] Annotation constructor.name: ${annotation.constructor.name}`);
+
+            // Try annotation.measurementType first (PSPDFKit standard property)
             if (annotation.measurementType) {
                 measurementType = annotation.measurementType.toLowerCase();
-                console.log(`[Nutrient Viewer] ✓ Using annotation measurementType: ${measurementType}`);
-            } else if (annotation.constructor.name) {
-                // Fallback to annotation type
+                console.log(`[Nutrient Viewer] ✓ Using annotation.measurementType: ${measurementType}`);
+            }
+            // Try annotation.subject (often contains 'Distance', 'Area', 'Perimeter')
+            else if (annotation.subject && typeof annotation.subject === 'string') {
+                const subject = annotation.subject.toLowerCase();
+                console.log(`[Nutrient Viewer] Checking annotation.subject: ${subject}`);
+                if (subject.includes('distance') || subject.includes('line')) {
+                    measurementType = 'distance';
+                } else if (subject.includes('area') || subject.includes('polygon') || subject.includes('rectangle') || subject.includes('ellipse')) {
+                    measurementType = 'area';
+                } else if (subject.includes('perimeter')) {
+                    measurementType = 'perimeter';
+                }
+                console.log(`[Nutrient Viewer] ✓ Determined measurementType from subject: ${measurementType}`);
+            }
+            // Check if annotation is instance of specific PSPDFKit classes
+            else if (annotation instanceof PSPDFKit.Annotations.PolygonAnnotation ||
+                     annotation instanceof PSPDFKit.Annotations.RectangleAnnotation ||
+                     annotation instanceof PSPDFKit.Annotations.EllipseAnnotation) {
+                measurementType = 'area';
+                console.log(`[Nutrient Viewer] ✓ Detected area annotation by instance type`);
+            }
+            else if (annotation instanceof PSPDFKit.Annotations.LineAnnotation ||
+                     annotation instanceof PSPDFKit.Annotations.PolylineAnnotation) {
+                measurementType = 'distance';
+                console.log(`[Nutrient Viewer] ✓ Detected linear annotation by instance type`);
+            }
+            // Fallback to constructor name if needed
+            else if (annotation.constructor.name) {
                 const typeName = annotation.constructor.name.toLowerCase();
                 console.log(`[Nutrient Viewer] Using constructor name fallback: ${typeName}`);
-                if (typeName.includes('distance') || typeName.includes('line')) {
-                    measurementType = 'linear';
-                } else if (typeName.includes('area') || typeName.includes('polygon')) {
+                if (typeName.includes('distance') || typeName.includes('line') || typeName.includes('polyline')) {
+                    measurementType = 'distance';
+                } else if (typeName.includes('area') || typeName.includes('polygon') || typeName.includes('rectangle') || typeName.includes('ellipse')) {
                     measurementType = 'area';
                 } else if (typeName.includes('perimeter')) {
                     measurementType = 'perimeter';
@@ -940,13 +1176,15 @@ window.nutrientViewer = {
             console.log(`[Nutrient Viewer]   - Catalogue Item ID: ${catalogueItem.id}`);
             console.log(`[Nutrient Viewer]   - Measurement Value: ${measurementValue} ${unit}`);
             console.log(`[Nutrient Viewer]   - Measurement Type: ${measurementType}`);
+            console.log(`[Nutrient Viewer]   - Annotation ID: ${annotation.id}`);
             console.log('[Nutrient Viewer] ----------------------------------------');
 
             const requestBody = {
                 catalogueItemId: catalogueItem.id,
                 measurementType: measurementType,
                 value: measurementValue,
-                unit: unit
+                unit: unit,
+                annotationId: annotation.id
             };
             console.log('[Nutrient Viewer] Request body:', JSON.stringify(requestBody, null, 2));
 
@@ -971,6 +1209,7 @@ window.nutrientViewer = {
             const result = await response.json();
             console.log('[Nutrient Viewer] ✓ Calculation result received:');
             console.log(JSON.stringify(result, null, 2));
+            console.log(`[Nutrient Viewer] ✓ Annotation ID in result: ${result.annotationId}`);
 
             // Notify Blazor measurement panel to show the result
             console.log(`[Nutrient Viewer] dotNetRef exists: ${instanceData.dotNetRef !== null}`);
@@ -993,6 +1232,46 @@ window.nutrientViewer = {
             console.error('[Nutrient Viewer] Error stack:', error.stack);
             console.log('[Nutrient Viewer] ============================================');
             return null;
+        }
+    },
+
+    /**
+     * Delete annotation from PDF viewer by annotation ID
+     * @param {string} containerId - Container element ID
+     * @param {string} annotationId - PSPDFKit annotation ID
+     */
+    deleteAnnotationById: async function(containerId, annotationId) {
+        const instanceData = this.instances[containerId];
+        if (!instanceData?.instance) {
+            console.warn('[Nutrient Viewer] Cannot delete annotation - no instance');
+            return;
+        }
+
+        try {
+            console.log(`[Nutrient Viewer] Deleting annotation ${annotationId} from PDF viewer...`);
+
+            // Get total page count
+            const totalPages = instanceData.instance.totalPageCount;
+
+            // Search all pages for the annotation
+            let annotationToDelete = null;
+            for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+                const annotations = await instanceData.instance.getAnnotations(pageIndex);
+                annotationToDelete = annotations.find(a => a.id === annotationId);
+                if (annotationToDelete) {
+                    console.log(`[Nutrient Viewer] Found annotation on page ${pageIndex}`);
+                    break;
+                }
+            }
+
+            if (annotationToDelete) {
+                await instanceData.instance.delete(annotationToDelete);
+                console.log(`[Nutrient Viewer] ✓ Deleted annotation ${annotationId} from PDF viewer`);
+            } else {
+                console.warn(`[Nutrient Viewer] Annotation ${annotationId} not found in PDF viewer`);
+            }
+        } catch (error) {
+            console.error(`[Nutrient Viewer] Error deleting annotation ${annotationId}:`, error);
         }
     },
 
@@ -1056,6 +1335,56 @@ window.nutrientViewer = {
             return { success: true };
         } catch (error) {
             console.error('[Nutrient Viewer] Error importing annotations:', error);
+            return { success: false, error: error.message };
+        }
+    },
+
+    /**
+     * Reload Instant JSON from database (for multi-tab sync)
+     * @param {string} containerId - Container element ID
+     * @param {number} packageDrawingId - Package drawing ID
+     */
+    reloadInstantJson: async function(containerId, packageDrawingId) {
+        const instanceData = this.instances[containerId];
+        if (!instanceData?.instance) {
+            console.warn('[Nutrient Viewer] Cannot reload Instant JSON - no instance');
+            return { success: false, error: 'No instance' };
+        }
+
+        try {
+            console.log('[Nutrient Viewer] 🔄 Reloading Instant JSON from database for drawing', packageDrawingId);
+
+            // Fetch latest Instant JSON from database
+            const response = await fetch(`/api/packagedrawings/${packageDrawingId}`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch drawing: ${response.statusText}`);
+            }
+
+            const drawing = await response.json();
+            const instantJson = drawing.instantJson;
+
+            if (!instantJson) {
+                console.log('[Nutrient Viewer] No Instant JSON in database, skipping reload');
+                return { success: true, message: 'No annotations to reload' };
+            }
+
+            // Clear existing annotations first
+            const annotations = await instanceData.instance.getAnnotations(0); // Get all annotations from first page
+            if (annotations.size > 0) {
+                console.log(`[Nutrient Viewer] Removing ${annotations.size} existing annotations...`);
+                await instanceData.instance.delete(annotations);
+            }
+
+            // Import the fresh Instant JSON
+            const result = await this.importAnnotations(containerId, instantJson);
+
+            if (result.success) {
+                console.log('[Nutrient Viewer] ✓ Instant JSON reloaded successfully from database');
+            }
+
+            return result;
+        } catch (error) {
+            console.error('[Nutrient Viewer] Error reloading Instant JSON:', error);
             return { success: false, error: error.message };
         }
     },
@@ -1384,7 +1713,453 @@ window.nutrientViewer = {
             console.error('[Nutrient Viewer] Error importing measurement config:', error);
             return { success: false, error: error.message };
         }
+    },
+
+    /**
+     * Enter fullscreen mode for the specified container
+     * @param {string} containerId - ID of the element to fullscreen
+     */
+    enterFullscreen: async function(containerId) {
+        try {
+            console.log(`[Nutrient Viewer] Entering fullscreen for container: ${containerId}`);
+
+            const element = document.getElementById(containerId);
+            if (!element) {
+                console.error(`[Nutrient Viewer] Container element not found: ${containerId}`);
+                return;
+            }
+
+            // Add body class for CSS targeting
+            document.body.classList.add('viewer-fullscreen');
+
+            // Force measurement panel to become part of flex layout
+            // Catalogue sidebar visibility is handled by CSS based on .catalogue-sidebar-open class
+            const measurementPanel = document.querySelector('.takeoff-measurement-panel');
+            const measurementFooter = document.querySelector('.takeoff-measurement-footer');
+
+            if (measurementPanel) {
+                measurementPanel.style.position = 'relative';
+                measurementPanel.style.right = '0';
+                measurementPanel.style.top = '0';
+                measurementPanel.style.height = '100%';
+                measurementPanel.style.zIndex = '1';
+                console.log('[Nutrient Viewer] Forced measurement panel to relative position for fullscreen');
+            }
+
+            // Use the Fullscreen API
+            if (element.requestFullscreen) {
+                await element.requestFullscreen();
+            } else if (element.webkitRequestFullscreen) { // Safari
+                await element.webkitRequestFullscreen();
+            } else if (element.mozRequestFullScreen) { // Firefox
+                await element.mozRequestFullScreen();
+            } else if (element.msRequestFullscreen) { // IE11
+                await element.msRequestFullscreen();
+            }
+
+            // Update footer position for fullscreen mode using the shared function
+            setTimeout(() => {
+                updateModalAndFooterPositions();
+                console.log('[Nutrient Viewer] Updated positions after entering fullscreen');
+            }, 100);
+
+            console.log('[Nutrient Viewer] ✓ Entered fullscreen mode');
+        } catch (error) {
+            console.error('[Nutrient Viewer] Error entering fullscreen:', error);
+            // Remove class if fullscreen failed
+            document.body.classList.remove('viewer-fullscreen');
+        }
+    },
+
+    /**
+     * Exit fullscreen mode
+     */
+    exitFullscreen: async function() {
+        try {
+            console.log('[Nutrient Viewer] Exiting fullscreen');
+
+            // Remove body class
+            document.body.classList.remove('viewer-fullscreen');
+
+            // Restore catalogue sidebar, measurement panel, and footer to fixed positioning
+            const catalogueSidebar = document.querySelector('.takeoff-catalogue-sidebar');
+            const measurementPanel = document.querySelector('.takeoff-measurement-panel');
+            const measurementFooter = document.querySelector('.takeoff-measurement-footer');
+
+            if (catalogueSidebar) {
+                catalogueSidebar.style.position = '';
+                catalogueSidebar.style.left = '';
+                catalogueSidebar.style.top = '';
+                catalogueSidebar.style.height = '';
+                catalogueSidebar.style.zIndex = '';
+                console.log('[Nutrient Viewer] Restored catalogue sidebar to default positioning');
+            }
+
+            if (measurementPanel) {
+                measurementPanel.style.position = '';
+                measurementPanel.style.right = '';
+                measurementPanel.style.top = '';
+                measurementPanel.style.height = '';
+                measurementPanel.style.zIndex = '';
+                console.log('[Nutrient Viewer] Restored measurement panel to default positioning');
+            }
+
+            // Reset footer positioning
+            if (measurementFooter) {
+                measurementFooter.style.left = '';
+                measurementFooter.style.width = '';
+                console.log('[Nutrient Viewer] Measurement footer reset to default');
+            }
+
+            if (document.exitFullscreen) {
+                await document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) { // Safari
+                await document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) { // IE11
+                await document.msExitFullscreen();
+            } else if (document.mozCancelFullScreen) { // Firefox
+                await document.mozCancelFullScreen();
+            }
+
+            // Update positions after exiting fullscreen
+            setTimeout(() => {
+                updateModalAndFooterPositions();
+                console.log('[Nutrient Viewer] Updated positions after exiting fullscreen');
+            }, 100);
+
+            console.log('[Nutrient Viewer] ✓ Exited fullscreen mode');
+        } catch (error) {
+            console.error('[Nutrient Viewer] Error exiting fullscreen:', error);
+        }
     }
 };
 
 console.log('[Nutrient Viewer] JavaScript module loaded');
+
+// ========================================
+// DRAG-TO-RESIZE FUNCTIONALITY
+// ========================================
+
+// Constants for resize limits
+const SIDEBAR_MIN_WIDTH = 320;
+const SIDEBAR_MAX_WIDTH = 576; // 80% larger than default (320 + 256)
+const FOOTER_MIN_HEIGHT = 200;
+const FOOTER_MAX_HEIGHT = 360; // 80% larger than default (200 + 160)
+
+// Global storage keys (not per-takeoff)
+const STORAGE_KEY_SIDEBAR_WIDTH = 'fabos-catalogue-sidebar-width';
+const STORAGE_KEY_FOOTER_HEIGHT = 'fabos-measurement-footer-height';
+
+// Track which elements we've already initialized
+const initializedResizeHandles = new WeakSet();
+
+// Setup sidebar horizontal resize
+function setupSidebarResize() {
+    const sidebar = document.querySelector('.takeoff-catalogue-sidebar');
+    const resizeHandle = document.querySelector('.sidebar-resize-handle');
+
+    if (!sidebar || !resizeHandle) {
+        return false;
+    }
+
+    // Check if already initialized
+    if (initializedResizeHandles.has(resizeHandle)) {
+        return true;
+    }
+
+    console.log('[Nutrient Viewer] Setting up sidebar resize');
+
+    // Apply saved width from localStorage
+    const savedWidth = localStorage.getItem(STORAGE_KEY_SIDEBAR_WIDTH);
+    if (savedWidth) {
+        const width = parseInt(savedWidth);
+        if (width >= SIDEBAR_MIN_WIDTH && width <= SIDEBAR_MAX_WIDTH) {
+            sidebar.style.width = `${width}px`;
+            console.log(`[Nutrient Viewer] Applied saved sidebar width: ${width}px`);
+
+            // Also adjust modal and footer for the saved width
+            const isFullscreen = document.body.classList.contains('viewer-fullscreen');
+            if (!isFullscreen) {
+                // Determine main sidebar width from body classes
+                let mainSidebarWidth = 280;
+                if (document.body.classList.contains('sidebar-collapsed')) {
+                    mainSidebarWidth = 60;
+                } else if (document.body.classList.contains('sidebar-expanded')) {
+                    mainSidebarWidth = 420;
+                }
+
+                const modal = document.querySelector('.modal-fullscreen');
+                if (modal) {
+                    modal.style.setProperty('left', `${mainSidebarWidth + width}px`, 'important');
+                }
+
+                const measurementFooter = document.querySelector('.takeoff-measurement-footer');
+                if (measurementFooter && measurementFooter.classList.contains('visible')) {
+                    measurementFooter.style.setProperty('left', `${mainSidebarWidth + width}px`, 'important');
+                    measurementFooter.style.setProperty('width', `calc(100% - ${mainSidebarWidth + width}px)`, 'important');
+                }
+            }
+        }
+    }
+
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    resizeHandle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = sidebar.offsetWidth;
+        resizeHandle.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+
+        const deltaX = e.clientX - startX;
+        let newWidth = startWidth + deltaX;
+
+        // Clamp to min/max
+        newWidth = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, newWidth));
+
+        // Apply new width
+        sidebar.style.width = `${newWidth}px`;
+
+        // Check if in fullscreen mode
+        const isFullscreen = document.body.classList.contains('viewer-fullscreen');
+
+        // Adjust modal position if it exists (in normal mode, not fullscreen)
+        const modal = document.querySelector('.modal-fullscreen');
+        if (modal && !isFullscreen) {
+            // Determine main sidebar width from body classes
+            let mainSidebarWidth = 280;
+            if (document.body.classList.contains('sidebar-collapsed')) {
+                mainSidebarWidth = 60;
+            } else if (document.body.classList.contains('sidebar-expanded')) {
+                mainSidebarWidth = 420;
+            }
+            modal.style.setProperty('left', `${mainSidebarWidth + newWidth}px`, 'important');
+        }
+
+        // Adjust measurement footer if visible
+        const measurementFooter = document.querySelector('.takeoff-measurement-footer');
+        if (measurementFooter && measurementFooter.classList.contains('visible')) {
+            if (!isFullscreen) {
+                // In normal mode: footer needs to account for main sidebar + catalogue sidebar
+                let mainSidebarWidth = 280;
+                if (document.body.classList.contains('sidebar-collapsed')) {
+                    mainSidebarWidth = 60;
+                } else if (document.body.classList.contains('sidebar-expanded')) {
+                    mainSidebarWidth = 420;
+                }
+                measurementFooter.style.setProperty('left', `${mainSidebarWidth + newWidth}px`, 'important');
+                measurementFooter.style.setProperty('width', `calc(100% - ${mainSidebarWidth + newWidth}px)`, 'important');
+            } else {
+                // In fullscreen mode: footer only needs to account for catalogue sidebar
+                measurementFooter.style.setProperty('left', `${newWidth}px`, 'important');
+                measurementFooter.style.setProperty('width', `calc(100% - ${newWidth}px)`, 'important');
+            }
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!isResizing) return;
+
+        isResizing = false;
+        resizeHandle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+
+        // Save to localStorage (global)
+        const currentWidth = sidebar.offsetWidth;
+        localStorage.setItem(STORAGE_KEY_SIDEBAR_WIDTH, currentWidth.toString());
+        console.log(`[Nutrient Viewer] Saved sidebar width to localStorage: ${currentWidth}px`);
+    });
+
+    initializedResizeHandles.add(resizeHandle);
+    return true;
+}
+
+// Setup footer vertical resize
+function setupFooterResize() {
+    const footer = document.querySelector('.takeoff-measurement-footer');
+    const resizeHandle = document.querySelector('.footer-resize-handle');
+
+    if (!footer || !resizeHandle) {
+        return false;
+    }
+
+    // Check if already initialized
+    if (initializedResizeHandles.has(resizeHandle)) {
+        return true;
+    }
+
+    console.log('[Nutrient Viewer] Setting up footer resize');
+
+    // Apply saved height from localStorage
+    const savedHeight = localStorage.getItem(STORAGE_KEY_FOOTER_HEIGHT);
+    if (savedHeight) {
+        const height = parseInt(savedHeight);
+        if (height >= FOOTER_MIN_HEIGHT && height <= FOOTER_MAX_HEIGHT) {
+            footer.style.height = `${height}px`;
+            console.log(`[Nutrient Viewer] Applied saved footer height: ${height}px`);
+
+            // Also adjust modal bottom for the saved height (works in both normal and fullscreen modes)
+            if (footer.classList.contains('visible')) {
+                const modal = document.querySelector('.modal-fullscreen');
+                if (modal) {
+                    modal.style.setProperty('bottom', `${height}px`, 'important');
+                }
+            }
+        }
+    }
+
+    let isResizing = false;
+    let startY = 0;
+    let startHeight = 0;
+
+    resizeHandle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startY = e.clientY;
+        startHeight = footer.offsetHeight;
+        resizeHandle.classList.add('dragging');
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+
+        const deltaY = startY - e.clientY; // Inverted because footer is at bottom
+        let newHeight = startHeight + deltaY;
+
+        // Clamp to min/max
+        newHeight = Math.max(FOOTER_MIN_HEIGHT, Math.min(FOOTER_MAX_HEIGHT, newHeight));
+
+        // Apply new height
+        footer.style.height = `${newHeight}px`;
+
+        // Adjust modal bottom position if it exists (works in both normal and fullscreen modes)
+        const modal = document.querySelector('.modal-fullscreen');
+        if (modal && footer.classList.contains('visible')) {
+            modal.style.setProperty('bottom', `${newHeight}px`, 'important');
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!isResizing) return;
+
+        isResizing = false;
+        resizeHandle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+
+        // Save to localStorage (global)
+        const currentHeight = footer.offsetHeight;
+        localStorage.setItem(STORAGE_KEY_FOOTER_HEIGHT, currentHeight.toString());
+        console.log(`[Nutrient Viewer] Saved footer height to localStorage: ${currentHeight}px`);
+    });
+
+    initializedResizeHandles.add(resizeHandle);
+    return true;
+}
+
+// Function to update modal and footer positions based on current sidebar widths
+function updateModalAndFooterPositions() {
+    const modal = document.querySelector('.modal-fullscreen');
+    const catalogueSidebar = document.querySelector('.takeoff-catalogue-sidebar');
+    const measurementFooter = document.querySelector('.takeoff-measurement-footer');
+
+    // Check if in fullscreen mode (using CSS class, not Fullscreen API)
+    const isFullscreen = document.body.classList.contains('viewer-fullscreen');
+
+    // Determine main sidebar width based on body classes (not offsetWidth which can be mid-transition)
+    let mainSidebarWidth = 280; // Default
+    if (document.body.classList.contains('sidebar-collapsed')) {
+        mainSidebarWidth = 60;
+    } else if (document.body.classList.contains('sidebar-expanded')) {
+        mainSidebarWidth = 420;
+    }
+
+    // Check if catalogue sidebar is visible - use body class to avoid race condition with element class
+    const isCatalogueSidebarVisible = document.body.classList.contains('catalogue-sidebar-open');
+    const catalogueWidth = isCatalogueSidebarVisible && catalogueSidebar ? (catalogueSidebar.offsetWidth || 320) : 0;
+
+    // Handle sidebar visibility - manage inline left style
+    if (catalogueSidebar) {
+        if (!isCatalogueSidebarVisible) {
+            // Closing: Get the current width and hide it off-screen to the left
+            const currentWidth = catalogueSidebar.offsetWidth || 320;
+            catalogueSidebar.style.setProperty('left', `-${currentWidth}px`, 'important');
+            console.log(`[Nutrient Viewer] Hiding catalogue sidebar off-screen: -${currentWidth}px`);
+        } else {
+            // Opening: Remove inline style to let CSS control position
+            catalogueSidebar.style.removeProperty('left');
+            console.log(`[Nutrient Viewer] Showing catalogue sidebar - removed inline left style, CSS will position it`);
+        }
+    }
+
+    // Update modal and footer positions (normal mode only - fullscreen uses CSS)
+    if (!isFullscreen) {
+        // NORMAL MODE: Use fixed positioning with calculated offsets
+        if (modal) {
+            const totalWidth = mainSidebarWidth + catalogueWidth;
+            modal.style.setProperty('left', `${totalWidth}px`, 'important');
+            console.log(`[Nutrient Viewer] Updated modal left to ${totalWidth}px (main: ${mainSidebarWidth}px + catalogue: ${catalogueWidth}px, visible: ${isCatalogueSidebarVisible})`);
+
+            // Update modal bottom for footer
+            if (measurementFooter && measurementFooter.classList.contains('visible')) {
+                const footerHeight = measurementFooter.offsetHeight || 200;
+                modal.style.setProperty('bottom', `${footerHeight}px`, 'important');
+                console.log(`[Nutrient Viewer] Updated modal bottom to ${footerHeight}px for footer`);
+            } else {
+                modal.style.setProperty('bottom', '0px', 'important');
+                console.log(`[Nutrient Viewer] Reset modal bottom to 0px (no footer)`);
+            }
+        }
+
+        // Update footer position in normal mode
+        if (measurementFooter && measurementFooter.classList.contains('visible')) {
+            const totalWidth = mainSidebarWidth + catalogueWidth;
+            measurementFooter.style.setProperty('left', `${totalWidth}px`, 'important');
+            measurementFooter.style.setProperty('width', `calc(100% - ${totalWidth}px)`, 'important');
+            console.log(`[Nutrient Viewer] Updated footer in normal mode: left=${totalWidth}px (main: ${mainSidebarWidth}px + catalogue: ${catalogueWidth}px, visible: ${isCatalogueSidebarVisible})`);
+        }
+    }
+    // FULLSCREEN MODE: CSS handles all positioning via fixed positioning and z-index layering
+}
+
+// Watch for Blazor components being added to the DOM and body class changes
+const resizeObserver = new MutationObserver((mutations) => {
+    // Try to setup sidebar resize if not already done
+    setupSidebarResize();
+
+    // Try to setup footer resize if not already done
+    setupFooterResize();
+
+    // Check if body classes changed (for sidebar collapse/expand)
+    for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class' && mutation.target === document.body) {
+            // Body classes changed, update positions
+            updateModalAndFooterPositions();
+            break;
+        }
+    }
+});
+
+// Start observing the document body for changes
+resizeObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class']
+});
+
+// Also try to initialize immediately
+console.log('[Nutrient Viewer] Initializing drag-to-resize functionality');
+setupSidebarResize();
+setupFooterResize();
