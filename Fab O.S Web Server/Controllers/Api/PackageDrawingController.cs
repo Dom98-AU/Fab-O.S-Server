@@ -38,7 +38,19 @@ public class PackageDrawingController : ControllerBase
     {
         try
         {
-            var drawing = await _drawingService.GetDrawingAsync(id);
+            // Get drawing directly from context to avoid navigation property serialization issues
+            var drawing = await _context.PackageDrawings
+                .Where(d => d.Id == id)
+                .Select(d => new
+                {
+                    d.Id,
+                    d.DrawingNumber,
+                    d.DrawingTitle,
+                    d.InstantJson,
+                    d.InstantJsonLastUpdated
+                })
+                .FirstOrDefaultAsync();
+
             if (drawing == null)
             {
                 return NotFound();

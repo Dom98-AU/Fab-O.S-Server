@@ -462,6 +462,9 @@ window.nutrientViewer = {
 
         // Debounced autosave function - saves Instant JSON after 2 seconds of inactivity
         let autosaveTimer = null;
+        let lastAutosaveTimestamp = 0; // Track when this tab last triggered autosave
+        instanceData.lastAutosaveTimestamp = 0; // Make it accessible from reloadInstantJson
+
         const triggerAutosave = () => {
             if (autosaveTimer) {
                 clearTimeout(autosaveTimer);
@@ -479,6 +482,10 @@ window.nutrientViewer = {
                     const packageDrawingId = urlMatch ? parseInt(urlMatch[1]) : null;
 
                     if (packageDrawingId) {
+                        // Mark this tab as having just autosaved (prevent reload loop)
+                        lastAutosaveTimestamp = Date.now();
+                        instanceData.lastAutosaveTimestamp = lastAutosaveTimestamp;
+
                         // Save to database via API
                         const response = await fetch(`/api/packagedrawings/${packageDrawingId}/instant-json`, {
                             method: 'POST',
@@ -1352,6 +1359,13 @@ window.nutrientViewer = {
         }
 
         try {
+            // Check if this tab just triggered autosave (within last 5 seconds)
+            const timeSinceAutosave = Date.now() - (instanceData.lastAutosaveTimestamp || 0);
+            if (timeSinceAutosave < 5000) {
+                console.log('[Nutrient Viewer] ⏭️ Skipping reload - this tab just triggered autosave', timeSinceAutosave, 'ms ago');
+                return { success: true, message: 'Skipped - tab triggered autosave' };
+            }
+
             console.log('[Nutrient Viewer] 🔄 Reloading Instant JSON from database for drawing', packageDrawingId);
 
             // Fetch latest Instant JSON from database
