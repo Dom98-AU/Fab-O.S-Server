@@ -463,9 +463,17 @@ window.nutrientViewer = {
         // Debounced autosave function - saves Instant JSON after 2 seconds of inactivity
         let autosaveTimer = null;
         let lastAutosaveTimestamp = 0; // Track when this tab last triggered autosave
+        let autosaveEnabled = true; // Flag to disable autosave during reload operations
         instanceData.lastAutosaveTimestamp = 0; // Make it accessible from reloadInstantJson
+        instanceData.autosaveEnabled = true; // Make it accessible from reloadInstantJson
 
         const triggerAutosave = () => {
+            // Skip autosave if disabled (during reload operations)
+            if (!autosaveEnabled || !instanceData.autosaveEnabled) {
+                console.log('[Nutrient Viewer] ⏭️ Skipping autosave - currently disabled');
+                return;
+            }
+
             if (autosaveTimer) {
                 clearTimeout(autosaveTimer);
             }
@@ -1368,6 +1376,10 @@ window.nutrientViewer = {
 
             console.log('[Nutrient Viewer] 🔄 Reloading Instant JSON from database for drawing', packageDrawingId);
 
+            // DISABLE autosave during reload to prevent empty saves
+            instanceData.autosaveEnabled = false;
+            console.log('[Nutrient Viewer] 🚫 Autosave disabled during reload');
+
             // Fetch latest Instant JSON from database
             const response = await fetch(`/api/packagedrawings/${packageDrawingId}`);
             if (!response.ok) {
@@ -1379,6 +1391,7 @@ window.nutrientViewer = {
 
             if (!instantJson) {
                 console.log('[Nutrient Viewer] No Instant JSON in database, skipping reload');
+                instanceData.autosaveEnabled = true; // Re-enable autosave
                 return { success: true, message: 'No annotations to reload' };
             }
 
@@ -1396,9 +1409,15 @@ window.nutrientViewer = {
                 console.log('[Nutrient Viewer] ✓ Instant JSON reloaded successfully from database');
             }
 
+            // RE-ENABLE autosave after reload completes
+            instanceData.autosaveEnabled = true;
+            console.log('[Nutrient Viewer] ✅ Autosave re-enabled after reload');
+
             return result;
         } catch (error) {
             console.error('[Nutrient Viewer] Error reloading Instant JSON:', error);
+            // Make sure to re-enable autosave even if reload fails
+            instanceData.autosaveEnabled = true;
             return { success: false, error: error.message };
         }
     },
