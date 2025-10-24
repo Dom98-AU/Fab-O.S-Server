@@ -1,0 +1,69 @@
+@rendermode InteractiveServer
+@using FabOS.WebServer.Services
+@using FabOS.WebServer.Components.Shared
+@inject SidebarService SidebarService
+@inject NavigationService NavService
+
+@if (SidebarService.ShowModuleSelector && !SidebarService.IsCollapsed)
+{
+    <div class="fabos-module-selector">
+        <div class="fabos-module-header">
+            <span class="fabos-module-title">Switch Module</span>
+            <button type="button"
+                    class="fabos-close-button"
+                    @onclick="SidebarService.CloseModuleSelector">
+                <LucideIcon Name="x" Size="18" />
+            </button>
+        </div>
+
+        <!-- App Modules Section -->
+        <div class="fabos-module-section">
+            <div class="fabos-module-section-label">Applications</div>
+            <div class="fabos-module-list">
+                @foreach (var module in NavService.GetAppModules())
+                {
+                    <button type="button"
+                            class="fabos-module-item @(SidebarService.CurrentModule == module.Name ? "active" : "")"
+                            @onclick="() => SidebarService.SetModule(module.Name)">
+                        <span class="fabos-module-icon">
+                            <LucideIcon Name="@module.Icon" Size="20" />
+                        </span>
+                        <div class="fabos-module-content">
+                            <span class="fabos-module-name">@module.Name</span>
+                            <span class="fabos-module-desc">@module.Description</span>
+                        </div>
+                        @if (SidebarService.CurrentModule == module.Name)
+                        {
+                            <LucideIcon Name="check" Size="18" CssClass="fabos-module-check" />
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+
+        <!-- Settings Section -->
+        <div class="fabos-module-section">
+            <div class="fabos-module-section-label">System</div>
+            <div class="fabos-module-list">
+                @foreach (var module in NavService.GetSettingsModules())
+                {
+                    <button type="button"
+                            class="fabos-module-item @(SidebarService.CurrentModule == module.Name ? "active" : "")"
+                            @onclick="() => SidebarService.SetModule(module.Name)">
+                        <span class="fabos-module-icon">
+                            <LucideIcon Name="@module.Icon" Size="20" />
+                        </span>
+                        <div class="fabos-module-content">
+                            <span class="fabos-module-name">@module.Name</span>
+                            <span class="fabos-module-desc">@module.Description</span>
+                        </div>
+                        @if (SidebarService.CurrentModule == module.Name)
+                        {
+                            <LucideIcon Name="check" Size="18" CssClass="fabos-module-check" />
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}

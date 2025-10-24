@@ -3,6 +3,7 @@ using FabOS.WebServer.Services;
 using FabOS.WebServer.Services.Interfaces;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
 
 namespace FabOS.WebServer.Components.Shared
@@ -13,6 +14,8 @@ namespace FabOS.WebServer.Components.Shared
         [Inject] private ILogger<TakeoffMeasurementPanel> Logger { get; set; } = default!;
         [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
         [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+        [Inject] private Data.Contexts.ApplicationDbContext DbContext { get; set; } = default!;
+        [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
 
         [Parameter] public int PackageDrawingId { get; set; }
         [Parameter] public string PdfContainerId { get; set; } = "pdf-container";
@@ -27,6 +30,8 @@ namespace FabOS.WebServer.Components.Shared
         private bool isLoadingMeasurements = false;
         private string? errorMessage = null;
         private string? expandedCategory = null;
+        private string? selectedAnnotationId = null; // For click-to-highlight feature
+        private Dictionary<int, string> measurementToAnnotationMap = new(); // measurementId -> annotationId
 
         // Height management
         private FooterHeight currentHeight = FooterHeight.Default;
@@ -37,7 +42,7 @@ namespace FabOS.WebServer.Components.Shared
             Full       // 60vh
         }
 
-        private const int companyId = 1; // TODO: Get from tenant context
+        private int currentCompanyId = 1; // Retrieved from authenticated user, defaults to 1
 
         // SignalR Hub connection (C# client, NOT Blazor circuit)
         private HubConnection? _hubConnection;
@@ -52,6 +57,19 @@ namespace FabOS.WebServer.Components.Shared
 
         protected override async Task OnInitializedAsync()
         {
+            // Get company ID from authenticated user
+            var httpContext = HttpContextAccessor.HttpContext;
+            if (httpContext?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userIdClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    var user = await DbContext.Users.FindAsync(userId);
+                    currentCompanyId = user?.CompanyId ?? 1;
+                    Logger.LogInformation("[TakeoffMeasurementPanel] Retrieved CompanyId={CompanyId} for user {UserId}", currentCompanyId, userId);
+                }
+            }
+
             // Connect to SignalR Hub using C# client (NOT JavaScript interop)
             await InitializeSignalRConnectionAsync();
         }
@@ -293,6 +311,70 @@ namespace FabOS.WebServer.Components.Shared
             await SaveCurrentMeasurement();
         }
 
+        /// <summary>
+        /// Called from JavaScript when a PDF annotation is selected (click-to-highlight feature)
+        /// </summary>
+        [JSInvokable]
+        public async Task OnAnnotationSelected(string annotationId)
+        {
+            try
+            {
+                Logger.LogInformation("[TakeoffMeasurementPanel] 🖱️ Annotation selected: {AnnotationId}", annotationId);
+
+                // Find the measurement that corresponds to this annotation
+                // Note: We need to look up via PdfAnnotations table to find the TraceTakeoffMeasurementId
+                var measurement = measurements.FirstOrDefault(m =>
+                {
+                    // Check if any of the measurements match - we'll need to enhance this
+                    // For now, we'll just set the selected annotation ID and let the UI highlight it
+                    return false; // TODO: Implement proper lookup once we link annotations to measurements
+                });
+
+                // Set the selected annotation ID for highlighting
+                selectedAnnotationId = annotationId;
+
+                Logger.LogInformation("[TakeoffMeasurementPanel] Selected annotation ID set to: {AnnotationId}", selectedAnnotationId);
+
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "[TakeoffMeasurementPanel] Error handling annotation selection");
+            }
+        }
+
+        /// <summary>
+        /// Load PDF annotation to measurement mapping for click-to-highlight feature
+        /// </summary>
+        private async Task LoadAnnotationMappingAsync()
+        {
+            try
+            {
+                measurementToAnnotationMap.Clear();
+
+                // Load PDF annotations for this drawing that have associated measurements
+                var annotations = await DbContext.PdfAnnotations
+                    .Where(a => a.PackageDrawingId == PackageDrawingId && a.TraceTakeoffMeasurementId != null)
+                    .Select(a => new { a.TraceTakeoffMeasurementId, a.AnnotationId })
+                    .ToListAsync();
+
+                foreach (var annotation in annotations)
+                {
+                    if (annotation.TraceTakeoffMeasurementId.HasValue)
+                    {
+                        measurementToAnnotationMap[annotation.TraceTakeoffMeasurementId.Value] = annotation.AnnotationId;
+                    }
+                }
+
+                Logger.LogInformation("[TakeoffMeasurementPanel] Loaded {Count} annotation mappings", measurementToAnnotationMap.Count);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "[TakeoffMeasurementPanel] Error loading annotation mappings - click-to-highlight may not work");
+                measurementToAnnotationMap.Clear();
+            }
+        }
+
         private async Task LoadMeasurements()
         {
             try
@@ -303,8 +385,12 @@ namespace FabOS.WebServer.Components.Shared
 
                 Logger.LogInformation("[TakeoffMeasurementPanel] Loading measurements for drawing {DrawingId}", PackageDrawingId);
 
-                measurements = await CatalogueService.GetMeasurementsByDrawingAsync(PackageDrawingId, companyId);
+                measurements = await CatalogueService.GetMeasurementsByDrawingAsync(PackageDrawingId, currentCompanyId);
                 Logger.LogInformation("[TakeoffMeasurementPanel] Loaded {Count} measurements", measurements.Count);
+
+                // Load annotation-to-measurement mapping for click-to-highlight feature
+                await LoadAnnotationMappingAsync();
+                Logger.LogInformation("[TakeoffMeasurementPanel] Loaded {Count} annotation mappings", measurementToAnnotationMap.Count);
             }
             catch (Exception ex)
             {
@@ -351,7 +437,7 @@ namespace FabOS.WebServer.Components.Shared
                     value: CurrentMeasurement.MeasurementValue,
                     unit: CurrentMeasurement.Unit,
                     coordinates: null, // TODO: Get coordinates from Nutrient annotation
-                    companyId: companyId,
+                    companyId: currentCompanyId,
                     annotationId: CurrentMeasurement.AnnotationId // Link to PDF annotation
                 );
 
@@ -390,6 +476,26 @@ namespace FabOS.WebServer.Components.Shared
             StateHasChanged();
         }
 
+        /// <summary>
+        /// Check if a measurement should be highlighted based on selected annotation
+        /// TODO: Enhance this to do proper lookup via PdfAnnotations table
+        /// </summary>
+        private bool IsMeasurementHighlighted(TraceTakeoffMeasurement measurement)
+        {
+            if (string.IsNullOrEmpty(selectedAnnotationId))
+            {
+                return false;
+            }
+
+            // Check if this measurement has an annotation that matches the selected one
+            if (measurementToAnnotationMap.TryGetValue(measurement.Id, out string? annotationId))
+            {
+                return annotationId == selectedAnnotationId;
+            }
+
+            return false;
+        }
+
         private async Task DeleteMeasurement(int measurementId)
         {
             try
@@ -397,7 +503,7 @@ namespace FabOS.WebServer.Components.Shared
                 Logger.LogInformation("[TakeoffMeasurementPanel] Deleting measurement {Id}", measurementId);
 
                 // Delete measurement and get list of deleted annotation IDs
-                var deletedAnnotationIds = await CatalogueService.DeleteMeasurementAsync(measurementId, companyId);
+                var deletedAnnotationIds = await CatalogueService.DeleteMeasurementAsync(measurementId, currentCompanyId);
 
                 Logger.LogInformation("[TakeoffMeasurementPanel] Measurement deleted successfully, {Count} annotation(s) to remove from PDF",
                     deletedAnnotationIds?.Count ?? 0);
@@ -463,6 +569,34 @@ namespace FabOS.WebServer.Components.Shared
         {
             IsVisible = !IsVisible;
             await IsVisibleChanged.InvokeAsync(IsVisible);
+        }
+
+        private async Task OpenFullMeasurementsPage()
+        {
+            try
+            {
+                // Get the PackageId from the PackageDrawing
+                var drawing = await DbContext.PackageDrawings
+                    .Where(d => d.Id == PackageDrawingId)
+                    .Select(d => new { d.PackageId })
+                    .FirstOrDefaultAsync();
+
+                if (drawing?.PackageId == null)
+                {
+                    Logger.LogWarning("[TakeoffMeasurementPanel] Cannot open measurements page - package ID not found for drawing {DrawingId}", PackageDrawingId);
+                    return;
+                }
+
+                var url = $"/packages/{drawing.PackageId}/drawings/{PackageDrawingId}/measurements";
+                Logger.LogInformation("[TakeoffMeasurementPanel] Opening measurements page in new window: {Url}", url);
+
+                // Open in new window/tab using JavaScript
+                await JSRuntime.InvokeVoidAsync("open", url, "_blank");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "[TakeoffMeasurementPanel] Error opening measurements page");
+            }
         }
 
         private void CycleHeight()

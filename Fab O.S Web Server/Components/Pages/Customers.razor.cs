@@ -1,24 +1,162 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
+using FabOS.WebServer.Components.Shared;
 using FabOS.WebServer.Components.Shared.Interfaces;
 using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
+using FabOS.WebServer.Models.Columns;
+using FabOS.WebServer.Models.ViewState;
+using FabOS.WebServer.Services;
+using FabOS.WebServer.Services.Interfaces;
 
 namespace FabOS.WebServer.Components.Pages;
 
-public partial class Customers : ComponentBase, IToolbarActionProvider
+public partial class Customers : ComponentBase, IToolbarActionProvider, IDisposable
 {
+    [Parameter]
+    public string TenantSlug { get; set; } = string.Empty;
+
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private BreadcrumbService BreadcrumbService { get; set; } = default!;
 
     private List<Customer> customers = new();
+    private List<Customer> allCustomers = new();
     private List<Customer> filteredCustomers = new();
     private string searchTerm = "";
     private bool isLoading = true;
 
+    // View state management
+    private GenericViewSwitcher<Customer>.ViewType currentView = GenericViewSwitcher<Customer>.ViewType.Table;
+    private ViewState currentViewState = new();
+    private bool hasUnsavedChanges = false;
+    private bool hasCustomColumnConfig = false;
+
+    // Column management
+    private List<ColumnDefinition> managedColumns = new();
+    private List<GenericTableView<Customer>.TableColumn<Customer>> tableColumns = new();
+
+    // Selection tracking
+    private List<Customer> selectedTableItems = new();
+    private List<Customer> selectedListItems = new();
+    private List<Customer> selectedCardItems = new();
+
     protected override async Task OnInitializedAsync()
     {
+        UpdateBreadcrumb();
+        InitializeColumns();
         await LoadCustomers();
+    }
+
+    private void UpdateBreadcrumb()
+    {
+        BreadcrumbService.SetBreadcrumbs(
+            new Breadcrumb.BreadcrumbItem { Label = "Home", Url = "/" },
+            new Breadcrumb.BreadcrumbItem { Label = "Customers", Url = "/customers", IsActive = true }
+        );
+    }
+
+    private void InitializeColumns()
+    {
+        tableColumns = new List<GenericTableView<Customer>.TableColumn<Customer>>
+        {
+            new GenericTableView<Customer>.TableColumn<Customer>
+            {
+                Header = "Name",
+                PropertyName = "Name",
+                ValueSelector = c => c.Name ?? "",
+                IsSortable = true,
+                Template = customer => builder =>
+                {
+                    builder.OpenElement(0, "div");
+                    builder.AddAttribute(1, "class", "customer-name");
+                    builder.OpenElement(2, "strong");
+                    builder.AddContent(3, customer.Name);
+                    builder.CloseElement();
+                    if (!string.IsNullOrEmpty(customer.Code))
+                    {
+                        builder.OpenElement(4, "span");
+                        builder.AddAttribute(5, "class", "customer-code ms-2");
+                        builder.AddContent(6, $"({customer.Code})");
+                        builder.CloseElement();
+                    }
+                    builder.CloseElement();
+                }
+            },
+            new GenericTableView<Customer>.TableColumn<Customer>
+            {
+                Header = "ABN",
+                PropertyName = "ABN",
+                ValueSelector = c => c.ABN ?? "-",
+                IsSortable = true
+            },
+            new GenericTableView<Customer>.TableColumn<Customer>
+            {
+                Header = "Primary Contact",
+                PropertyName = "ContactPerson",
+                ValueSelector = c => c.ContactPerson ?? "-",
+                IsSortable = true
+            },
+            new GenericTableView<Customer>.TableColumn<Customer>
+            {
+                Header = "Email",
+                PropertyName = "Email",
+                ValueSelector = c => c.Email ?? "-",
+                IsSortable = true,
+                Template = customer => builder =>
+                {
+                    if (!string.IsNullOrEmpty(customer.Email))
+                    {
+                        builder.OpenElement(0, "a");
+                        builder.AddAttribute(1, "href", $"mailto:{customer.Email}");
+                        builder.AddContent(2, customer.Email);
+                        builder.CloseElement();
+                    }
+                    else
+                    {
+                        builder.AddContent(0, "-");
+                    }
+                }
+            },
+            new GenericTableView<Customer>.TableColumn<Customer>
+            {
+                Header = "Phone",
+                PropertyName = "PhoneNumber",
+                ValueSelector = c => c.PhoneNumber ?? "-",
+                IsSortable = true
+            },
+            new GenericTableView<Customer>.TableColumn<Customer>
+            {
+                Header = "Industry",
+                PropertyName = "Industry",
+                ValueSelector = c => c.Industry ?? "-",
+                IsSortable = true
+            },
+            new GenericTableView<Customer>.TableColumn<Customer>
+            {
+                Header = "Status",
+                PropertyName = "IsActive",
+                ValueSelector = c => c.IsActive ? "Active" : "Inactive",
+                IsSortable = true,
+                Template = customer => builder =>
+                {
+                    builder.OpenElement(0, "span");
+                    builder.AddAttribute(1, "class", $"badge {(customer.IsActive ? "bg-success" : "bg-secondary")}");
+                    builder.AddContent(2, customer.IsActive ? "Active" : "Inactive");
+                    builder.CloseElement();
+                }
+            }
+        };
+
+        managedColumns = tableColumns.Select(c => new ColumnDefinition
+        {
+            PropertyName = c.PropertyName,
+            DisplayName = c.Header,
+            IsVisible = true,
+            IsFrozen = false,
+            IsRequired = false,
+            Width = null
+        }).ToList();
     }
 
     private async Task LoadCustomers()
@@ -30,6 +168,7 @@ public partial class Customers : ComponentBase, IToolbarActionProvider
                 .OrderBy(c => c.Name)
                 .ToListAsync();
 
+            allCustomers = customers;
             ApplyFilters();
         }
         catch (Exception ex)
@@ -69,17 +208,17 @@ public partial class Customers : ComponentBase, IToolbarActionProvider
 
     private void CreateNewCustomer()
     {
-        Navigation.NavigateTo("/customers/new");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/customers/new");
     }
 
     private void ViewCustomer(int customerId)
     {
-        Navigation.NavigateTo($"/customers/{customerId}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/customers/{customerId}");
     }
 
     private void EditCustomer(int customerId)
     {
-        Navigation.NavigateTo($"/customers/edit/{customerId}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/customers/{customerId}/edit");
     }
 
     private async Task DeleteCustomer(Customer customer)
@@ -98,22 +237,116 @@ public partial class Customers : ComponentBase, IToolbarActionProvider
         }
     }
 
+    // View management
+    private void OnViewChanged(GenericViewSwitcher<Customer>.ViewType newView)
+    {
+        currentView = newView;
+        StateHasChanged();
+    }
+
+    private async Task HandleViewLoaded(ViewState? state)
+    {
+        if (state == null)
+        {
+            InitializeColumns();
+        }
+        else
+        {
+            currentViewState = state;
+            if (state.Columns.Any())
+            {
+                managedColumns = state.Columns;
+            }
+        }
+        hasUnsavedChanges = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleColumnsChanged(List<ColumnDefinition>? columns)
+    {
+        if (columns == null)
+        {
+            InitializeColumns();
+        }
+        else
+        {
+            managedColumns = columns;
+            hasCustomColumnConfig = true;
+        }
+        hasUnsavedChanges = true;
+        StateHasChanged();
+    }
+
+    // Selection handling
+    private async Task HandleTableSelectionChanged(List<Customer> items)
+    {
+        selectedTableItems = items;
+        StateHasChanged();
+    }
+
+    private async Task HandleListSelectionChanged(List<Customer> items)
+    {
+        selectedListItems = items;
+        StateHasChanged();
+    }
+
+    private async Task HandleCardSelectionChanged(List<Customer> items)
+    {
+        selectedCardItems = items;
+        StateHasChanged();
+    }
+
+    // Item interaction
+    private void HandleCustomerClick(Customer customer)
+    {
+        // Single click - could be used for selection or preview
+    }
+
+    private void HandleCustomerDoubleClick(Customer customer)
+    {
+        // Double click - navigate to customer details
+        ViewCustomer(customer.Id);
+    }
+
+    private List<Customer> GetSelectedItems()
+    {
+        return currentView switch
+        {
+            GenericViewSwitcher<Customer>.ViewType.Table => selectedTableItems,
+            GenericViewSwitcher<Customer>.ViewType.List => selectedListItems,
+            GenericViewSwitcher<Customer>.ViewType.Card => selectedCardItems,
+            _ => new List<Customer>()
+        };
+    }
+
     // IToolbarActionProvider implementation
     public ToolbarActionGroup GetActions()
     {
+        var hasSelection = GetSelectedItems().Any();
+
         var group = new ToolbarActionGroup();
         group.PrimaryActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
         {
             new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
             {
-                Label = "Add Customer",
-                Text = "Add Customer",
+                Label = "New",
+                Text = "New",
                 Icon = "fas fa-plus",
                 Action = EventCallback.Factory.Create(this, CreateNewCustomer),
                 IsDisabled = false,
                 Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Primary
+            },
+            new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+            {
+                Label = "Delete",
+                Text = "Delete",
+                Icon = "fas fa-trash",
+                Action = EventCallback.Factory.Create(this, DeleteSelectedCustomers),
+                IsDisabled = !hasSelection,
+                Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Danger
             }
         };
+
         group.MenuActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
         {
             new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
@@ -123,16 +356,66 @@ public partial class Customers : ComponentBase, IToolbarActionProvider
                 Icon = "fas fa-sync-alt",
                 Action = EventCallback.Factory.Create(this, async () => await LoadCustomers()),
                 IsDisabled = false
+            }
+        };
+
+        group.RelatedActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
+        {
+            new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+            {
+                Label = "Export to Excel",
+                Text = "Export to Excel",
+                Icon = "fas fa-file-excel",
+                Action = EventCallback.Factory.Create(this, ExportToExcel),
+                IsDisabled = false
             },
             new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
             {
-                Label = "Export",
-                Text = "Export to Excel",
-                Icon = "fas fa-file-excel",
-                Action = EventCallback.Factory.Create(this, () => Console.WriteLine("Export clicked")),
+                Label = "Import from Excel",
+                Text = "Import from Excel",
+                Icon = "fas fa-file-import",
+                Action = EventCallback.Factory.Create(this, ImportFromExcel),
                 IsDisabled = false
             }
         };
+
         return group;
+    }
+
+    private async Task DeleteSelectedCustomers()
+    {
+        var selected = GetSelectedItems();
+        if (!selected.Any()) return;
+
+        try
+        {
+            DbContext.Customers.RemoveRange(selected);
+            await DbContext.SaveChangesAsync();
+
+            selectedTableItems.Clear();
+            selectedListItems.Clear();
+            selectedCardItems.Clear();
+
+            await LoadCustomers();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting customers: {ex.Message}");
+        }
+    }
+
+    private void ExportToExcel()
+    {
+        Console.WriteLine("Export to Excel clicked");
+    }
+
+    private void ImportFromExcel()
+    {
+        Console.WriteLine("Import from Excel clicked");
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
     }
 }

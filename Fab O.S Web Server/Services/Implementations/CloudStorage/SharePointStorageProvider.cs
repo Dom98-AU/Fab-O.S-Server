@@ -111,16 +111,50 @@ public class SharePointStorageProvider : ICloudStorageProvider
         }
     }
 
-    public Task<CloudFileUploadResult> UpdateFileAsync(string fileId, Stream content, string contentType)
+    public async Task<CloudFileUploadResult> UpdateFileAsync(string fileId, Stream content, string contentType)
     {
-        // TODO: Implement when ISharePointService adds UpdateFileAsync method
-        _logger.LogWarning(
-            "[SharePointStorageProvider] UpdateFileAsync not yet implemented in ISharePointService"
-        );
-        throw new NotImplementedException(
-            "File update functionality is not yet available in the SharePoint provider. " +
-            "This will be implemented in a future version."
-        );
+        try
+        {
+            _logger.LogInformation(
+                "[SharePointStorageProvider] Updating file {FileId} (ContentType: {ContentType})",
+                fileId,
+                contentType
+            );
+
+            // Use existing SharePointService to update file
+            var updatedFile = await _sharePointService.UpdateFileAsync(fileId, content, contentType);
+
+            var result = new CloudFileUploadResult
+            {
+                FileId = updatedFile.Id,
+                WebUrl = updatedFile.WebUrl,
+                Size = updatedFile.Size,
+                ETag = updatedFile.ETag,
+                ProviderMetadata = new Dictionary<string, string>
+                {
+                    { "SharePointItemId", updatedFile.Id },
+                    { "SharePointUrl", updatedFile.WebUrl },
+                    { "SharePointETag", updatedFile.ETag ?? "" }
+                }
+            };
+
+            _logger.LogInformation(
+                "[SharePointStorageProvider] Successfully updated file {FileId}, Size: {Size} bytes",
+                result.FileId,
+                result.Size
+            );
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "[SharePointStorageProvider] Error updating file {FileId}",
+                fileId
+            );
+            throw;
+        }
     }
 
     public async Task<bool> DeleteFileAsync(string fileId)

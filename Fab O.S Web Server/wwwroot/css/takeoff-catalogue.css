@@ -19,7 +19,7 @@
     display: flex;
     flex-direction: column;
     transition: left 0.3s ease, width 0.3s ease;
-    z-index: 1042; /* Above modal (1041) so it appears in front */
+    z-index: 1039; /* Below modal backdrop (1040) and modal (1041) to prevent overlap in fullscreen */
 }
 
 /* Width variants */
@@ -52,6 +52,19 @@ body.sidebar-collapsed .takeoff-catalogue-sidebar.width-full.visible {
 /* Position catalogue sidebar after main navigation sidebar */
 .takeoff-catalogue-sidebar.visible {
     left: 280px; /* Standard main sidebar width */
+}
+
+/* IMPORTANT: Force sidebar off-screen when body class is removed (fixes race condition with Blazor rendering) */
+body:not(.catalogue-sidebar-open) .takeoff-catalogue-sidebar {
+    left: -320px !important;
+}
+
+body:not(.catalogue-sidebar-open) .takeoff-catalogue-sidebar.width-expanded {
+    left: -480px !important;
+}
+
+body:not(.catalogue-sidebar-open) .takeoff-catalogue-sidebar.width-full {
+    left: calc(-100vw + 280px) !important;
 }
 
 /* Adjust position when main sidebar is collapsed */
@@ -842,3 +855,53 @@ body.sidebar-expanded .takeoff-catalogue-sidebar.visible {
 
 /* Note: Modal positioning is handled in modal-infrastructure.css
    via body.catalogue-sidebar-open classes */
+
+/* ========================================
+   FULLSCREEN MODE OVERRIDES
+   ======================================== */
+
+/* FULLSCREEN MODE - Position sidebar at left edge when open */
+body.viewer-fullscreen.catalogue-sidebar-open .takeoff-catalogue-sidebar,
+body.viewer-fullscreen.catalogue-sidebar-expanded .takeoff-catalogue-sidebar,
+body.viewer-fullscreen.catalogue-sidebar-full .takeoff-catalogue-sidebar {
+    position: fixed !important;
+    left: 0 !important;  /* At left edge in fullscreen */
+    top: 0 !important;
+    height: 100vh !important;
+    z-index: 1055 !important; /* Above modal (1050) so it's visible */
+}
+
+/* FULLSCREEN MODE - Hide sidebar when not open */
+body.viewer-fullscreen:not(.catalogue-sidebar-open):not(.catalogue-sidebar-expanded):not(.catalogue-sidebar-full) .takeoff-catalogue-sidebar {
+    display: none !important;
+    transform: translateX(-100%);
+}
+
+/* ========================================
+   SIDEBAR RESIZE HANDLE
+   ======================================== */
+
+.sidebar-resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    background: transparent;
+    cursor: col-resize;
+    z-index: 10;
+    transition: background 0.2s ease;
+}
+
+.sidebar-resize-handle:hover {
+    background: rgba(0, 123, 255, 0.3);
+}
+
+.sidebar-resize-handle.dragging {
+    background: rgba(0, 123, 255, 0.6);
+}
+
+/* Only show resize handle when sidebar is visible */
+.takeoff-catalogue-sidebar:not(.visible) .sidebar-resize-handle {
+    display: none;
+}

@@ -1,5 +1,18 @@
-@page "/takeoffs/{TakeoffId:int}/packages"
-@page "/takeoffs/{TakeoffId:int}/revisions/{RevisionId:int}/packages"
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: Package
+Views: Table, List, Card
+Features: ViewPreferences, ColumnManagement, Search, Selection, Sorting, Filtering
+Pattern: Standard
+Modern UI: Yes
+Last Updated: 2025-10-23
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/trace/takeoffs/{takeoffId:int}/packages"
+@page "/{tenantSlug}/trace/takeoffs/{takeoffId:int}/revisions/{revisionId:int}/packages"
 @rendermode InteractiveServer
 @using FabOS.WebServer.Components.Shared
 @using FabOS.WebServer.Components.Shared.Interfaces

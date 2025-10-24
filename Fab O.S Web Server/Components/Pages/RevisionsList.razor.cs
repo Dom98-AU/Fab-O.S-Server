@@ -13,6 +13,7 @@ namespace FabOS.WebServer.Components.Pages;
 
 public partial class RevisionsList : ComponentBase, IToolbarActionProvider
 {
+    [Parameter] public string? TenantSlug { get; set; }
     [Parameter] public int TakeoffId { get; set; }
 
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
@@ -253,12 +254,12 @@ public partial class RevisionsList : ComponentBase, IToolbarActionProvider
 
     private void NavigateToRevision(int revisionId)
     {
-        Navigation.NavigateTo($"/takeoffs/{TakeoffId}/revisions/{revisionId}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}/revisions/{revisionId}");
     }
 
     private void CreateRevision()
     {
-        Navigation.NavigateTo($"/takeoffs/{TakeoffId}/revisions/new");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}/revisions/new");
     }
 
     private async Task DeleteSelectedRevisions()
@@ -292,7 +293,7 @@ public partial class RevisionsList : ComponentBase, IToolbarActionProvider
         {
             Text = "View Takeoff",
             Icon = "fas fa-file-alt",
-            ActionFunc = () => { Navigation.NavigateTo($"/takeoffs/{TakeoffId}"); return Task.CompletedTask; }
+            ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}"); return Task.CompletedTask; }
         });
 
         if (allRevisions.Any())
@@ -304,7 +305,7 @@ public partial class RevisionsList : ComponentBase, IToolbarActionProvider
                 {
                     Text = "Active Revision Packages",
                     Icon = "fas fa-box",
-                    ActionFunc = () => { Navigation.NavigateTo($"/takeoffs/{TakeoffId}/packages"); return Task.CompletedTask; },
+                    ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}/packages"); return Task.CompletedTask; },
                     Tooltip = "View packages in the active revision"
                 });
             }

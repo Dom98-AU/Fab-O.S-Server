@@ -410,8 +410,8 @@ window.nutrientViewer = {
      * @param {string} containerId - Container element ID
      * @param {string} documentUrl - URL to PDF document (can be API endpoint)
      */
-    loadPdf: async function(containerId, documentUrl) {
-        console.log(`[Nutrient Viewer] Loading PDF in ${containerId} from: ${documentUrl}`);
+    loadPdf: async function(containerId, documentUrl, isEditMode = true) {
+        console.log(`[Nutrient Viewer] Loading PDF in ${containerId} from: ${documentUrl}, editMode: ${isEditMode}`);
 
         try {
             const instanceData = this.instances[containerId];
@@ -434,6 +434,26 @@ window.nutrientViewer = {
             // Store the document URL for later use (e.g., extracting package drawing ID)
             instanceData.documentUrl = documentUrl;
             console.log('[Nutrient Viewer] Stored document URL:', documentUrl);
+
+            // Store edit mode
+            instanceData.isEditMode = isEditMode;
+
+            // If view-only mode, configure accordingly
+            if (!isEditMode) {
+                console.log('[Nutrient Viewer] 🔒 Loading in view-only mode');
+
+                // Disable annotation creation
+                instanceData.instance.setIsEditableAnnotation(() => false);
+
+                // Minimal toolbar for viewers
+                instanceData.instance.setToolbarItems([
+                    { type: "zoom-in" },
+                    { type: "zoom-out" },
+                    { type: "zoom-mode" },
+                    { type: "pan" },
+                    { type: "search" }
+                ]);
+            }
 
             console.log(`[Nutrient Viewer] ✓ PSPDFKit instance loaded successfully! (${instanceData.instance.totalPageCount} pages)`);
 
@@ -483,6 +503,12 @@ window.nutrientViewer = {
         instanceData.autosaveEnabled = true; // Make it accessible from reloadInstantJson
 
         const triggerAutosave = () => {
+            // Skip autosave in view-only mode
+            if (!instanceData.isEditMode) {
+                console.log('[Nutrient Viewer] ⏭️ Skipping autosave - view-only mode');
+                return;
+            }
+
             // Skip autosave if disabled (during reload operations)
             if (!autosaveEnabled || !instanceData.autosaveEnabled) {
                 console.log('[Nutrient Viewer] ⏭️ Skipping autosave - currently disabled');
@@ -789,6 +815,28 @@ window.nutrientViewer = {
             }
 
             console.log('[Nutrient Viewer] ============================================');
+        });
+
+        // Listen for annotation selection (for click-to-highlight feature)
+        instance.addEventListener('viewState.change', (viewState) => {
+            // Check if selected annotations changed
+            if (viewState.selectedAnnotations && viewState.selectedAnnotations.size > 0) {
+                const selectedAnnotation = viewState.selectedAnnotations.first();
+                if (selectedAnnotation) {
+                    console.log('[Nutrient Viewer] 🖱️ Annotation selected:', selectedAnnotation.id);
+
+                    // Notify Blazor to highlight the corresponding measurement in the panel
+                    if (instanceData.dotNetRef) {
+                        instanceData.dotNetRef.invokeMethodAsync('OnAnnotationSelected', selectedAnnotation.id)
+                            .then(() => {
+                                console.log('[Nutrient Viewer] ✓ Notified Blazor of annotation selection');
+                            })
+                            .catch(error => {
+                                console.warn('[Nutrient Viewer] Could not notify Blazor of annotation selection:', error);
+                            });
+                    }
+                }
+            }
         });
 
         console.log('[Nutrient Viewer] Event listeners setup complete');
@@ -2274,3 +2322,38 @@ resizeObserver.observe(document.body, {
 console.log('[Nutrient Viewer] Initializing drag-to-resize functionality');
 setupSidebarResize();
 setupFooterResize();
+
+// ========================================
+// PDF EDIT LOCK SYSTEM - VIEW-ONLY MODE
+// ========================================
+
+/**
+ * Set view-only mode dynamically (called when lock is lost due to inactivity)
+ * @param {string} containerId - Container element ID
+ */
+window.nutrientViewer.setViewOnlyMode = async function(containerId) {
+    const instanceData = this.instances[containerId];
+    if (!instanceData?.instance) {
+        console.warn('[Nutrient Viewer] Cannot set view-only mode - no instance');
+        return;
+    }
+
+    console.log('[Nutrient Viewer] 🔒 Switching to view-only mode');
+
+    // Set flag
+    instanceData.isEditMode = false;
+
+    // Disable annotation editing
+    instanceData.instance.setIsEditableAnnotation(() => false);
+
+    // Update toolbar to remove editing tools
+    instanceData.instance.setToolbarItems([
+        { type: "zoom-in" },
+        { type: "zoom-out" },
+        { type: "zoom-mode" },
+        { type: "pan" },
+        { type: "search" }
+    ]);
+
+    console.log('[Nutrient Viewer] ✓ View-only mode activated');
+};

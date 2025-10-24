@@ -62,6 +62,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<UserAuthMethod> UserAuthMethods { get; set; }
     public DbSet<AuthAuditLog> AuthAuditLogs { get; set; }
+    public DbSet<UserInvitation> UserInvitations { get; set; }
 
     // NEW: View Preferences entities
     public DbSet<SavedViewPreference> SavedViewPreferences { get; set; }
@@ -90,6 +91,9 @@ public class ApplicationDbContext : DbContext
     // NEW: PDF Annotation entities (Calibration & Annotations persistence)
     public DbSet<PdfScaleCalibration> PdfScaleCalibrations { get; set; }
     public DbSet<PdfAnnotation> PdfAnnotations { get; set; }
+
+    // NEW: PDF Edit Lock entities (Concurrent editing prevention)
+    public DbSet<PdfEditLock> PdfEditLocks { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -126,6 +130,15 @@ public class ApplicationDbContext : DbContext
             .WithMany(pd => pd.Calibrations)
             .HasForeignKey(c => c.PackageDrawingId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Configure PdfAnnotation to TraceTakeoffMeasurement relationship
+        // NO cascade delete here - we handle it manually in the service layer
+        // to ensure proper bidirectional cleanup
+        modelBuilder.Entity<PdfAnnotation>()
+            .HasOne(pa => pa.TraceTakeoffMeasurement)
+            .WithMany() // No navigation property on TraceTakeoffMeasurement side
+            .HasForeignKey(pa => pa.TraceTakeoffMeasurementId)
+            .OnDelete(DeleteBehavior.Restrict); // Prevent DB-level cascade, we handle in code
 
         modelBuilder.Entity<MachineCenter>()
             .HasOne(mc => mc.CreatedByUser)
@@ -185,6 +198,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Company>()
             .Property(c => c.IsActive)
             .HasDefaultValue(true);
+
+        modelBuilder.Entity<User>()
+            .Property(u => u.CompanyId)
+            .HasDefaultValue(1); // Default to default company
 
         modelBuilder.Entity<Company>()
             .Property(c => c.SubscriptionLevel)
@@ -518,6 +535,49 @@ public class ApplicationDbContext : DbContext
             .HasOne(pa => pa.CreatedByUser)
             .WithMany()
             .HasForeignKey(pa => pa.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // PdfEditLock configurations
+        modelBuilder.Entity<PdfEditLock>()
+            .Property(pel => pel.LockedAt)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<PdfEditLock>()
+            .Property(pel => pel.LastHeartbeat)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<PdfEditLock>()
+            .Property(pel => pel.LastActivityAt)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<PdfEditLock>()
+            .Property(pel => pel.IsActive)
+            .HasDefaultValue(true);
+
+        // Index for fast lookup of active locks by drawing
+        modelBuilder.Entity<PdfEditLock>()
+            .HasIndex(pel => new { pel.PackageDrawingId, pel.IsActive });
+
+        // Index for stale lock cleanup (find locks with old heartbeats)
+        modelBuilder.Entity<PdfEditLock>()
+            .HasIndex(pel => pel.LastHeartbeat)
+            .HasFilter("[IsActive] = 1");
+
+        // Index for session lookup
+        modelBuilder.Entity<PdfEditLock>()
+            .HasIndex(pel => pel.SessionId);
+
+        // Configure relationships
+        modelBuilder.Entity<PdfEditLock>()
+            .HasOne(pel => pel.PackageDrawing)
+            .WithMany()
+            .HasForeignKey(pel => pel.PackageDrawingId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PdfEditLock>()
+            .HasOne(pel => pel.User)
+            .WithMany()
+            .HasForeignKey(pel => pel.UserId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

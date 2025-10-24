@@ -706,15 +706,832 @@ h1:focus {
     .fabos-sidebar-controls-section {
         padding: 0.5rem 0.75rem;
     }
-    
+
     .fabos-control-button {
         padding: 0.5rem 0.6rem;
         font-size: 0.75rem;
     }
-    
+
     .fabos-control-icon {
         width: 20px;
         height: 20px;
         font-size: 1rem;
+    }
+}
+
+/* ============================================
+   NEW Fab.OS Sidebar Styles - White/Light Theme
+   ============================================ */
+
+/* CSS Variables - Light Theme for New Sidebar */
+:root {
+    --fabos-sidebar-width: 280px;
+    --fabos-sidebar-width-collapsed: 60px;
+    --fabos-sidebar-width-expanded: 420px;
+
+    /* Light theme colors */
+    --fabos-sidebar-bg: #ffffff;
+    --fabos-sidebar-border: #e5e7eb;
+    --fabos-sidebar-text: #1f2937;
+    --fabos-sidebar-text-muted: #6b7280;
+    --fabos-sidebar-hover: #f3f4f6;
+    --fabos-sidebar-active: #eff6ff;
+    --fabos-sidebar-accent: #3b82f6;
+    --fabos-sidebar-accent-hover: #2563eb;
+    --fabos-sidebar-shadow: rgba(0, 0, 0, 0.1);
+}
+
+/* Main Sidebar Container */
+.fabos-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: var(--fabos-sidebar-width);
+    height: 100vh;
+    background: var(--fabos-sidebar-bg);
+    color: var(--fabos-sidebar-text);
+    transition: width 0.3s ease;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 2px 0 10px var(--fabos-sidebar-shadow);
+    border-right: 1px solid var(--fabos-sidebar-border);
+}
+
+.fabos-sidebar.collapsed {
+    width: var(--fabos-sidebar-width-collapsed);
+}
+
+.fabos-sidebar.expanded {
+    width: var(--fabos-sidebar-width-expanded);
+}
+
+/* Header Section */
+.fabos-sidebar-header {
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--fabos-sidebar-border);
+    min-height: 70px;
+    flex-shrink: 0;
+    background: var(--fabos-sidebar-bg);
+}
+
+.fabos-sidebar.collapsed .fabos-sidebar-header {
+    padding: 16px 8px;
+    justify-content: center;
+}
+
+.fabos-hamburger-button {
+    background: var(--fabos-sidebar-hover);
+    border: 1px solid var(--fabos-sidebar-border);
+    color: var(--fabos-sidebar-text);
+    cursor: pointer;
+    padding: 10px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+}
+
+.fabos-hamburger-button:hover {
+    background: var(--fabos-sidebar-active);
+    border-color: var(--fabos-sidebar-accent);
+    transform: scale(1.05);
+}
+
+.fabos-hamburger {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 20px;
+}
+
+.fabos-hamburger-line {
+    width: 100%;
+    height: 2.5px;
+    background-color: var(--fabos-sidebar-text);
+    border-radius: 2px;
+    transition: all 0.3s;
+}
+
+.fabos-logo-button {
+    background: none;
+    border: none;
+    color: var(--fabos-sidebar-text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.fabos-logo-button:hover {
+    background: var(--fabos-sidebar-hover);
+}
+
+.fabos-logo {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+}
+
+.fabos-brand-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    flex: 1;
+    gap: 2px;
+}
+
+.fabos-brand-text {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--fabos-sidebar-accent);
+    line-height: 1;
+}
+
+.fabos-module-indicator {
+    font-size: 11px;
+    color: var(--fabos-sidebar-text-muted);
+    font-weight: 500;
+}
+
+.fabos-chevron {
+    font-size: 10px;
+    color: var(--fabos-sidebar-text-muted);
+    margin-left: auto;
+}
+
+/* Module Selector Dropdown */
+.fabos-module-selector {
+    position: absolute;
+    top: 75px;
+    left: 15px;
+    right: 15px;
+    background: var(--fabos-sidebar-bg);
+    border: 1px solid var(--fabos-sidebar-border);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    z-index: 1001;
+    overflow: hidden;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fabos-module-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--fabos-sidebar-border);
+    background: var(--fabos-sidebar-hover);
+}
+
+.fabos-module-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--fabos-sidebar-text);
+}
+
+.fabos-close-button {
+    background: none;
+    border: none;
+    color: var(--fabos-sidebar-text-muted);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.fabos-close-button:hover {
+    background: var(--fabos-sidebar-hover);
+    color: var(--fabos-sidebar-text);
+}
+
+.fabos-module-section {
+    padding: 12px 8px;
+}
+
+.fabos-module-section:not(:last-child) {
+    border-bottom: 1px solid var(--fabos-sidebar-border);
+}
+
+.fabos-module-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fabos-sidebar-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px 12px;
+}
+
+.fabos-module-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.fabos-module-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+    text-align: left;
+    color: var(--fabos-sidebar-text);
+}
+
+.fabos-module-item:hover {
+    background: var(--fabos-sidebar-hover);
+}
+
+.fabos-module-item.active {
+    background: var(--fabos-sidebar-active);
+    color: var(--fabos-sidebar-accent);
+}
+
+.fabos-module-icon {
+    font-size: 20px;
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.fabos-module-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
+.fabos-module-name {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.fabos-module-desc {
+    font-size: 11px;
+    color: var(--fabos-sidebar-text-muted);
+}
+
+.fabos-module-check {
+    color: var(--fabos-sidebar-accent);
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* Controls Section */
+.fabos-sidebar-controls-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--fabos-sidebar-border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.fabos-control-button {
+    background: var(--fabos-sidebar-hover);
+    border: 1px solid var(--fabos-sidebar-border);
+    color: var(--fabos-sidebar-text);
+    cursor: pointer;
+    padding: 10px 14px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.fabos-control-button:hover {
+    background: var(--fabos-sidebar-active);
+    border-color: var(--fabos-sidebar-accent);
+    transform: translateX(2px);
+}
+
+.fabos-expand-button {
+    background: var(--fabos-sidebar-active);
+    border-color: var(--fabos-sidebar-accent);
+    color: var(--fabos-sidebar-accent);
+}
+
+.fabos-expand-button:hover {
+    background: #dbeafe;
+    border-color: var(--fabos-sidebar-accent-hover);
+}
+
+.fabos-control-icon {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+.fabos-control-icon.active {
+    color: #f59e0b;
+}
+
+.fabos-control-icon.expand-arrow {
+    transition: transform 0.3s ease;
+}
+
+.fabos-control-icon.expand-arrow.expanded {
+    transform: rotate(180deg);
+}
+
+.fabos-control-text {
+    font-weight: 500;
+}
+
+/* Content Section */
+.fabos-sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 0;
+}
+
+.fabos-sidebar-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.fabos-sidebar-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.fabos-sidebar-content::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+}
+
+.fabos-sidebar-content::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}
+
+/* Pinned Section */
+.fabos-pinned-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--fabos-sidebar-border);
+}
+
+.fabos-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 0 4px;
+}
+
+.fabos-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fabos-sidebar-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.fabos-pin-mode-indicator {
+    font-size: 10px;
+    color: #f59e0b;
+    background: #fef3c7;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.fabos-pinned-items {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.fabos-pinned-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.fabos-unpin-button {
+    background: #fef2f2;
+    border: none;
+    color: #ef4444;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    opacity: 0;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.fabos-pinned-item:hover .fabos-unpin-button {
+    opacity: 1;
+}
+
+.fabos-unpin-button:hover {
+    background: #fee2e2;
+}
+
+/* Navigation Items */
+.fabos-standard-nav {
+    padding: 8px 0;
+}
+
+.fabos-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    color: var(--fabos-sidebar-text);
+    text-decoration: none;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+    position: relative;
+}
+
+.fabos-nav-item:hover {
+    background: var(--fabos-sidebar-hover);
+    border-left-color: var(--fabos-sidebar-accent);
+    text-decoration: none;
+    color: var(--fabos-sidebar-text);
+}
+
+.fabos-nav-item.active {
+    background: var(--fabos-sidebar-active);
+    border-left-color: var(--fabos-sidebar-accent);
+    color: var(--fabos-sidebar-accent);
+}
+
+.fabos-nav-item.pinned {
+    background: #eff6ff;
+    border-left-color: var(--fabos-sidebar-accent);
+}
+
+.fabos-nav-icon {
+    font-size: 18px;
+    min-width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+    color: var(--fabos-sidebar-text-muted);
+}
+
+.fabos-nav-item.active .fabos-nav-icon {
+    color: var(--fabos-sidebar-accent);
+}
+
+.fabos-nav-text {
+    font-size: 14px;
+    font-weight: 500;
+    flex: 1;
+}
+
+/* Collapsed State Tooltips */
+.fabos-sidebar.collapsed .fabos-nav-item {
+    padding: 12px;
+    margin: 4px 8px;
+    justify-content: center;
+    border-radius: 8px;
+    border-left: none;
+}
+
+.fabos-sidebar.collapsed .fabos-nav-item:hover {
+    background: var(--fabos-sidebar-active);
+    transform: scale(1.08);
+}
+
+.fabos-sidebar.collapsed .fabos-nav-item::after {
+    content: attr(title);
+    position: absolute;
+    left: 65px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--fabos-sidebar-text);
+    color: white;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s;
+    z-index: 1001;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+}
+
+.fabos-sidebar.collapsed .fabos-nav-item:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Expanded View */
+.fabos-expanded-content {
+    padding: 0;
+}
+
+.fabos-nav-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--fabos-sidebar-border);
+}
+
+.fabos-nav-section:last-child {
+    border-bottom: none;
+}
+
+.fabos-nav-items {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.fabos-nav-item-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.fabos-nav-item-container .fabos-nav-item {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 2px solid transparent;
+    background: var(--fabos-sidebar-hover);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.fabos-nav-item-container .fabos-nav-item:hover {
+    background: var(--fabos-sidebar-active);
+    border-left-color: var(--fabos-sidebar-accent);
+}
+
+.fabos-nav-item.pinned-indicator {
+    background: #eff6ff;
+    border-left-color: var(--fabos-sidebar-accent);
+}
+
+.fabos-nav-desc {
+    font-size: 11px;
+    color: var(--fabos-sidebar-text-muted);
+    margin-left: 36px;
+}
+
+.fabos-pin-button {
+    background: none;
+    border: none;
+    color: var(--fabos-sidebar-text-muted);
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.2s;
+    opacity: 0;
+    flex-shrink: 0;
+}
+
+.fabos-nav-item-container:hover .fabos-pin-button {
+    opacity: 1;
+}
+
+.fabos-pin-button:hover {
+    color: #f59e0b;
+    background: #fef3c7;
+}
+
+.fabos-pin-button.pinned {
+    color: #f59e0b;
+    opacity: 1;
+}
+
+/* Footer Section */
+.fabos-sidebar-footer {
+    padding: 12px;
+    border-top: 1px solid var(--fabos-sidebar-border);
+    flex-shrink: 0;
+    position: relative;
+    background: var(--fabos-sidebar-bg);
+    overflow: hidden;
+}
+
+.fabos-sidebar.collapsed .fabos-sidebar-footer {
+    padding: 12px 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.fabos-user-card {
+    position: relative;
+}
+
+.fabos-user-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px;
+    background: var(--fabos-sidebar-hover);
+    border: 1px solid var(--fabos-sidebar-border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--fabos-sidebar-text);
+}
+
+.fabos-user-dropdown-trigger:hover {
+    background: var(--fabos-sidebar-active);
+    border-color: var(--fabos-sidebar-accent);
+}
+
+.fabos-user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--fabos-sidebar-accent), #60a5fa);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.fabos-avatar-text {
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+}
+
+.fabos-user-details {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    flex: 1;
+    gap: 2px;
+}
+
+.fabos-user-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--fabos-sidebar-text);
+}
+
+.fabos-user-role {
+    font-size: 11px;
+    color: var(--fabos-sidebar-text-muted);
+}
+
+.fabos-dropdown-chevron {
+    font-size: 10px;
+    color: var(--fabos-sidebar-text-muted);
+}
+
+.fabos-user-avatar-collapsed {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--fabos-sidebar-accent), #60a5fa);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    margin: 0 auto;
+}
+
+.fabos-user-avatar-collapsed:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.5);
+}
+
+.fabos-user-dropdown {
+    position: absolute;
+    bottom: 100%;
+    left: 12px;
+    right: 12px;
+    margin-bottom: 8px;
+    background: var(--fabos-sidebar-bg);
+    border: 1px solid var(--fabos-sidebar-border);
+    border-radius: 10px;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    animation: slideUp 0.2s ease;
+}
+
+.fabos-user-dropdown.collapsed {
+    left: 70px;
+    right: auto;
+    width: 200px;
+    bottom: 12px;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fabos-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--fabos-sidebar-text);
+    text-decoration: none;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.fabos-dropdown-item:hover {
+    background: var(--fabos-sidebar-hover);
+    color: var(--fabos-sidebar-text);
+    text-decoration: none;
+}
+
+.fabos-dropdown-icon {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+    color: var(--fabos-sidebar-text-muted);
+}
+
+.fabos-dropdown-divider {
+    height: 1px;
+    background: var(--fabos-sidebar-border);
+    margin: 4px 0;
+}
+
+/* Main Content Layout Adjustment */
+.fabos-main-content {
+    margin-left: var(--fabos-sidebar-width);
+    transition: margin-left 0.3s ease;
+    min-height: 100vh;
+    background: #f9fafb;
+}
+
+.fabos-app:has(.fabos-sidebar.collapsed) .fabos-main-content {
+    margin-left: var(--fabos-sidebar-width-collapsed);
+}
+
+.fabos-app:has(.fabos-sidebar.expanded) .fabos-main-content {
+    margin-left: var(--fabos-sidebar-width-expanded);
+}
+
+/* Pin Mode Styling */
+.fabos-sidebar.pin-mode .fabos-nav-item-container .fabos-nav-item {
+    border: 2px dashed #fbbf24;
+}
+
+.fabos-sidebar.pin-mode .fabos-nav-item-container .fabos-nav-item:hover {
+    border-color: #f59e0b;
+    background: #fef3c7;
+}
+
+/* Lucide Icon Styling */
+.lucide-icon {
+    flex-shrink: 0;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .fabos-sidebar {
+        width: var(--fabos-sidebar-width-collapsed);
+    }
+
+    .fabos-sidebar.expanded {
+        width: 100vw;
     }
 }

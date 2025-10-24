@@ -1999,6 +1999,13 @@ namespace FabOS.WebServer.Migrations
                     b.Property<int>("PackageId")
                         .HasColumnType("int");
 
+                    b.Property<string>("ProviderFileId")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ProviderMetadata")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("SharePointItemId")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -2008,6 +2015,10 @@ namespace FabOS.WebServer.Migrations
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("StorageProvider")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<int>("UploadedBy")
                         .HasColumnType("int");
@@ -2045,6 +2056,9 @@ namespace FabOS.WebServer.Migrations
                     b.Property<int>("CompanyId")
                         .HasColumnType("int");
 
+                    b.Property<string>("CoordinatesData")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("int");
 
@@ -2062,6 +2076,18 @@ namespace FabOS.WebServer.Migrations
 
                     b.Property<bool>("IsMeasurement")
                         .HasColumnType("bit");
+
+                    b.Property<string>("MeasurementPrecision")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("MeasurementScale")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("MeasurementValue")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime?>("ModifiedDate")
                         .HasColumnType("datetime2");
@@ -2088,6 +2114,64 @@ namespace FabOS.WebServer.Migrations
                     b.HasIndex("PackageDrawingId", "AnnotationId");
 
                     b.ToTable("PdfAnnotations");
+                });
+
+            modelBuilder.Entity("FabOS.WebServer.Models.Entities.PdfEditLock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime>("LastActivityAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("getutcdate()");
+
+                    b.Property<DateTime>("LastHeartbeat")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("getutcdate()");
+
+                    b.Property<DateTime>("LockedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("getutcdate()");
+
+                    b.Property<int>("PackageDrawingId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastHeartbeat")
+                        .HasFilter("[IsActive] = 1");
+
+                    b.HasIndex("SessionId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("PackageDrawingId", "IsActive");
+
+                    b.ToTable("PdfEditLocks");
                 });
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.PdfScaleCalibration", b =>
@@ -3572,8 +3656,10 @@ namespace FabOS.WebServer.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<int?>("CompanyId")
-                        .HasColumnType("int");
+                    b.Property<int>("CompanyId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
 
                     b.Property<string>("CompanyName")
                         .HasMaxLength(200)
@@ -3710,6 +3796,57 @@ namespace FabOS.WebServer.Migrations
                         .IsUnique();
 
                     b.ToTable("UserAuthMethods");
+                });
+
+            modelBuilder.Entity("FabOS.WebServer.Models.Entities.UserInvitation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("AuthMethod")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("InvitedById")
+                        .HasColumnType("int");
+
+                    b.Property<int>("InvitedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("InvitedById");
+
+                    b.ToTable("UserInvitations");
                 });
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.WeldingConnection", b =>
@@ -4714,6 +4851,25 @@ namespace FabOS.WebServer.Migrations
                     b.Navigation("TraceTakeoffMeasurement");
                 });
 
+            modelBuilder.Entity("FabOS.WebServer.Models.Entities.PdfEditLock", b =>
+                {
+                    b.HasOne("FabOS.WebServer.Models.Entities.PackageDrawing", "PackageDrawing")
+                        .WithMany()
+                        .HasForeignKey("PackageDrawingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FabOS.WebServer.Models.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PackageDrawing");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.PdfScaleCalibration", b =>
                 {
                     b.HasOne("FabOS.WebServer.Models.Entities.Company", "Company")
@@ -5167,7 +5323,9 @@ namespace FabOS.WebServer.Migrations
                 {
                     b.HasOne("FabOS.WebServer.Models.Entities.Company", "Company")
                         .WithMany("Users")
-                        .HasForeignKey("CompanyId");
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Company");
                 });
@@ -5181,6 +5339,23 @@ namespace FabOS.WebServer.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FabOS.WebServer.Models.Entities.UserInvitation", b =>
+                {
+                    b.HasOne("FabOS.WebServer.Models.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FabOS.WebServer.Models.Entities.User", "InvitedBy")
+                        .WithMany()
+                        .HasForeignKey("InvitedById");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("InvitedBy");
                 });
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.WeldingConnection", b =>

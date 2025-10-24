@@ -12,6 +12,7 @@ namespace FabOS.WebServer.Components.Pages;
 
 public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, IDisposable
 {
+    [Parameter] public string? TenantSlug { get; set; }
     [Parameter] public int TakeoffId { get; set; }
     [Parameter] public int? RevisionId { get; set; }
 
@@ -276,12 +277,12 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
 
     private void NavigateToTakeoffs()
     {
-        Navigation.NavigateTo("/takeoffs");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs");
     }
 
     private void NavigateBackToTakeoff()
     {
-        Navigation.NavigateTo($"/takeoffs/{TakeoffId}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}");
     }
 
     // IToolbarActionProvider implementation

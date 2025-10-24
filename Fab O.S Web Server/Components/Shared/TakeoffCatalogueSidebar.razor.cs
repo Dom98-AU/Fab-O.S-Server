@@ -10,6 +10,8 @@ namespace FabOS.WebServer.Components.Shared
         [Inject] private ITakeoffCatalogueService CatalogueService { get; set; } = default!;
         [Inject] private ILogger<TakeoffCatalogueSidebar> Logger { get; set; } = default!;
         [Inject] private IJSRuntime JS { get; set; } = default!;
+        [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
+        [Inject] private Data.Contexts.ApplicationDbContext DbContext { get; set; } = default!;
 
         [Parameter] public bool IsVisible { get; set; } = true;
         [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
@@ -41,12 +43,25 @@ namespace FabOS.WebServer.Components.Shared
             Full       // 100vw - main sidebar
         }
 
-        private const int companyId = 1; // TODO: Get from tenant context
+        private int currentCompanyId = 1; // Retrieved from authenticated user, defaults to 1
 
         private IJSObjectReference? jsModule;
 
         protected override async Task OnInitializedAsync()
         {
+            // Get company ID from authenticated user
+            var httpContext = HttpContextAccessor.HttpContext;
+            if (httpContext?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userIdClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    var user = await DbContext.Users.FindAsync(userId);
+                    currentCompanyId = user?.CompanyId ?? 1;
+                    Logger.LogInformation("[TakeoffCatalogueSidebar] Retrieved CompanyId={CompanyId} for user {UserId}", currentCompanyId, userId);
+                }
+            }
+
             await LoadMaterials();
         }
 
@@ -108,7 +123,7 @@ namespace FabOS.WebServer.Components.Shared
 
                 Logger.LogInformation("[TakeoffCatalogueSidebar] Loading catalogue materials");
 
-                materials = await CatalogueService.GetMaterialsAsync(companyId);
+                materials = await CatalogueService.GetMaterialsAsync(currentCompanyId);
                 Logger.LogInformation("[TakeoffCatalogueSidebar] Loaded {Count} materials", materials.Count);
             }
             catch (Exception ex)
@@ -153,7 +168,7 @@ namespace FabOS.WebServer.Components.Shared
 
                 Logger.LogInformation("[TakeoffCatalogueSidebar] Loading categories for material: {Material}", material);
 
-                materialCategories = await CatalogueService.GetCategoriesByMaterialAsync(material, companyId);
+                materialCategories = await CatalogueService.GetCategoriesByMaterialAsync(material, currentCompanyId);
                 Logger.LogInformation("[TakeoffCatalogueSidebar] Loaded {Count} categories for material {Material}",
                     materialCategories.Count, material);
             }
@@ -198,7 +213,7 @@ namespace FabOS.WebServer.Components.Shared
                 Logger.LogInformation("[TakeoffCatalogueSidebar] Loading items for material: {Material}, category: {Category}",
                     material, category);
 
-                categoryItems = await CatalogueService.GetItemsByMaterialAndCategoryAsync(material, category, companyId);
+                categoryItems = await CatalogueService.GetItemsByMaterialAndCategoryAsync(material, category, currentCompanyId);
                 Logger.LogInformation("[TakeoffCatalogueSidebar] Loaded {Count} items for material {Material} and category {Category}",
                     categoryItems.Count, material, category);
             }
@@ -255,7 +270,7 @@ namespace FabOS.WebServer.Components.Shared
 
                 Logger.LogInformation("[TakeoffCatalogueSidebar] Searching for: {SearchTerm}", searchTerm);
 
-                searchResults = await CatalogueService.SearchItemsAsync(searchTerm, companyId);
+                searchResults = await CatalogueService.SearchItemsAsync(searchTerm, currentCompanyId);
                 Logger.LogInformation("[TakeoffCatalogueSidebar] Found {Count} results for search '{SearchTerm}'",
                     searchResults.Count, searchTerm);
             }

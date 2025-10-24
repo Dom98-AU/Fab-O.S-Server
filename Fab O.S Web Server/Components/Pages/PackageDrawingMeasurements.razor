@@ -1,0 +1,153 @@
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: TraceTakeoffMeasurement
+Views: Table, List, Card
+Features: ViewPreferences, ColumnManagement, Search, Selection, Sorting, Filtering, SignalR
+Pattern: Standard
+Modern UI: Yes
+Last Updated: 2025-10-23
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/trace/packages/{packageId:int}/drawings/{drawingId:int}/measurements"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models.ViewState
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Measurements - @drawingName - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search measurements..." />
+
+<!-- Content -->
+<div class="measurements-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading measurements...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Unified View Toolbar -->
+        <TableViewToolbar TItem="TraceTakeoffMeasurement"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="TraceTakeoffMeasurement"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
+
+        <!-- Views -->
+        @if (filteredMeasurements.Any())
+        {
+            @if (currentView == GenericViewSwitcher<TraceTakeoffMeasurement>.ViewType.Table)
+            {
+                <GenericTableView TItem="TraceTakeoffMeasurement"
+                                 Items="@filteredMeasurements"
+                                 AllItems="@allMeasurements"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 ShowCheckboxes="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleRowClick"
+                                 OnRowDoubleClick="@HandleRowDoubleClick"
+                                 EnableAdvancedFeatures="true"
+                                 EnableColumnManagement="true"
+                                 EnableFiltering="true"
+                                 EnableViewPreferences="true"
+                                 EntityType="TraceTakeoffMeasurement" />
+            }
+            else if (currentView == GenericViewSwitcher<TraceTakeoffMeasurement>.ViewType.List)
+            {
+                <GenericListView TItem="TraceTakeoffMeasurement"
+                                Items="@filteredMeasurements"
+                                OnItemClick="@HandleRowClick"
+                                OnItemDoubleClick="@HandleRowDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedListItems"
+                                SelectedItemsChanged="@HandleListSelectionChanged">
+                    <CustomListItemContent Context="measurement">
+                        <div class="measurement-list-item @(IsMeasurementHighlighted(measurement) ? "highlighted" : "")">
+                            <div class="measurement-header">
+                                <h3 class="measurement-title">@measurement.CatalogueItem?.ItemCode</h3>
+                                <span class="badge badge-type">@measurement.MeasurementType</span>
+                            </div>
+                            <p class="measurement-description">@(measurement.CatalogueItem?.Description ?? "No description")</p>
+                            <div class="measurement-meta">
+                                <span class="badge badge-category">@(measurement.CatalogueItem?.Category ?? "Uncategorized")</span>
+                                <span class="measurement-value">@measurement.Value.ToString("F2") @measurement.Unit</span>
+                                @if (measurement.CalculatedWeight.HasValue)
+                                {
+                                    <span class="measurement-weight">
+                                        <i class="fas fa-weight-hanging"></i>
+                                        @measurement.CalculatedWeight.Value.ToString("F2") kg
+                                    </span>
+                                }
+                                <span class="measurement-date">@measurement.CreatedDate.ToLocalTime().ToString("g")</span>
+                            </div>
+                        </div>
+                    </CustomListItemContent>
+                </GenericListView>
+            }
+            else if (currentView == GenericViewSwitcher<TraceTakeoffMeasurement>.ViewType.Card)
+            {
+                <GenericCardView TItem="TraceTakeoffMeasurement"
+                                Items="@filteredMeasurements"
+                                OnItemClick="@HandleRowClick"
+                                OnItemDoubleClick="@HandleRowDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@HandleCardSelectionChanged">
+                    <CustomCardContent Context="measurement">
+                        <div class="measurement-card @(IsMeasurementHighlighted(measurement) ? "highlighted" : "")">
+                            <div class="measurement-card-header">
+                                <h4>@measurement.CatalogueItem?.ItemCode</h4>
+                                <span class="badge badge-type">@measurement.MeasurementType</span>
+                            </div>
+                            <div class="measurement-card-body">
+                                <p class="card-description">@(measurement.CatalogueItem?.Description ?? "No description")</p>
+                                <div class="card-info">
+                                    <span class="badge badge-category">@(measurement.CatalogueItem?.Category ?? "Uncategorized")</span>
+                                    <span class="card-value">@measurement.Value.ToString("F2") @measurement.Unit</span>
+                                </div>
+                                @if (measurement.CalculatedWeight.HasValue)
+                                {
+                                    <div class="card-weight">
+                                        <i class="fas fa-weight-hanging"></i>
+                                        <span>@measurement.CalculatedWeight.Value.ToString("F2") kg</span>
+                                    </div>
+                                }
+                            </div>
+                            <div class="measurement-card-footer">
+                                <i class="fas fa-clock"></i>
+                                <span>@measurement.CreatedDate.ToLocalTime().ToString("g")</span>
+                            </div>
+                        </div>
+                    </CustomCardContent>
+                </GenericCardView>
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <i class="fas fa-ruler-combined"></i>
+                <p>No measurements found</p>
+                <small>@(string.IsNullOrEmpty(searchQuery) ? "No measurements have been created for this drawing yet" : "Try adjusting your search")</small>
+            </div>
+        }
+    }
+</div>

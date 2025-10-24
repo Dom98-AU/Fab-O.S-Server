@@ -1,0 +1,89 @@
+@rendermode InteractiveServer
+@using FabOS.WebServer.Services
+@using FabOS.WebServer.Components.Shared
+@inject SidebarService SidebarService
+
+<div class="fabos-sidebar-footer">
+    @if (!SidebarService.IsCollapsed)
+    {
+        <div class="fabos-user-card">
+            <button type="button" class="fabos-user-dropdown-trigger" @onclick="ToggleDropdown">
+                <div class="fabos-user-avatar">
+                    <span class="fabos-avatar-text">AD</span>
+                </div>
+                <div class="fabos-user-details">
+                    <span class="fabos-user-name">Admin User</span>
+                    <span class="fabos-user-role">Steel Estimator</span>
+                </div>
+                <span class="fabos-dropdown-chevron">
+                    <LucideIcon Name="chevron-down" Size="12" />
+                </span>
+            </button>
+
+            @if (showDropdown)
+            {
+                <div class="fabos-user-dropdown">
+                    <a href="/profile" class="fabos-dropdown-item">
+                        <span class="fabos-dropdown-icon">
+                            <LucideIcon Name="users" Size="16" />
+                        </span>
+                        <span>Profile</span>
+                    </a>
+                    <a href="/settings" class="fabos-dropdown-item">
+                        <span class="fabos-dropdown-icon">
+                            <LucideIcon Name="settings" Size="16" />
+                        </span>
+                        <span>Settings</span>
+                    </a>
+                    <div class="fabos-dropdown-divider"></div>
+                    <a href="/logout" class="fabos-dropdown-item">
+                        <span class="fabos-dropdown-icon">
+                            <LucideIcon Name="log-out" Size="16" />
+                        </span>
+                        <span>Sign Out</span>
+                    </a>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <button type="button" class="fabos-user-avatar-collapsed" @onclick="ToggleDropdown">
+            <span class="fabos-avatar-text">AD</span>
+        </button>
+
+        @if (showDropdown)
+        {
+            <div class="fabos-user-dropdown collapsed">
+                <a href="/profile" class="fabos-dropdown-item">
+                    <span class="fabos-dropdown-icon">
+                        <LucideIcon Name="users" Size="16" />
+                    </span>
+                    <span>Profile</span>
+                </a>
+                <a href="/settings" class="fabos-dropdown-item">
+                    <span class="fabos-dropdown-icon">
+                        <LucideIcon Name="settings" Size="16" />
+                    </span>
+                    <span>Settings</span>
+                </a>
+                <div class="fabos-dropdown-divider"></div>
+                <a href="/logout" class="fabos-dropdown-item">
+                    <span class="fabos-dropdown-icon">
+                        <LucideIcon Name="log-out" Size="16" />
+                    </span>
+                    <span>Sign Out</span>
+                </a>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool showDropdown = false;
+
+    private void ToggleDropdown()
+    {
+        showDropdown = !showDropdown;
+    }
+}

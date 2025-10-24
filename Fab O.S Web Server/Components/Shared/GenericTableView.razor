@@ -2,68 +2,123 @@
 @using FabOS.WebServer.Models
 @typeparam TItem
 
-<div class="generic-table-view" data-table-container="true">
+<div class="modern-table-container" data-table-container="true">
     @if (Items?.Any() == true)
     {
-        <div class="table-responsive">
-            <table class="table table-striped @TableClass">
-                <thead>
-                    <tr>
-                        @if (ShowSelection)
-                        {
-                            <th>
-                                <input type="checkbox" @onchange="@ToggleAllSelection" />
-                            </th>
-                        }
-                        @foreach (var column in Columns)
-                        {
-                            <th class="@column.CssClass">@column.Header</th>
-                        }
-                        @if (ShowActions)
-                        {
-                            <th>Actions</th>
-                        }
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in Items)
-                    {
-                        <tr @onclick="@(() => OnRowClick.InvokeAsync(item))" @ondblclick="@(() => OnRowDoubleClick.InvokeAsync(item))">
+        <div class="modern-table-card">
+            <div class="modern-table-scroll">
+                <table class="modern-table">
+                    <thead class="modern-table-header">
+                        <tr>
                             @if (ShowSelection)
                             {
-                                <td @onclick:stopPropagation="true">
-                                    <input type="checkbox" checked="@(IsSelected?.Invoke(item) == true)" 
-                                           @onchange="@(args => HandleItemSelectionChanged(item, (bool)args.Value!))" />
-                                </td>
+                                <th class="checkbox-column">
+                                    <input type="checkbox"
+                                           class="modern-checkbox"
+                                           checked="@(SelectedItems.Count == Items.Count && Items.Any())"
+                                           @onchange="@ToggleAllSelection" />
+                                </th>
                             }
-                            @foreach (var column in Columns)
+                            @foreach (var column in GetVisibleColumns())
                             {
-                                <td class="@column.CssClass">
-                                    @column.ValueSelector(item)
-                                </td>
-                            }
-                            @if (ShowActions)
-                            {
-                                <td @onclick:stopPropagation="true">
-                                    @if (ActionsTemplate != null)
+                                <th class="@column.CssClass @GetFrozenColumnClass(column)"
+                                    data-column="@column.PropertyName"
+                                    data-freeze-position="@GetColumnFreezePosition(column)">
+                                    @if (AllowSorting && column.IsSortable)
                                     {
-                                        @ActionsTemplate(item)
+                                        <button class="sort-button" @onclick="@(() => HandleSort(column))">
+                                            <span class="sort-header-text">@column.Header</span>
+                                            @if (currentSortColumn == column.Header)
+                                            {
+                                                <span class="sort-icon">@(isAscending ? "▲" : "▼")</span>
+                                            }
+                                        </button>
                                     }
                                     else
                                     {
-                                        <button class="btn btn-sm btn-primary" @onclick="@(() => OnEdit.InvokeAsync(item))">Edit</button>
-                                        <button class="btn btn-sm btn-danger" @onclick="@(() => OnDelete.InvokeAsync(item))">Delete</button>
+                                        <span class="header-text">@column.Header</span>
                                     }
-                                </td>
+                                </th>
+                            }
+                            @if (ShowActions)
+                            {
+                                <th class="actions-column">Actions</th>
                             }
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in GetSortedItems())
+                        {
+                            var isSelected = SelectedItems.Contains(item);
+                            <tr class="modern-table-row @(isSelected ? "selected" : "")"
+                                @onclick="@(() => HandleRowClick(item))"
+                                @ondblclick="@(() => HandleRowDoubleClick(item))">
+                                @if (ShowSelection)
+                                {
+                                    <td class="checkbox-column" @onclick:stopPropagation="true">
+                                        <input type="checkbox"
+                                               class="modern-checkbox"
+                                               checked="@isSelected"
+                                               @onchange="@(args => HandleItemSelectionChanged(item, (bool)args.Value!))" />
+                                    </td>
+                                }
+                                @foreach (var column in GetVisibleColumns())
+                                {
+                                    <td class="@column.CssClass @GetFrozenColumnClass(column)"
+                                        data-column="@column.PropertyName">
+                                        @if (column.Template != null)
+                                        {
+                                            @column.Template(item)
+                                        }
+                                        else
+                                        {
+                                            <span class="cell-content">@column.ValueSelector?.Invoke(item)</span>
+                                        }
+                                    </td>
+                                }
+                                @if (ShowActions)
+                                {
+                                    <td class="actions-column" @onclick:stopPropagation="true">
+                                        @if (ActionsTemplate != null)
+                                        {
+                                            @ActionsTemplate(item)
+                                        }
+                                        else
+                                        {
+                                            <button class="modern-btn modern-btn-primary" @onclick="@(() => OnEdit.InvokeAsync(item))">Edit</button>
+                                            <button class="modern-btn modern-btn-danger" @onclick="@(() => OnDelete.InvokeAsync(item))">Delete</button>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     }
     else
     {
-        <div class="alert alert-info">@EmptyMessage</div>
+        <div class="modern-empty-state">
+            <i class="fas fa-inbox empty-icon"></i>
+            <h3 class="empty-title">@EmptyMessage</h3>
+            <p class="empty-subtitle">No data available to display</p>
+        </div>
     }
 </div>
+
+@code {
+    private IEnumerable<TItem> GetSortedItems()
+    {
+        if (!AllowSorting || string.IsNullOrEmpty(currentSortColumn) || !Items.Any())
+            return Items;
+
+        var column = Columns.FirstOrDefault(c => c.Header == currentSortColumn);
+        if (column?.ValueSelector == null)
+            return Items;
+
+        return isAscending
+            ? Items.OrderBy(item => column.ValueSelector(item))
+            : Items.OrderByDescending(item => column.ValueSelector(item));
+    }
+}

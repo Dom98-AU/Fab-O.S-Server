@@ -1,0 +1,31 @@
+@rendermode InteractiveServer
+@using FabOS.WebServer.Services
+@using FabOS.WebServer.Components.Shared
+@inject SidebarService SidebarService
+
+<div class="fabos-sidebar-controls-section">
+    <!-- Expand/Standard Button -->
+    <button type="button"
+            class="fabos-control-button fabos-expand-button"
+            @onclick="SidebarService.ToggleExpanded"
+            title="@(SidebarService.IsExpanded ? "Standard View" : "Expanded View")">
+        <span class="fabos-control-icon expand-arrow @(SidebarService.IsExpanded ? "expanded" : "")">
+            <LucideIcon Name="chevron-right" Size="16" />
+        </span>
+        <span class="fabos-control-text">@(SidebarService.IsExpanded ? "Standard" : "Expand")</span>
+    </button>
+
+    <!-- Pin Mode Button (only in expanded view) -->
+    @if (SidebarService.IsExpanded)
+    {
+        <button type="button"
+                class="fabos-control-button"
+                @onclick="SidebarService.TogglePinMode"
+                title="@(SidebarService.IsPinMode ? "Exit Pin Mode" : "Pin Favorites")">
+            <span class="fabos-control-icon @(SidebarService.IsPinMode ? "active" : "")">
+                <LucideIcon Name="pin" Size="16" />
+            </span>
+            <span class="fabos-control-text">@(SidebarService.IsPinMode ? "Exit Pin" : "Pin Mode")</span>
+        </button>
+    }
+</div>

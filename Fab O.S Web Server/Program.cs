@@ -136,6 +136,43 @@ builder.Services.AddAuthentication(options =>
             return Task.CompletedTask;
         }
     };
+})
+.AddMicrosoftAccount(options =>
+{
+    // Microsoft/Entra ID authentication for invited users
+    var microsoftAuth = builder.Configuration.GetSection("MicrosoftAuth");
+    options.ClientId = microsoftAuth["ClientId"] ?? "";
+    options.ClientSecret = microsoftAuth["ClientSecret"] ?? "";
+    options.CallbackPath = "/signin-microsoft";
+
+    options.SaveTokens = true;
+
+    options.Events.OnCreatingTicket = async context =>
+    {
+        var email = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        if (string.IsNullOrEmpty(email))
+        {
+            return;
+        }
+
+        // Get invitation service from DI
+        var invitationService = context.HttpContext.RequestServices
+            .GetRequiredService<FabOS.WebServer.Services.Interfaces.IInvitationService>();
+
+        // Check if there's a pending invitation for this email
+        var invitation = await invitationService.ValidateByEmailAsync(email);
+
+        if (invitation != null && invitation.Company != null)
+        {
+            // Add company claims for tenant routing
+            var identity = (System.Security.Claims.ClaimsIdentity)context.Principal!.Identity!;
+            identity.AddClaim(new System.Security.Claims.Claim("company_id", invitation.CompanyId.ToString()));
+            identity.AddClaim(new System.Security.Claims.Claim("company_code", invitation.Company.Code));
+            identity.AddClaim(new System.Security.Claims.Claim("company_name", invitation.Company.Name));
+            identity.AddClaim(new System.Security.Claims.Claim("pending_invitation", "true"));
+            identity.AddClaim(new System.Security.Claims.Claim("invitation_token", invitation.Token));
+        }
+    };
 });
 
 // Add Authorization
@@ -176,6 +213,10 @@ builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilde
 builder.Services.AddScoped<FabOS.WebServer.Services.Implementations.BreadcrumbBuilderService>();
 builder.Services.AddScoped<FabOS.WebServer.Services.BreadcrumbService>();
 
+// Register Sidebar and Navigation Services
+builder.Services.AddScoped<FabOS.WebServer.Services.SidebarService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.NavigationService>();
+
 builder.Services.AddScoped<IViewPreferencesService, ViewPreferencesService>();
 builder.Services.AddScoped<IViewStateManager, ViewStateManager>();
 builder.Services.AddScoped<NumberSeriesService>();
@@ -183,6 +224,12 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
 
 // Add Tenant Service for multi-tenancy
 builder.Services.AddScoped<ITenantService, TenantService>();
+
+// Add Signup and Invitation Services for user registration
+builder.Services.AddScoped<ISignupValidationService, SignupValidationService>();
+builder.Services.AddScoped<ITenantProvisioningService, TenantProvisioningService>();
+builder.Services.AddScoped<IInvitationService, InvitationService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Register OCR service with all dependencies for multi-tenant support
 builder.Services.AddHttpClient<AzureOcrService>();
@@ -216,6 +263,16 @@ builder.Services.AddScoped<IPackageDrawingService, PackageDrawingService>();
 builder.Services.AddScoped<IScaleCalibrationService, ScaleCalibrationService>();
 builder.Services.AddScoped<ITakeoffCatalogueService, TakeoffCatalogueService>();
 builder.Services.AddScoped<IPdfCalibrationService, PdfCalibrationService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddScoped<IPdfAnnotationService, PdfAnnotationService>();
+builder.Services.AddScoped<IPdfLockService, PdfLockService>();
+
+// Register SignalR Hub for real-time measurement updates (cross-tab/cross-user notifications)
+builder.Services.AddSignalR();
+builder.Services.AddScoped<FabOS.WebServer.Hubs.IMeasurementHubService, FabOS.WebServer.Hubs.MeasurementHubService>();
+
+// Register background services
+builder.Services.AddHostedService<FabOS.WebServer.Services.BackgroundServices.PdfLockCleanupService>();
 
 // Add MVC services (includes controllers, views, and all necessary services)
 builder.Services.AddMvc();
@@ -275,6 +332,29 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddLogging();
 
 var app = builder.Build();
+
+// Initialize database and seed default data
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+        logger.LogInformation("[Program] Initializing database...");
+
+        var seeder = new DatabaseSeeder(context, scope.ServiceProvider.GetRequiredService<ILogger<DatabaseSeeder>>());
+        await seeder.SeedAsync();
+
+        logger.LogInformation("[Program] Database initialization completed");
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "[Program] Error during database initialization");
+        // Don't throw - allow app to continue, it will fail later if DB is really broken
+    }
+}
 
 // Apply pending migrations (one-time operation) - COMPLETED
 // TakeoffRevisionSystem migration applied successfully on 2025-10-05
@@ -373,5 +453,8 @@ app.MapControllerRoute(
 // Map Razor Components for web application
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Map SignalR Hub for real-time measurement updates
+app.MapHub<FabOS.WebServer.Hubs.MeasurementHub>("/measurementHub");
 
 app.Run();

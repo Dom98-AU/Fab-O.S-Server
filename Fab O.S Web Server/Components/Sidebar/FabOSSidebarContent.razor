@@ -1,0 +1,9 @@
+@* Scrollable content wrapper for sidebar navigation *@
+
+<div class="fabos-sidebar-content">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

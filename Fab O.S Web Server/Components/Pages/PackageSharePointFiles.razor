@@ -1,31 +1,33 @@
-@page "/packages/{PackageId:int}/sharepoint-files"
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: SharePointFileInfo
+Views: Table, List, Card
+Features: ViewPreferences, ColumnManagement, Search, Selection, FolderNavigation, FileUpload
+Pattern: Standard
+Modern UI: Yes
+Last Updated: 2025-10-23
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/trace/packages/{packageId:int}/sharepoint-files"
 @rendermode InteractiveServer
-@using FabOS.WebServer.Models.Entities
-@using FabOS.WebServer.Data.Contexts
-@using FabOS.WebServer.Services.Interfaces
 @using FabOS.WebServer.Components.Shared
 @using FabOS.WebServer.Components.Shared.Interfaces
-@using Microsoft.EntityFrameworkCore
-@using Microsoft.AspNetCore.Components.Forms
-@using Microsoft.AspNetCore.Components.Authorization
-@using System.Security.Claims
-@inject ApplicationDbContext DbContext
-@inject ISharePointService SharePointService
-@inject NavigationManager Navigation
-@inject IJSRuntime JS
-@inject ILogger<PackageSharePointFiles> Logger
-@inject AuthenticationStateProvider AuthenticationStateProvider
+@using FabOS.WebServer.Services.Interfaces
 
 <PageTitle>Package SharePoint Files - @package?.PackageNumber - Fab.OS</PageTitle>
 
 <!-- Standard Toolbar -->
-<StandardToolbar ActionProvider="@this" PageType="PageType.SharePointFiles" OnSearch="@OnSearchChanged" SearchPlaceholder="Search files..." />
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search files..." />
 
+<!-- Content -->
 <div class="sharepoint-files-container">
     @if (isLoading)
     {
         <div class="loading-container">
-            <div class="spinner-border"></div>
+            <div class="loading-spinner"></div>
             <p>Loading package files...</p>
         </div>
     }
@@ -40,72 +42,198 @@
             </button>
         </div>
     }
+    else if (!sharePointConfigured)
+    {
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div class="alert-content">
+                <h4>SharePoint Not Configured</h4>
+                <p>SharePoint integration needs to be configured before you can upload or view files.</p>
+                <button class="btn btn-primary" @onclick="NavigateToSharePointSetup">
+                    <i class="fas fa-cog"></i>
+                    Configure SharePoint
+                </button>
+            </div>
+        </div>
+    }
+    else if (!sharePointConnected)
+    {
+        <div class="alert alert-danger">
+            <i class="fas fa-times-circle"></i>
+            <div class="alert-content">
+                <h4>SharePoint Connection Failed</h4>
+                <p>@sharePointError</p>
+                <button class="btn btn-secondary" @onclick="RetryConnection">
+                    <i class="fas fa-sync"></i>
+                    Retry Connection
+                </button>
+            </div>
+        </div>
+    }
+    else if (!folderStructureExists)
+    {
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <div class="alert-content">
+                <h4>SharePoint Folder Structure Not Created</h4>
+                <p>The folder structure for this takeoff hasn't been created yet. Click the button below to create the folder hierarchy: Takeoff > Revision > Package</p>
+                <button class="btn btn-primary" @onclick="CreateFolderStructure" disabled="@isCreatingFolderStructure">
+                    @if (isCreatingFolderStructure)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Creating Folder Structure...</span>
+                    }
+                    else
+                    {
+                        <i class="fas fa-folder-plus"></i>
+                        <span>Create Folder Structure</span>
+                    }
+                </button>
+            </div>
+        </div>
+    }
     else
     {
-        <div class="files-content">
-            @if (!sharePointConfigured)
-            {
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <div class="alert-content">
-                        <h4>SharePoint Not Configured</h4>
-                        <p>SharePoint integration needs to be configured before you can upload or view files.</p>
-                        <button class="btn btn-primary" @onclick="NavigateToSharePointSetup">
-                            <i class="fas fa-cog"></i>
-                            Configure SharePoint
-                        </button>
-                    </div>
-                </div>
-            }
-            else if (!sharePointConnected)
-            {
-                <div class="alert alert-danger">
-                    <i class="fas fa-times-circle"></i>
-                    <div class="alert-content">
-                        <h4>SharePoint Connection Failed</h4>
-                        <p>@sharePointError</p>
-                        <button class="btn btn-secondary" @onclick="RetryConnection">
-                            <i class="fas fa-sync"></i>
-                            Retry Connection
-                        </button>
-                    </div>
-                </div>
-            }
-            else if (!folderStructureExists)
-            {
-                <!-- Create Folder Structure Section -->
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i>
-                    <div class="alert-content">
-                        <h4>SharePoint Folder Structure Not Created</h4>
-                        <p>The folder structure for this takeoff hasn't been created yet. Click the button below to create the folder hierarchy: Takeoff > Revision > Package</p>
-                        <button class="btn btn-primary" @onclick="CreateFolderStructure" disabled="@isCreatingFolderStructure">
-                            @if (isCreatingFolderStructure)
+        <!-- Unified View Toolbar -->
+        <TableViewToolbar TItem="SharePointFileInfo"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="SharePointFile"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
+
+        <!-- Folders Section (rendered separately above files) -->
+        @if (filteredFolders.Any())
+        {
+            <div class="folders-section mb-3">
+                @if (currentView == GenericViewSwitcher<SharePointFileInfo>.ViewType.Table)
+                {
+                    <table class="table table-hover">
+                        <tbody>
+                            @foreach (var folder in filteredFolders.OrderBy(f => f.Name))
                             {
-                                <span class="spinner-border spinner-border-sm me-2"></span>
-                                <span>Creating Folder Structure...</span>
+                                <tr class="folder-row" @ondblclick="() => NavigateToFolder(folder)">
+                                    <td width="30px"></td>
+                                    <td><i class="fas fa-folder text-warning me-2"></i>@folder.Name</td>
+                                    <td width="100px">Folder</td>
+                                    <td width="100px">—</td>
+                                    <td width="150px">@folder.CreatedDateTime.ToString("MMM dd, yyyy")</td>
+                                </tr>
                             }
-                            else
-                            {
-                                <i class="fas fa-folder-plus"></i>
-                                <span>Create Folder Structure</span>
-                            }
-                        </button>
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <div class="folders-grid">
+                        @foreach (var folder in filteredFolders.OrderBy(f => f.Name))
+                        {
+                            <div class="folder-card-item" @ondblclick="() => NavigateToFolder(folder)">
+                                <div class="folder-icon">
+                                    <i class="fas fa-folder fa-3x text-warning"></i>
+                                </div>
+                                <div class="folder-name">@folder.Name</div>
+                                <div class="folder-meta text-muted">Folder</div>
+                            </div>
+                        }
                     </div>
-                </div>
-            }
-            else
+                }
+            </div>
+        }
+
+        <!-- Files Views -->
+        @if (filteredFiles.Any())
+        {
+            @if (currentView == GenericViewSwitcher<SharePointFileInfo>.ViewType.Table)
             {
-                <!-- SharePoint File Browser -->
-                <SharePointFileBrowser TPage="PackageSharePointFiles"
-                                     Page="@this"
-                                     FolderState="@folderState"
-                                     CurrentView="@currentView"
-                                     OnFileDoubleClick="@HandleFileDoubleClick"
-                                     OnFolderDoubleClick="@HandleFolderDoubleClick"
-                                     OnRefreshRequested="@RefreshFolderContents" />
+                <GenericTableView TItem="SharePointFileInfo"
+                                 Items="@filteredFiles"
+                                 AllItems="@allFiles"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 ShowCheckboxes="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleFileClick"
+                                 OnRowDoubleClick="@HandleFileDoubleClick"
+                                 EnableAdvancedFeatures="true"
+                                 EnableColumnManagement="true"
+                                 EnableFiltering="false"
+                                 EnableViewPreferences="true"
+                                 EntityType="SharePointFile" />
             }
-        </div>
+            else if (currentView == GenericViewSwitcher<SharePointFileInfo>.ViewType.List)
+            {
+                <GenericListView TItem="SharePointFileInfo"
+                                Items="@filteredFiles"
+                                OnItemClick="@HandleFileClick"
+                                OnItemDoubleClick="@HandleFileDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedListItems"
+                                SelectedItemsChanged="@HandleListSelectionChanged">
+                    <CustomListItemContent Context="file">
+                        <div class="file-list-item">
+                            <div class="file-icon">
+                                @GetFileIcon(file)
+                            </div>
+                            <div class="file-info">
+                                <div class="file-name">@file.Name</div>
+                                <div class="file-meta">
+                                    <span>@FormatFileSize(file.Size)</span>
+                                    <span class="ms-2">@file.LastModifiedDateTime.ToString("MMM dd, yyyy")</span>
+                                </div>
+                            </div>
+                        </div>
+                    </CustomListItemContent>
+                </GenericListView>
+            }
+            else if (currentView == GenericViewSwitcher<SharePointFileInfo>.ViewType.Card)
+            {
+                <GenericCardView TItem="SharePointFileInfo"
+                                Items="@filteredFiles"
+                                OnItemClick="@HandleFileClick"
+                                OnItemDoubleClick="@HandleFileDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@HandleCardSelectionChanged">
+                    <CustomCardContent Context="file">
+                        <div class="file-card">
+                            <div class="file-card-icon">
+                                @GetFileIcon(file, "fa-3x")
+                            </div>
+                            <div class="file-card-body">
+                                <h5 class="file-card-title">@file.Name</h5>
+                                <p class="file-card-meta">
+                                    <span class="badge bg-secondary">@GetFileType(file)</span>
+                                    <span class="ms-2">@FormatFileSize(file.Size)</span>
+                                </p>
+                            </div>
+                        </div>
+                    </CustomCardContent>
+                </GenericCardView>
+            }
+        }
+        else if (!filteredFolders.Any())
+        {
+            <div class="no-results">
+                <i class="fas fa-folder-open"></i>
+                <h3>Empty Folder</h3>
+                @if (!string.IsNullOrEmpty(searchTerm))
+                {
+                    <p>No files or folders match your search criteria</p>
+                }
+                else
+                {
+                    <p>No files or folders in this location. Use the 'Upload Files' or 'Create Folder' actions above.</p>
+                }
+            </div>
+        }
     }
 </div>
 
@@ -123,803 +251,14 @@
                  OnClose="@(() => showUploadModal = false)" />
 
 @code {
-    [Parameter] public int PackageId { get; set; }
-
-    private Package? package;
-    private List<PackageDrawing> packageDrawings = new();
-    private bool isLoading = true;
-    private bool sharePointConfigured = false;
-    private bool sharePointConnected = false;
-    private string sharePointError = "";
-    private bool folderStructureExists = false;
-    private bool isCreatingFolderStructure = false;
-    private int currentUserId = 0;
-
-    // Modal state
-    private bool showUploadModal = false;
-    private string searchTerm = "";
-    private FileUploadModal? uploadModal;
-
-    // SharePoint file browser state
-    private SharePointFolderState folderState = new();
-    private SharePointViewType currentView = SharePointViewType.Grid;
-    private List<SharePointFileInfo> selectedFiles = new();
-    private string currentFolderPath = "";
-
-    // Takeoff modal state
-    private bool showTakeoffModal = false;
-    private int selectedDrawingId = 0;
-
-    // ISharePointFilesPage implementation
-    public string CurrentFolderPath => currentFolderPath;
-    public List<SharePointFileInfo> SelectedFiles => selectedFiles;
-    public bool HasSelectedFiles => selectedFiles.Any();
-    public bool IsAtRoot
+    private RenderFragment GetFileIcon(SharePointFileInfo file, string sizeClass = "")
     {
-        get
+        var iconClass = GetFileIconClass(file);
+        var fullClass = string.IsNullOrEmpty(sizeClass) ? iconClass : $"{iconClass} {sizeClass}";
+
+        return __builder =>
         {
-            if (package == null) return true;
-            // Root is the package folder itself  (Takeoffs/TK-XXX/A/PKG-001)
-            var expectedRoot = $"Takeoffs/{package.Revision?.Takeoff?.TakeoffNumber}/{package.Revision?.RevisionCode}/PKG-{package.PackageNumber}";
-            return string.IsNullOrEmpty(currentFolderPath) || currentFolderPath == expectedRoot;
-        }
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        // Get current user ID from authentication state
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-
-        if (user.Identity?.IsAuthenticated == true)
-        {
-            var userIdClaim = user.FindFirst("UserId") ?? user.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
-            {
-                currentUserId = userId;
-            }
-            else
-            {
-                Logger.LogWarning("Could not find UserId claim for authenticated user");
-            }
-        }
-
-        await LoadPackage();
-        await CheckSharePointStatus();
-        await LoadPackageDrawings();
-
-        // Initialize folder browsing to package root and check if structure exists
-        if (package != null && sharePointConnected)
-        {
-            // Load package with revision and takeoff info to build correct path
-            var packageWithRevision = await DbContext.Packages
-                .Include(p => p.Revision)
-                    .ThenInclude(r => r!.Takeoff)
-                .FirstOrDefaultAsync(p => p.Id == PackageId);
-
-            if (packageWithRevision?.Revision?.Takeoff != null)
-            {
-                var takeoffNumber = packageWithRevision.Revision.Takeoff.TakeoffNumber;
-                var revisionCode = packageWithRevision.Revision.RevisionCode;
-                var packageNumber = packageWithRevision.PackageNumber;
-
-                // Set the correct folder path: Takeoffs/TK-XXX/A/PKG-001
-                currentFolderPath = await SharePointService.GetPackageFolderPathAsync(
-                    takeoffNumber, revisionCode, packageNumber);
-
-                await CheckFolderStructureExists();
-            }
-        }
-    }
-
-    private async Task LoadPackage()
-    {
-        try
-        {
-            package = await DbContext.Packages
-                .FirstOrDefaultAsync(p => p.Id == PackageId);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading package");
-        }
-    }
-
-    private async Task CheckSharePointStatus()
-    {
-        try
-        {
-            var status = await SharePointService.GetConnectionStatusAsync();
-            sharePointConfigured = status.IsConfigured;
-            sharePointConnected = status.IsConnected;
-
-            if (!status.IsConnected && !string.IsNullOrEmpty(status.ErrorMessage))
-            {
-                sharePointError = status.ErrorMessage;
-            }
-        }
-        catch (Exception ex)
-        {
-            sharePointConfigured = false;
-            sharePointConnected = false;
-            sharePointError = ex.Message;
-        }
-    }
-
-    private async Task LoadPackageDrawings()
-    {
-        try
-        {
-            if (package != null)
-            {
-                packageDrawings = await DbContext.PackageDrawings
-                    .Where(pd => pd.PackageId == PackageId && pd.IsActive)
-                    .OrderByDescending(pd => pd.UploadedDate)
-                    .ToListAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading package drawings");
-        }
-        finally
-        {
-            isLoading = false;
-        }
-    }
-
-    private void OnSearchChanged(string newSearchTerm)
-    {
-        searchTerm = newSearchTerm;
-        // The SharePointFileBrowser component handles its own filtering
-        // This search is primarily for future enhancements
-        StateHasChanged();
-    }
-
-    private async Task HandleUploadRequest(FileUploadModal.UploadFileRequest request)
-    {
-        if (package == null) return;
-
-        try
-        {
-            // Extract drawing number from filename (without extension)
-            var drawingNumber = Path.GetFileNameWithoutExtension(request.File.Name);
-
-            // Use cached file data instead of reading from stream (which has already been consumed)
-            if (request.FileData == null)
-            {
-                throw new InvalidOperationException("File data is not available. Please try again.");
-            }
-
-            var memoryStream = new MemoryStream(request.FileData);
-            memoryStream.Position = 0;
-
-            // Load package with revision info
-            var packageWithRevision = await DbContext.Packages
-                .Include(p => p.Revision)
-                    .ThenInclude(r => r!.Takeoff)
-                .FirstOrDefaultAsync(p => p.Id == PackageId);
-
-            if (packageWithRevision?.Revision?.Takeoff == null)
-            {
-                throw new InvalidOperationException("Package is not associated with a takeoff");
-            }
-
-            var takeoffNumber = packageWithRevision.Revision.Takeoff.TakeoffNumber;
-            var revisionCode = packageWithRevision.Revision.RevisionCode;
-            var packageNumber = packageWithRevision.PackageNumber;
-
-            // Get the package folder path (Takeoffs/TK-XXX/A/PKG-001)
-            var folderPath = await SharePointService.GetPackageFolderPathAsync(
-                takeoffNumber, revisionCode, packageNumber);
-
-            // Upload to SharePoint using original filename
-            var uploadedFiles = await SharePointService.UploadMultipleFilesAsync(
-                folderPath,
-                new List<(Stream stream, string fileName, string contentType)>
-                {
-                    (memoryStream, request.File.Name, "application/pdf")
-                }
-            );
-
-            if (uploadedFiles == null || !uploadedFiles.Any())
-            {
-                throw new InvalidOperationException("File upload failed");
-            }
-
-            var sharePointFile = uploadedFiles.First();
-
-            // Validate user authentication
-            if (currentUserId == 0)
-            {
-                throw new InvalidOperationException("User is not authenticated. Please log in and try again.");
-            }
-
-            // Save reference in database
-            var drawing = new PackageDrawing
-            {
-                PackageId = PackageId,
-                DrawingNumber = drawingNumber,
-                DrawingTitle = "", // Empty until OCR fills it
-                SharePointItemId = sharePointFile.Id,
-                SharePointUrl = sharePointFile.WebUrl,
-                FileType = "PDF",
-                FileSize = request.File.Size,
-                UploadedDate = DateTime.UtcNow,
-                UploadedBy = currentUserId, // Use authenticated user's ID
-                IsActive = true
-            };
-
-            DbContext.PackageDrawings.Add(drawing);
-            await DbContext.SaveChangesAsync();
-
-            // Add to local list
-            packageDrawings.Insert(0, drawing);
-
-            // Pass the drawing ID back to the modal so it can run OCR if needed
-            uploadModal?.SetUploadedDrawingId(drawing.Id);
-
-            // Refresh folder contents to show new file
-            await RefreshFolderContents();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error uploading file to SharePoint");
-            throw; // Let the modal handle the error display
-        }
-    }
-
-    private async Task HandleUploadComplete(FileUploadModal.UploadCompleteResult result)
-    {
-        // Reload the drawing that was uploaded to reflect any OCR changes
-        var updatedDrawing = await DbContext.PackageDrawings
-            .FirstOrDefaultAsync(d => d.Id == result.DrawingId);
-
-        if (updatedDrawing != null)
-        {
-            // Update the local list with the updated drawing
-            var existingIndex = packageDrawings.FindIndex(d => d.Id == result.DrawingId);
-            if (existingIndex >= 0)
-            {
-                packageDrawings[existingIndex] = updatedDrawing;
-            }
-        }
-
-        // Close modal and refresh
-        showUploadModal = false;
-        await RefreshFolderContents();
-        StateHasChanged();
-    }
-
-    private void OpenInTakeoffViewer(int drawingId)
-    {
-        selectedDrawingId = drawingId;
-        showTakeoffModal = true;
-    }
-
-    private async Task DownloadFile(PackageDrawing drawing)
-    {
-        try
-        {
-            var stream = await SharePointService.DownloadFileAsync(drawing.SharePointItemId);
-            // TODO: Implement file download to browser
-            await JS.InvokeVoidAsync("alert", "Download functionality coming soon!");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error downloading file");
-            await JS.InvokeVoidAsync("alert", $"Download failed: {ex.Message}");
-        }
-    }
-
-    private async Task DeleteFile(PackageDrawing drawing)
-    {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Delete {drawing.DrawingNumber}?"))
-            return;
-
-        try
-        {
-            // Mark as inactive in database (soft delete)
-            drawing.IsActive = false;
-            await DbContext.SaveChangesAsync();
-
-            // Remove from local list
-            packageDrawings.Remove(drawing);
-
-            // Optionally delete from SharePoint
-            // await SharePointService.DeleteFileAsync(drawing.SharePointItemId);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error deleting file");
-            await JS.InvokeVoidAsync("alert", $"Delete failed: {ex.Message}");
-        }
-    }
-
-    private async Task CheckFolderStructureExists()
-    {
-        try
-        {
-            if (package == null) return;
-
-            // Load the package with its revision to get the takeoff information
-            var packageWithRevision = await DbContext.Packages
-                .Include(p => p.Revision)
-                    .ThenInclude(r => r!.Takeoff)
-                .FirstOrDefaultAsync(p => p.Id == PackageId);
-
-            if (packageWithRevision?.Revision?.Takeoff == null)
-            {
-                Logger.LogWarning("Package {PackageId} does not have associated takeoff information", PackageId);
-                folderStructureExists = false;
-                return;
-            }
-
-            var takeoffNumber = packageWithRevision.Revision.Takeoff.TakeoffNumber;
-            var revisionCode = packageWithRevision.Revision.RevisionCode;
-            var packageNumber = packageWithRevision.PackageNumber;
-
-            // Check if the complete package folder exists (Takeoffs/TK-XXX/A/PKG-001)
-            folderStructureExists = await SharePointService.PackageFolderExistsAsync(
-                takeoffNumber, revisionCode, packageNumber);
-
-            // If folder exists, load its contents
-            if (folderStructureExists)
-            {
-                await RefreshFolderContents();
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error checking if folder structure exists");
-            folderStructureExists = false;
-        }
-        finally
-        {
-            isLoading = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task CreateFolderStructure()
-    {
-        if (package == null) return;
-
-        isCreatingFolderStructure = true;
-        StateHasChanged();
-
-        try
-        {
-            // Load the package with its revision to get the takeoff and revision information
-            var packageWithRevision = await DbContext.Packages
-                .Include(p => p.Revision)
-                    .ThenInclude(r => r!.Takeoff)
-                .FirstOrDefaultAsync(p => p.Id == PackageId);
-
-            if (packageWithRevision?.Revision?.Takeoff == null)
-            {
-                await JS.InvokeVoidAsync("alert", "Cannot create folder structure: Package is not associated with a takeoff.");
-                return;
-            }
-
-            var takeoffNumber = packageWithRevision.Revision.Takeoff.TakeoffNumber;
-            var revisionCode = packageWithRevision.Revision.RevisionCode;
-            var packageNumber = packageWithRevision.PackageNumber;
-
-            // Create the complete folder hierarchy: Takeoff > Revision > Package
-            await SharePointService.EnsurePackageFolderExistsAsync(takeoffNumber, revisionCode, packageNumber);
-
-            // Update the current folder path to the package folder
-            currentFolderPath = await SharePointService.GetPackageFolderPathAsync(
-                takeoffNumber, revisionCode, packageNumber);
-
-            // Update state and load folder contents
-            folderStructureExists = true;
-            await RefreshFolderContents();
-
-            await JS.InvokeVoidAsync("alert", "Folder structure created successfully!");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error creating folder structure");
-            await JS.InvokeVoidAsync("alert", $"Failed to create folder structure: {ex.Message}");
-        }
-        finally
-        {
-            isCreatingFolderStructure = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task RetryConnection()
-    {
-        await CheckSharePointStatus();
-    }
-
-    private void NavigateBack()
-    {
-        Navigation.NavigateTo($"/packages/{PackageId}");
-    }
-
-    private void NavigateToSharePointSetup()
-    {
-        Navigation.NavigateTo("/admin/sharepoint-setup");
-    }
-
-    private string FormatFileSize(long bytes)
-    {
-        var sizes = new[] { "B", "KB", "MB", "GB" };
-        var order = 0;
-        var size = (double)bytes;
-
-        while (size >= 1024 && order < sizes.Length - 1)
-        {
-            order++;
-            size /= 1024;
-        }
-
-        return $"{size:0.##} {sizes[order]}";
-    }
-
-    // ISharePointFilesPage implementation
-    public async Task NavigateToFolderAsync(string folderPath)
-    {
-        currentFolderPath = folderPath;
-        await RefreshFolderContents();
-    }
-
-    public async Task NavigateUpAsync()
-    {
-        if (!IsAtRoot && !string.IsNullOrEmpty(currentFolderPath))
-        {
-            var parentPath = Path.GetDirectoryName(currentFolderPath)?.Replace("\\", "/") ?? "";
-            await NavigateToFolderAsync(parentPath);
-        }
-    }
-
-    public async Task NavigateToRootAsync()
-    {
-        if (package == null) return;
-
-        var packageWithRevision = await DbContext.Packages
-            .Include(p => p.Revision)
-                .ThenInclude(r => r!.Takeoff)
-            .FirstOrDefaultAsync(p => p.Id == PackageId);
-
-        if (packageWithRevision?.Revision?.Takeoff != null)
-        {
-            var rootPath = await SharePointService.GetPackageFolderPathAsync(
-                packageWithRevision.Revision.Takeoff.TakeoffNumber,
-                packageWithRevision.Revision.RevisionCode,
-                packageWithRevision.PackageNumber);
-
-            await NavigateToFolderAsync(rootPath);
-        }
-    }
-
-    public async Task RefreshAsync()
-    {
-        await RefreshFolderContents();
-    }
-
-    public async Task CreateFolderAsync(string folderName)
-    {
-        try
-        {
-            await SharePointService.CreateFolderAsync(currentFolderPath, folderName);
-            await RefreshFolderContents();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error creating folder");
-            await JS.InvokeVoidAsync("alert", $"Failed to create folder: {ex.Message}");
-        }
-    }
-
-    public async Task UploadFilesAsync()
-    {
-        showUploadModal = true;
-        StateHasChanged();
-        await Task.CompletedTask;
-    }
-
-    public async Task DeleteSelectedFilesAsync()
-    {
-        if (!HasSelectedFiles) return;
-
-        var confirmed = await JS.InvokeAsync<bool>("confirm",
-            $"Delete {selectedFiles.Count} selected file(s)?");
-
-        if (!confirmed) return;
-
-        try
-        {
-            var itemIds = selectedFiles.Select(f => f.Id).ToList();
-            await SharePointService.DeleteMultipleFilesAsync(itemIds);
-
-            ClearSelection();
-            await RefreshFolderContents();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error deleting files");
-            await JS.InvokeVoidAsync("alert", $"Failed to delete files: {ex.Message}");
-        }
-    }
-
-    public void ClearSelection()
-    {
-        selectedFiles.Clear();
-        StateHasChanged();
-    }
-
-    public void ToggleFileSelection(SharePointFileInfo file)
-    {
-        if (selectedFiles.Contains(file))
-        {
-            selectedFiles.Remove(file);
-        }
-        else
-        {
-            selectedFiles.Add(file);
-        }
-        StateHasChanged();
-    }
-
-    public List<SharePointBreadcrumb> GetBreadcrumbs()
-    {
-        var breadcrumbs = new List<SharePointBreadcrumb>();
-
-        if (package == null || string.IsNullOrEmpty(currentFolderPath))
-            return breadcrumbs;
-
-        // Parse the path: Takeoffs/TK-2025-001/A/PKG-001/subfolder/...
-        var parts = currentFolderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-        if (parts.Length >= 4) // At minimum: Takeoffs, TakeoffNumber, RevisionCode, PKG-Number
-        {
-            var path = "";
-
-            // Add Takeoffs root
-            path = parts[0];
-            breadcrumbs.Add(new SharePointBreadcrumb
-            {
-                Name = "Takeoffs",
-                Path = path,
-                IsRoot = false,
-                IsCurrent = parts.Length == 1
-            });
-
-            // Add Takeoff Number
-            path += $"/{parts[1]}";
-            breadcrumbs.Add(new SharePointBreadcrumb
-            {
-                Name = parts[1], // e.g., "TK-2025-001"
-                Path = path,
-                IsRoot = false,
-                IsCurrent = parts.Length == 2
-            });
-
-            // Add Revision
-            path += $"/{parts[2]}";
-            breadcrumbs.Add(new SharePointBreadcrumb
-            {
-                Name = $"Rev {parts[2]}", // e.g., "Rev A"
-                Path = path,
-                IsRoot = false,
-                IsCurrent = parts.Length == 3
-            });
-
-            // Add Package (this is the root for this page)
-            path += $"/{parts[3]}";
-            breadcrumbs.Add(new SharePointBreadcrumb
-            {
-                Name = parts[3], // e.g., "PKG-001"
-                Path = path,
-                IsRoot = true, // This is the root for the package view
-                IsCurrent = parts.Length == 4
-            });
-
-            // Add any subfolders
-            for (int i = 4; i < parts.Length; i++)
-            {
-                path += $"/{parts[i]}";
-                breadcrumbs.Add(new SharePointBreadcrumb
-                {
-                    Name = parts[i],
-                    Path = path,
-                    IsRoot = false,
-                    IsCurrent = i == parts.Length - 1
-                });
-            }
-        }
-
-        return breadcrumbs;
-    }
-
-    // Event handlers for file browser
-    private async Task HandleFileDoubleClick(SharePointFileInfo file)
-    {
-        // For now, find the corresponding PackageDrawing and open in viewer
-        var drawing = packageDrawings.FirstOrDefault(d => d.SharePointItemId == file.Id);
-        if (drawing != null)
-        {
-            OpenInTakeoffViewer(drawing.Id);
-        }
-        else
-        {
-            await JS.InvokeVoidAsync("alert", "File not found in database. Please refresh and try again.");
-        }
-    }
-
-    private async Task HandleFolderDoubleClick(SharePointFolderInfo folder)
-    {
-        var folderPath = string.IsNullOrEmpty(currentFolderPath)
-            ? folder.Path
-            : $"{currentFolderPath}/{folder.Name}";
-        await NavigateToFolderAsync(folderPath);
-    }
-
-    private async Task RefreshFolderContents()
-    {
-        Logger.LogInformation("[RefreshFolderContents] Starting refresh for PackageId {PackageId}", PackageId);
-        folderState.IsLoading = true;
-        folderState.ErrorMessage = null;
-        StateHasChanged();
-        Logger.LogInformation("[RefreshFolderContents] Set IsLoading=true and called StateHasChanged");
-
-        try
-        {
-            // Use the current folder path (should already be correct: Takeoffs/TK-XXX/A/PKG-001)
-            if (string.IsNullOrEmpty(currentFolderPath) && package != null)
-            {
-                Logger.LogInformation("[RefreshFolderContents] CurrentFolderPath is empty, building it...");
-                // Fallback: build the path if somehow it's empty
-                var packageWithRevision = await DbContext.Packages
-                    .Include(p => p.Revision)
-                        .ThenInclude(r => r!.Takeoff)
-                    .FirstOrDefaultAsync(p => p.Id == PackageId);
-
-                if (packageWithRevision?.Revision?.Takeoff != null)
-                {
-                    currentFolderPath = await SharePointService.GetPackageFolderPathAsync(
-                        packageWithRevision.Revision.Takeoff.TakeoffNumber,
-                        packageWithRevision.Revision.RevisionCode,
-                        packageWithRevision.PackageNumber);
-                    Logger.LogInformation("[RefreshFolderContents] Built folder path: {FolderPath}", currentFolderPath);
-                }
-                else
-                {
-                    Logger.LogWarning("[RefreshFolderContents] Could not build folder path - package/revision/takeoff not found");
-                }
-            }
-            else
-            {
-                Logger.LogInformation("[RefreshFolderContents] Using existing currentFolderPath: {FolderPath}", currentFolderPath);
-            }
-
-            Logger.LogInformation("[RefreshFolderContents] Calling SharePointService.GetFolderContentsAsync for path: {FolderPath}", currentFolderPath);
-            var contents = await SharePointService.GetFolderContentsAsync(currentFolderPath);
-            Logger.LogInformation("[RefreshFolderContents] SharePointService returned {FolderCount} folders and {FileCount} files",
-                contents.Folders?.Count ?? 0, contents.Files?.Count ?? 0);
-
-            folderState.CurrentPath = contents.CurrentPath;
-            folderState.Folders = contents.Folders;
-            folderState.Files = contents.Files;
-            Logger.LogInformation("[RefreshFolderContents] Updated folderState with contents");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "[RefreshFolderContents] Error loading folder contents");
-            folderState.ErrorMessage = ex.Message;
-        }
-        finally
-        {
-            Logger.LogInformation("[RefreshFolderContents] Setting IsLoading=false in finally block");
-            folderState.IsLoading = false;
-            StateHasChanged();
-            Logger.LogInformation("[RefreshFolderContents] Completed. IsLoading={IsLoading}", folderState.IsLoading);
-        }
-    }
-
-    // IToolbarActionProvider implementation
-    public ToolbarActionGroup GetActions()
-    {
-        var actionGroup = new ToolbarActionGroup();
-
-        actionGroup.PrimaryActions.Add(new ToolbarAction
-        {
-            Text = "Back to Package",
-            Icon = "fas fa-arrow-left",
-            Action = EventCallback.Factory.Create(this, NavigateBack),
-            Style = ToolbarActionStyle.Secondary
-        });
-
-        // Actions dropdown
-        if (sharePointConfigured && sharePointConnected)
-        {
-            actionGroup.MenuActions.Add(new ToolbarAction
-            {
-                Text = "Upload Files",
-                Icon = "fas fa-upload",
-                Action = EventCallback.Factory.Create(this, UploadFilesAsync)
-            });
-
-            actionGroup.MenuActions.Add(new ToolbarAction
-            {
-                Text = "Create Folder",
-                Icon = "fas fa-folder-plus",
-                Action = EventCallback.Factory.Create(this, async () => await CreateFolderDialog())
-            });
-
-            actionGroup.MenuActions.Add(new ToolbarAction
-            {
-                Text = "Refresh",
-                Icon = "fas fa-sync",
-                Action = EventCallback.Factory.Create(this, RefreshAsync)
-            });
-
-            if (HasSelectedFiles)
-            {
-                actionGroup.MenuActions.Add(new ToolbarAction
-                {
-                    Text = $"Delete Selected ({selectedFiles.Count})",
-                    Icon = "fas fa-trash",
-                    Action = EventCallback.Factory.Create(this, DeleteSelectedFilesAsync),
-                    Style = ToolbarActionStyle.Danger
-                });
-            }
-        }
-
-        // Related dropdown
-        actionGroup.RelatedActions.Add(new ToolbarAction
-        {
-            Text = "SharePoint Settings",
-            Icon = "fas fa-cog",
-            Action = EventCallback.Factory.Create(this, NavigateToSharePointSetup)
-        });
-
-        if (sharePointConfigured)
-        {
-            actionGroup.RelatedActions.Add(new ToolbarAction
-            {
-                Text = "View in SharePoint",
-                Icon = "fas fa-external-link-alt",
-                Action = EventCallback.Factory.Create(this, async () => await OpenInSharePoint())
-            });
-        }
-
-        return actionGroup;
-    }
-
-    private async Task CreateFolderDialog()
-    {
-        var folderName = await JS.InvokeAsync<string>("prompt", "Enter folder name:");
-        if (!string.IsNullOrWhiteSpace(folderName))
-        {
-            await CreateFolderAsync(folderName);
-        }
-    }
-
-    private async Task OpenInSharePoint()
-    {
-        // Open SharePoint web interface for current folder
-        await JS.InvokeVoidAsync("alert", "Open in SharePoint functionality to be implemented");
-    }
-
-    // Modal methods
-    private string GetTakeoffModalTitle()
-    {
-        var drawing = packageDrawings.FirstOrDefault(d => d.Id == selectedDrawingId);
-        return drawing != null ? $"{drawing.DrawingNumber} - {drawing.DrawingTitle}" : "PDF Takeoff";
-    }
-
-    private void CloseTakeoffModal()
-    {
-        showTakeoffModal = false;
-        selectedDrawingId = 0;
+            <i class="@fullClass"></i>
+        };
     }
 }
-
-@implements IToolbarActionProvider
-@implements ISharePointFilesPage<SharePointFileInfo>

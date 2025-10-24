@@ -1,273 +1,390 @@
-/* Fab.OS Visual Identity - Generic Table View Styles */
-.generic-table-view {
-    background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,249,250,0.95) 100%);
-    border-radius: 12px;
-    box-shadow: 0 4px 16px rgba(13, 26, 128, 0.08);
+/* Modern Table UI Component - .NET 8 Blazor Implementation */
+/* Based on modern design spec with clean slate/gray aesthetics */
+
+/* Container - Page background gradient */
+.modern-table-container {
+    min-height: auto;
+    background: linear-gradient(to bottom right, #f8fafc, #e2e8f0);
+    padding: 2rem;
+    margin: 0;
+}
+
+/* Table Card - White container with shadow */
+.modern-table-card {
+    background: #ffffff;
+    border-radius: 1rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     overflow: hidden;
-    margin: 1.5rem 0;
-    border: 1px solid #B1B1B1;
 }
 
-.table-container {
-    padding: 0;
-    margin: 0;
+/* Table Scroll Container */
+.modern-table-scroll {
+    overflow-x: auto;
+    position: relative;
 }
 
-.table-header {
-    background: linear-gradient(180deg, #3144CD 0%, #0D1A80 100%);
-    color: white;
-    padding: 1.25rem 1.5rem;
-    margin: 0;
-    font-weight: 600;
-    font-size: 1.1rem;
-    border-bottom: none;
-}
-
-.table-responsive {
-    overflow-x: auto !important;
-    position: relative !important;
-    margin: 0;
-    border-radius: 0;
-}
-
-.generic-table-view .table {
-    margin-bottom: 0;
+/* Main Table */
+.modern-table {
+    width: 100%;
+    min-width: max-content;
     border-collapse: separate;
     border-spacing: 0;
-    width: 100%;
-    background: white;
-    font-size: 0.875rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
 
-.generic-table-view .table thead th {
-    background: linear-gradient(135deg, rgba(49,68,205,0.1) 0%, rgba(13,26,128,0.1) 100%);
-    border-bottom: 2px solid rgba(49,68,205,0.2);
-    border-top: none;
-    color: #161616;
+/* Table Header */
+.modern-table-header {
+    background-color: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.modern-table-header th {
+    text-align: left;
+    padding: 1rem 1.5rem;
+    font-size: 0.875rem;
     font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.025em;
-    padding: 1rem 1.25rem;
+    color: #475569;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: nowrap;
     position: sticky;
     top: 0;
     z-index: 10;
-    white-space: nowrap;
+    background-color: #f8fafc;
 }
 
-.generic-table-view .table thead th:first-child {
-    border-left: none;
+.modern-table-header th:first-child {
     padding-left: 1.5rem;
 }
 
-.generic-table-view .table thead th:last-child {
-    border-right: none;
+.modern-table-header th:last-child {
     padding-right: 1.5rem;
 }
 
-.generic-table-view .table tbody tr {
-    border-bottom: 1px solid rgba(177,177,177,0.3);
-    transition: all 0.2s cubic-bezier(0.3, 0, 0.5, 1);
+/* Header Text */
+.header-text {
+    color: #475569;
+    font-weight: 600;
+}
+
+.sort-header-text {
+    color: #475569;
+    font-weight: 600;
+}
+
+/* Sort Button */
+.sort-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #475569;
+    transition: color 150ms ease;
+    font-family: inherit;
+}
+
+.sort-button:hover {
+    color: #0f172a;
+}
+
+.sort-button:focus {
+    outline: none;
+}
+
+.sort-icon {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* Table Rows */
+.modern-table-row {
+    border-bottom: 1px solid #f1f5f9;
+    transition: background-color 150ms ease;
     cursor: pointer;
 }
 
-.generic-table-view .table tbody tr:hover {
-    background: linear-gradient(135deg, rgba(49,68,205,0.05) 0%, rgba(13,26,128,0.05) 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(13, 26, 128, 0.15);
+.modern-table-row:hover {
+    background-color: #f8fafc;
 }
 
-.generic-table-view .table tbody tr.selected {
-    background: linear-gradient(135deg, rgba(49,68,205,0.1) 0%, rgba(13,26,128,0.1) 100%);
-    border-left: 3px solid #3144CD;
+.modern-table-row.selected {
+    background-color: #eff6ff;
 }
 
-.generic-table-view .table tbody tr:last-child {
+.modern-table-row:last-child {
     border-bottom: none;
 }
 
-.generic-table-view .table tbody td {
-    padding: 0.75rem 1.25rem;
+/* Table Cells */
+.modern-table-row td {
+    padding: 1rem 1.5rem;
+    color: #64748b;
+    font-size: 1rem;
+    font-weight: 400;
     vertical-align: middle;
-    border-top: none;
-    color: #161616;
-    font-size: 0.875rem;
 }
 
-.generic-table-view .table tbody td:first-child {
+.modern-table-row td:first-child {
     padding-left: 1.5rem;
 }
 
-.generic-table-view .table tbody td:last-child {
+.modern-table-row td:last-child {
     padding-right: 1.5rem;
 }
 
-/* Fab.OS Checkbox styling */
-.generic-table-view input[type="checkbox"] {
-    width: 1.125rem;
-    height: 1.125rem;
+/* Cell Content */
+.cell-content {
+    color: #64748b;
+}
+
+/* Name cells or primary columns - medium weight */
+.modern-table-row td.name-cell,
+.modern-table-row td.primary-cell {
+    font-weight: 500;
+    color: #1e293b;
+}
+
+/* Checkbox Styling */
+.modern-checkbox {
+    width: 1rem;
+    height: 1rem;
     border-radius: 0.25rem;
-    border: 2px solid #B1B1B1;
+    border: 1px solid #cbd5e1;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.3, 0, 0.5, 1);
+    transition: all 150ms ease;
     background: white;
+    accent-color: #3b82f6;
 }
 
-.generic-table-view input[type="checkbox"]:checked {
-    background: linear-gradient(180deg, #3144CD 0%, #0D1A80 100%);
-    border-color: #3144CD;
+.modern-checkbox:checked {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
 }
 
-.generic-table-view input[type="checkbox"]:hover {
-    border-color: #3144CD;
-    box-shadow: 0 0 0 3px rgba(49, 68, 205, 0.1);
+.modern-checkbox:hover {
+    border-color: #3b82f6;
 }
 
-/* Fab.OS Button styling */
-.generic-table-view .btn {
+.modern-checkbox:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* Checkbox Column */
+.checkbox-column {
+    width: 48px;
+    text-align: center;
+}
+
+/* Actions Column */
+.actions-column {
+    white-space: nowrap;
+    text-align: right;
+}
+
+/* Modern Buttons */
+.modern-btn {
     border-radius: 0.375rem;
-    font-size: 0.75rem;
-    padding: 0.375rem 0.75rem;
-    font-weight: 600;
-    transition: all 0.2s cubic-bezier(0.3, 0, 0.5, 1);
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 150ms ease;
     margin-right: 0.5rem;
     border: none;
-    box-shadow: 0 2px 4px rgba(13, 26, 128, 0.08);
-    position: relative;
-    overflow: hidden;
+    cursor: pointer;
+    font-family: inherit;
 }
 
-.generic-table-view .btn:last-child {
+.modern-btn:last-child {
     margin-right: 0;
 }
 
-.generic-table-view .btn-primary {
-    background: linear-gradient(180deg, #3144CD 0%, #0D1A80 100%);
+.modern-btn-primary {
+    background-color: #3b82f6;
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
-.generic-table-view .btn-primary:hover {
-    background: linear-gradient(180deg, #5261D5 0%, #3144CD 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(13, 26, 128, 0.2);
+.modern-btn-primary:hover {
+    background-color: #2563eb;
 }
 
-.generic-table-view .btn-danger {
-    background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
+.modern-btn-danger {
+    background-color: #ef4444;
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
-.generic-table-view .btn-danger:hover {
-    background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(220, 38, 38, 0.2);
+.modern-btn-danger:hover {
+    background-color: #dc2626;
 }
 
-/* Empty state styling with Fab.OS colors */
-.generic-table-view .alert-info {
-    margin: 2rem 1.5rem;
-    padding: 2rem;
-    background: linear-gradient(135deg, rgba(49,68,205,0.05) 0%, rgba(13,26,128,0.05) 100%);
-    border: 1px solid rgba(49,68,205,0.2);
-    border-radius: 0.5rem;
-    color: #0D1A80;
+.modern-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+/* Empty State */
+.modern-empty-state {
+    padding: 4rem 2rem;
     text-align: center;
+    background: white;
+    border-radius: 1rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.empty-icon {
+    font-size: 3rem;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+}
+
+.empty-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 0.5rem 0;
+}
+
+.empty-subtitle {
     font-size: 0.875rem;
+    color: #64748b;
+    margin: 0;
 }
 
-/* Table striping with Fab.OS colors */
-.generic-table-view .table-striped tbody tr:nth-of-type(odd) {
-    background-color: rgba(248,249,250,0.5);
+/* Status Badge Styling */
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
 }
 
-.generic-table-view .table-striped tbody tr:nth-of-type(odd):hover {
-    background: linear-gradient(135deg, rgba(49,68,205,0.08) 0%, rgba(13,26,128,0.08) 100%);
+.status-active,
+.badge-active {
+    background-color: #dcfce7;
+    color: #15803d;
 }
 
-/* Focus states for accessibility */
-.generic-table-view .btn:focus {
-    outline: 3px solid rgba(49, 68, 205, 0.3);
-    outline-offset: 2px;
+.status-away,
+.badge-away {
+    background-color: #fef9c3;
+    color: #a16207;
 }
 
-.generic-table-view input[type="checkbox"]:focus {
-    outline: 2px solid #3144CD;
-    outline-offset: 2px;
+.status-inactive,
+.badge-inactive {
+    background-color: #f1f5f9;
+    color: #475569;
 }
 
-/* Responsive design */
-@media (max-width: 768px) {
-    .generic-table-view {
-        margin: 1rem 0;
-        border-radius: 8px;
-    }
-    
-    .table-header {
-        padding: 1rem 1.25rem;
-        font-size: 1rem;
-    }
-    
-    .generic-table-view .table thead th,
-    .generic-table-view .table tbody td {
-        padding: 0.75rem 1rem;
-        font-size: 0.8rem;
-    }
-    
-    .generic-table-view .table thead th:first-child,
-    .generic-table-view .table tbody td:first-child {
-        padding-left: 1.25rem;
-    }
-    
-    .generic-table-view .table thead th:last-child,
-    .generic-table-view .table tbody td:last-child {
-        padding-right: 1.25rem;
-    }
-}
-
-/* Loading state with Fab.OS branding */
-.generic-table-view.loading {
-    opacity: 0.7;
-    pointer-events: none;
-}
-
-.generic-table-view.loading::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 20px;
-    height: 20px;
-    margin: -10px 0 0 -10px;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #3144CD;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* Custom scrollbar with Fab.OS colors */
-.table-responsive::-webkit-scrollbar {
+/* Custom Scrollbar */
+.modern-table-scroll::-webkit-scrollbar {
     height: 8px;
 }
 
-.table-responsive::-webkit-scrollbar-track {
-    background: rgba(177,177,177,0.3);
+.modern-table-scroll::-webkit-scrollbar-track {
+    background: #f1f5f9;
     border-radius: 4px;
 }
 
-.table-responsive::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #3144CD 0%, #0D1A80 100%);
+.modern-table-scroll::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
     border-radius: 4px;
 }
 
-.table-responsive::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #5261D5 0%, #3144CD 100%);
+.modern-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 
-/* Legacy compatibility - old classes are deprecated */
+/* Responsive Design */
+@media (max-width: 768px) {
+    .modern-table-container {
+        padding: 1rem;
+    }
+
+    .modern-table-header th,
+    .modern-table-row td {
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .modern-table-header th:first-child,
+    .modern-table-row td:first-child {
+        padding-left: 1rem;
+    }
+
+    .modern-table-header th:last-child,
+    .modern-table-row td:last-child {
+        padding-right: 1rem;
+    }
+}
+
+/* Frozen Columns Support */
+.frozen-column {
+    position: sticky;
+    background: inherit;
+    z-index: 5;
+}
+
+.frozen-left {
+    left: 0;
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+.frozen-right {
+    right: 0;
+    box-shadow: -2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+.modern-table-header .frozen-column {
+    z-index: 15;
+    background-color: #f8fafc;
+}
+
+.modern-table-row .frozen-column {
+    background-color: inherit;
+}
+
+.modern-table-row:hover .frozen-column {
+    background-color: #f8fafc;
+}
+
+.modern-table-row.selected .frozen-column {
+    background-color: #eff6ff;
+}
+
+/* Loading State */
+.modern-table-container.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+/* Focus Visible (keyboard navigation) */
+.modern-table-row:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: -2px;
+}
+
+/* Legacy compatibility - keep old generic-table-view class for backward compatibility */
+.generic-table-view {
+    /* Redirect to modern styling */
+    min-height: auto;
+}
+
+/* Ensure old classes still work */
+.generic-table-view .table {
+    /* Legacy table compatibility */
+}

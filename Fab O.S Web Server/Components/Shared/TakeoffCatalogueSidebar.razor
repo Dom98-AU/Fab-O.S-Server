@@ -9,9 +9,7 @@
             Catalogue
         </h3>
         <div class="header-actions">
-            <button class="btn-expand" @onclick="CycleWidth" title="Resize Sidebar">
-                <i class="fas @GetExpandIcon()"></i>
-            </button>
+            <!-- Width toggle button removed - use drag-to-resize instead -->
             <button class="btn-close" @onclick="ToggleSidebar" title="Toggle Sidebar">
                 <i class="fas @(IsVisible ? "fa-chevron-left" : "fa-chevron-right")"></i>
             </button>
@@ -232,4 +230,7 @@
             </div>
         </div>
     }
+
+    <!-- Resize Handle (right edge) -->
+    <div class="sidebar-resize-handle"></div>
 </div>

@@ -1,4 +1,5 @@
 @rendermode InteractiveServer
+@using FabOS.WebServer.Services.Implementations
 
 <!-- Sidebar -->
 <div class="fabos-sidebar @(IsCollapsed ? "collapsed" : "") @(IsExpanded ? "expanded" : "")">
@@ -215,11 +216,11 @@
             <!-- Standard View - Core Navigation -->
             @if (CurrentModule == "Trace")
             {
-                <a href="/takeoffs" class="fabos-nav-item" title="Takeoffs">
+                <a href="@($"/{tenantSlug ?? ""}/trace/takeoffs")" class="fabos-nav-item" title="Takeoffs">
                     <span class="fabos-nav-icon">📐</span>
                     @if (!IsCollapsed) { <span class="fabos-nav-text">Takeoffs</span> }
                 </a>
-                <a href="/trace/drawings" class="fabos-nav-item" title="Drawing Management">
+                <a href="@($"/{tenantSlug ?? ""}/trace/drawings")" class="fabos-nav-item" title="Drawing Management">
                     <span class="fabos-nav-icon">📄</span>
                     @if (!IsCollapsed) { <span class="fabos-nav-text">Drawing Management</span> }
                 </a>
@@ -231,7 +232,7 @@
                     <span class="fabos-nav-icon">📏</span>
                     @if (!IsCollapsed) { <span class="fabos-nav-text">PDF Viewer</span> }
                 </a>
-                <a href="/takeoffs/drawings" class="fabos-nav-item" title="Takeoff Manager">
+                <a href="@($"/{tenantSlug ?? ""}/trace/takeoffs/drawings")" class="fabos-nav-item" title="Takeoff Manager">
                     <span class="fabos-nav-icon">📋</span>
                     @if (!IsCollapsed) { <span class="fabos-nav-text">Takeoff Manager</span> }
                 </a>
@@ -291,21 +292,13 @@
                     <span class="fabos-nav-icon">🏠</span>
                     @if (!IsCollapsed) { <span class="fabos-nav-text">Home</span> }
                 </a>
-                <a href="/test-login" class="fabos-nav-item" title="Login Test">
-                    <span class="fabos-nav-icon">🔐</span>
-                    @if (!IsCollapsed) { <span class="fabos-nav-text">Login Test</span> }
+                <a href="/settings/global" class="fabos-nav-item" title="Global Settings - Configuration, Users, Company">
+                    <span class="fabos-nav-icon">⚙️</span>
+                    @if (!IsCollapsed) { <span class="fabos-nav-text">Global Settings</span> }
                 </a>
-                <a href="/settings/company" class="fabos-nav-item">
-                    <span class="fabos-nav-icon">🏢</span>
-                    @if (!IsCollapsed) { <span class="fabos-nav-text">Company</span> }
-                </a>
-                <a href="/settings/users" class="fabos-nav-item">
-                    <span class="fabos-nav-icon">👥</span>
-                    @if (!IsCollapsed) { <span class="fabos-nav-text">Users</span> }
-                </a>
-                <a href="/settings/security" class="fabos-nav-item">
-                    <span class="fabos-nav-icon">🔒</span>
-                    @if (!IsCollapsed) { <span class="fabos-nav-text">Security</span> }
+                <a href="/settings/trace" class="fabos-nav-item" title="Trace Module Settings">
+                    <span class="fabos-nav-icon">📐</span>
+                    @if (!IsCollapsed) { <span class="fabos-nav-text">Trace Settings</span> }
                 </a>
             }
         }

@@ -14,6 +14,8 @@ namespace FabOS.WebServer.Components.Pages;
 
 public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisposable
 {
+    [Parameter] public string? TenantSlug { get; set; }
+
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
@@ -311,7 +313,7 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
 
     private void HandleRowDoubleClick(Package package)
     {
-        Navigation.NavigateTo($"/packages/{package.Id}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/packages/{package.Id}");
     }
 
     private void HandleTableSelectionChanged(List<Package> selected)

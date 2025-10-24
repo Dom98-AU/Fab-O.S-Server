@@ -1,4 +1,17 @@
-@page "/packages"
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: Package
+Views: Table, List, Card
+Features: ViewPreferences, ColumnManagement, Search, Selection, Sorting, Filtering
+Pattern: Standard (Reference Implementation)
+Modern UI: Yes
+Last Updated: 2025-10-23
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/trace/packages"
 @rendermode InteractiveServer
 @using FabOS.WebServer.Components.Shared
 @using FabOS.WebServer.Components.Shared.Interfaces

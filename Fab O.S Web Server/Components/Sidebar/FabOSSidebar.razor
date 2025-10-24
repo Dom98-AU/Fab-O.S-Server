@@ -1,0 +1,74 @@
+@rendermode InteractiveServer
+@using FabOS.WebServer.Services
+@inject SidebarService SidebarService
+@inject NavigationService NavService
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<div class="fabos-sidebar @(SidebarService.IsCollapsed ? "collapsed" : "") @(SidebarService.IsExpanded ? "expanded" : "") @(SidebarService.IsPinMode ? "pin-mode" : "")">
+
+    <!-- Header Section -->
+    <FabOSSidebarHeader />
+
+    <!-- Controls Section (Expand/Pin Mode) -->
+    @if (!SidebarService.IsCollapsed)
+    {
+        <FabOSSidebarControls />
+    }
+
+    <!-- Module Selector Dropdown -->
+    <FabOSModuleSelector />
+
+    <!-- Sidebar Content -->
+    <FabOSSidebarContent>
+        @if (SidebarService.IsExpanded)
+        {
+            <FabOSSidebarExpandedView />
+        }
+        else if (!SidebarService.IsCollapsed)
+        {
+            <!-- Pinned Section -->
+            @if (SidebarService.GetPinnedUrls().Any())
+            {
+                <FabOSSidebarPinnedSection />
+            }
+
+            <!-- Standard Navigation -->
+            <FabOSSidebarStandardView />
+        }
+        else
+        {
+            <!-- Collapsed View - Icons Only -->
+            <nav class="fabos-standard-nav">
+                @foreach (var item in NavService.GetModuleItems(SidebarService.CurrentModule))
+                {
+                    <a href="@item.Url" class="fabos-nav-item" title="@item.Title">
+                        <span class="fabos-nav-icon">
+                            <LucideIcon Name="@item.Icon" Size="20" />
+                        </span>
+                    </a>
+                }
+            </nav>
+        }
+    </FabOSSidebarContent>
+
+    <!-- Footer Section -->
+    <FabOSSidebarFooter />
+</div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await SidebarService.InitializeAsync();
+            SidebarService.OnStateChanged += StateHasChanged;
+            StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        SidebarService.OnStateChanged -= StateHasChanged;
+    }
+}

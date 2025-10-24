@@ -28,6 +28,7 @@ public class TakeoffFile
 
 public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDisposable
 {
+    [Parameter] public string? TenantSlug { get; set; }
     [Parameter] public int Id { get; set; }
 
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
@@ -101,7 +102,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             // For new takeoffs, use custom label
             await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
                 "Takeoffs",
-                "/takeoffs",
+                $"/{TenantSlug}/trace/takeoffs",
                 "Takeoff",
                 null,
                 takeoff?.TakeoffNumber ?? "New Takeoff"
@@ -112,7 +113,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             // For existing takeoffs, use the breadcrumb builder to load the actual takeoff number
             await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
                 "Takeoffs",
-                "/takeoffs",
+                $"/{TenantSlug}/trace/takeoffs",
                 "Takeoff",
                 Id
             );
@@ -376,7 +377,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
     private void CancelChanges()
     {
-        Navigation.NavigateTo("/takeoffs");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs");
     }
 
     private int GetProgressPercentage()
@@ -455,7 +456,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                     Text = "New",
                     Label = "New",
                     Icon = "fas fa-plus",
-                    Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo("/takeoffs/0"))
+                    Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/0"))
                 });
 
                 actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
@@ -531,14 +532,14 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             {
                 Text = "View All Takeoffs",
                 Icon = "fas fa-list",
-                Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo("/takeoffs"))
+                Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs"))
             });
 
             actionGroup.RelatedActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
             {
                 Text = "Revisions",
                 Icon = "fas fa-code-branch",
-                Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/takeoffs/{Id}/revisions")),
+                Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{Id}/revisions")),
                 Tooltip = "View and manage revisions"
             });
 
@@ -546,7 +547,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             {
                 Text = "Packages",
                 Icon = "fas fa-box",
-                Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/takeoffs/{Id}/packages")),
+                Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{Id}/packages")),
                 Tooltip = "View packages for this takeoff"
             });
 
@@ -639,7 +640,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
     {
         if (takeoff?.Id == 0)
         {
-            Navigation.NavigateTo("/takeoffs");
+            Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs");
         }
         else
         {
@@ -660,7 +661,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
     {
         if (drawing != null)
         {
-            Navigation.NavigateTo($"/takeoffs/{drawing.Id}/drawings");
+            Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{drawing.Id}/drawings");
         }
     }
 
@@ -681,7 +682,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             {
                 DbContext.TraceDrawings.Remove(takeoff);
                 await DbContext.SaveChangesAsync();
-                Navigation.NavigateTo("/takeoffs");
+                Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs");
             }
             catch (Exception ex)
             {
@@ -741,7 +742,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             // If this was a new takeoff, update the ID and URL
             if (Id == 0 && takeoff.Id != 0)
             {
-                Navigation.NavigateTo($"/takeoffs/{takeoff.Id}", false);
+                Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{takeoff.Id}", false);
             }
 
             StateHasChanged();

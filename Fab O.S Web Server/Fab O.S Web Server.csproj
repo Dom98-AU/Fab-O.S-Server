@@ -27,6 +27,9 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" />
+
+    <!-- Dapper for raw SQL queries -->
+    <PackageReference Include="Dapper" Version="2.1.28" />
     
     <!-- Azure Key Vault for connection strings -->
     <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.6.0" />

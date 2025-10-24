@@ -13,6 +13,8 @@ namespace FabOS.WebServer.Components.Pages;
 
 public partial class Takeoffs : ComponentBase, IToolbarActionProvider
 {
+    [Parameter] public string? TenantSlug { get; set; }
+
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
 
@@ -274,7 +276,7 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
 
     private void OpenTakeoff(int takeoffId)
     {
-        Navigation.NavigateTo($"/takeoffs/{takeoffId}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{takeoffId}");
     }
 
     private void HandleViewLoaded(ViewState viewState)
@@ -294,7 +296,7 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
 
     private void CreateNewTakeoff()
     {
-        Navigation.NavigateTo("/takeoffs/0");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/0");
     }
 
     // IToolbarActionProvider implementation

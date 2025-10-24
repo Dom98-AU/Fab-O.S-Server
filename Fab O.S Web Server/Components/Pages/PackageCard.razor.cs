@@ -10,6 +10,7 @@ namespace FabOS.WebServer.Components.Pages;
 
 public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDisposable
 {
+    [Parameter] public string? TenantSlug { get; set; }
     [Parameter] public int Id { get; set; }
 
     // Query parameters
@@ -353,7 +354,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 {
                     Text = "View Takeoffs",
                     Icon = "fas fa-ruler",
-                    ActionFunc = () => { Navigation.NavigateTo("/takeoffs"); return Task.CompletedTask; },
+                    ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs"); return Task.CompletedTask; },
                     IsDisabled = false,
                     Tooltip = "View all takeoffs"
                 },
@@ -371,7 +372,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
 
     private void NavigateToTakeoffs()
     {
-        Navigation.NavigateTo($"/takeoffs?packageId={Id}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs?packageId={Id}");
     }
 
     private bool IsSectionExpanded(string section)

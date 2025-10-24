@@ -1,27 +1,54 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
+using FabOS.WebServer.Components.Shared;
 using FabOS.WebServer.Components.Shared.Interfaces;
 using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
+using FabOS.WebServer.Models.Columns;
+using FabOS.WebServer.Models.ViewState;
+using FabOS.WebServer.Services;
+using FabOS.WebServer.Services.Interfaces;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace FabOS.WebServer.Components.Pages;
 
-public partial class Contacts : ComponentBase, IToolbarActionProvider
+public partial class Contacts : ComponentBase, IToolbarActionProvider, IDisposable
 {
+    [Parameter]
+    public string TenantSlug { get; set; } = string.Empty;
+
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private BreadcrumbService BreadcrumbService { get; set; } = default!;
 
     private List<CustomerContact> contacts = new();
+    private List<CustomerContact> allContacts = new();
     private List<CustomerContact> filteredContacts = new();
     private string searchTerm = "";
-    private string viewMode = "grid";
     private bool isLoading = true;
     private int? filterByCustomerId = null;
     private Customer? filterCustomer = null;
 
+    // View state management
+    private GenericViewSwitcher<CustomerContact>.ViewType currentView = GenericViewSwitcher<CustomerContact>.ViewType.Table;
+    private ViewState currentViewState = new();
+    private bool hasUnsavedChanges = false;
+    private bool hasCustomColumnConfig = false;
+
+    // Column management
+    private List<ColumnDefinition> managedColumns = new();
+    private List<GenericTableView<CustomerContact>.TableColumn<CustomerContact>> tableColumns = new();
+
+    // Selection tracking
+    private List<CustomerContact> selectedTableItems = new();
+    private List<CustomerContact> selectedListItems = new();
+    private List<CustomerContact> selectedCardItems = new();
+
     protected override async Task OnInitializedAsync()
     {
+        UpdateBreadcrumb();
+        InitializeColumns();
+
         // Check for customerId query parameter
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("customerId", out var customerIdValue))
@@ -35,6 +62,124 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider
         }
 
         await LoadContacts();
+    }
+
+    private void UpdateBreadcrumb()
+    {
+        BreadcrumbService.SetBreadcrumbs(
+            new Breadcrumb.BreadcrumbItem { Label = "Home", Url = "/" },
+            new Breadcrumb.BreadcrumbItem { Label = "Contacts", Url = "/contacts", IsActive = true }
+        );
+    }
+
+    private void InitializeColumns()
+    {
+        tableColumns = new List<GenericTableView<CustomerContact>.TableColumn<CustomerContact>>
+        {
+            new GenericTableView<CustomerContact>.TableColumn<CustomerContact>
+            {
+                Header = "Name",
+                PropertyName = "FirstName",
+                ValueSelector = c => $"{c.FirstName} {c.LastName}",
+                IsSortable = true,
+                Template = contact => builder =>
+                {
+                    builder.OpenElement(0, "div");
+                    builder.OpenElement(1, "strong");
+                    builder.AddContent(2, $"{contact.FirstName} {contact.LastName}");
+                    builder.CloseElement();
+                    if (contact.IsPrimary)
+                    {
+                        builder.OpenElement(3, "span");
+                        builder.AddAttribute(4, "class", "ms-2 text-warning");
+                        builder.AddAttribute(5, "title", "Primary Contact");
+                        builder.AddContent(6, "★");
+                        builder.CloseElement();
+                    }
+                    builder.CloseElement();
+                }
+            },
+            new GenericTableView<CustomerContact>.TableColumn<CustomerContact>
+            {
+                Header = "Company",
+                PropertyName = "CustomerId",
+                ValueSelector = c => c.Customer?.Name ?? "-",
+                IsSortable = true
+            },
+            new GenericTableView<CustomerContact>.TableColumn<CustomerContact>
+            {
+                Header = "Title",
+                PropertyName = "Title",
+                ValueSelector = c => c.Title ?? "-",
+                IsSortable = true
+            },
+            new GenericTableView<CustomerContact>.TableColumn<CustomerContact>
+            {
+                Header = "Department",
+                PropertyName = "Department",
+                ValueSelector = c => c.Department ?? "-",
+                IsSortable = true
+            },
+            new GenericTableView<CustomerContact>.TableColumn<CustomerContact>
+            {
+                Header = "Email",
+                PropertyName = "Email",
+                ValueSelector = c => c.Email ?? "-",
+                IsSortable = true,
+                Template = contact => builder =>
+                {
+                    if (!string.IsNullOrEmpty(contact.Email))
+                    {
+                        builder.OpenElement(0, "a");
+                        builder.AddAttribute(1, "href", $"mailto:{contact.Email}");
+                        builder.AddContent(2, contact.Email);
+                        builder.CloseElement();
+                    }
+                    else
+                    {
+                        builder.AddContent(0, "-");
+                    }
+                }
+            },
+            new GenericTableView<CustomerContact>.TableColumn<CustomerContact>
+            {
+                Header = "Phone",
+                PropertyName = "PhoneNumber",
+                ValueSelector = c => c.PhoneNumber ?? "-",
+                IsSortable = true
+            },
+            new GenericTableView<CustomerContact>.TableColumn<CustomerContact>
+            {
+                Header = "Mobile",
+                PropertyName = "MobileNumber",
+                ValueSelector = c => c.MobileNumber ?? "-",
+                IsSortable = true
+            },
+            new GenericTableView<CustomerContact>.TableColumn<CustomerContact>
+            {
+                Header = "Status",
+                PropertyName = "IsActive",
+                ValueSelector = c => c.IsActive ? "Active" : "Inactive",
+                IsSortable = true,
+                Template = contact => builder =>
+                {
+                    builder.OpenElement(0, "span");
+                    builder.AddAttribute(1, "class", $"badge {(contact.IsActive ? "bg-success" : "bg-secondary")}");
+                    builder.AddContent(2, contact.IsActive ? "Active" : "Inactive");
+                    builder.CloseElement();
+                }
+            }
+        };
+
+        managedColumns = tableColumns.Select(c => new ColumnDefinition
+        {
+            PropertyName = c.PropertyName,
+            DisplayName = c.Header,
+            IsVisible = true,
+            IsFrozen = false,
+            IsRequired = false,
+            Width = null
+        }).ToList();
     }
 
     private async Task LoadContacts()
@@ -57,6 +202,7 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider
                 .ThenBy(c => c.LastName)
                 .ToListAsync();
 
+            allContacts = contacts;
             ApplyFilters();
         }
         catch (Exception ex)
@@ -96,32 +242,101 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider
         StateHasChanged();
     }
 
-    private void SetViewMode(string mode)
+    // View management
+    private void OnViewChanged(GenericViewSwitcher<CustomerContact>.ViewType newView)
     {
-        viewMode = mode;
+        currentView = newView;
         StateHasChanged();
     }
 
-    private string GetInitials(CustomerContact contact)
+    private async Task HandleViewLoaded(ViewState? state)
     {
-        var firstInitial = !string.IsNullOrEmpty(contact.FirstName) ? contact.FirstName[0].ToString().ToUpper() : "";
-        var lastInitial = !string.IsNullOrEmpty(contact.LastName) ? contact.LastName[0].ToString().ToUpper() : "";
-        return $"{firstInitial}{lastInitial}";
+        if (state == null)
+        {
+            InitializeColumns();
+        }
+        else
+        {
+            currentViewState = state;
+            if (state.Columns.Any())
+            {
+                managedColumns = state.Columns;
+            }
+        }
+        hasUnsavedChanges = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleColumnsChanged(List<ColumnDefinition>? columns)
+    {
+        if (columns == null)
+        {
+            InitializeColumns();
+        }
+        else
+        {
+            managedColumns = columns;
+            hasCustomColumnConfig = true;
+        }
+        hasUnsavedChanges = true;
+        StateHasChanged();
+    }
+
+    // Selection handling
+    private async Task HandleTableSelectionChanged(List<CustomerContact> items)
+    {
+        selectedTableItems = items;
+        StateHasChanged();
+    }
+
+    private async Task HandleListSelectionChanged(List<CustomerContact> items)
+    {
+        selectedListItems = items;
+        StateHasChanged();
+    }
+
+    private async Task HandleCardSelectionChanged(List<CustomerContact> items)
+    {
+        selectedCardItems = items;
+        StateHasChanged();
+    }
+
+    // Item interaction
+    private void HandleContactClick(CustomerContact contact)
+    {
+        // Single click - could be used for selection or preview
+    }
+
+    private void HandleContactDoubleClick(CustomerContact contact)
+    {
+        // Double click - navigate to contact details
+        ViewContact(contact.Id);
+    }
+
+    private List<CustomerContact> GetSelectedItems()
+    {
+        return currentView switch
+        {
+            GenericViewSwitcher<CustomerContact>.ViewType.Table => selectedTableItems,
+            GenericViewSwitcher<CustomerContact>.ViewType.List => selectedListItems,
+            GenericViewSwitcher<CustomerContact>.ViewType.Card => selectedCardItems,
+            _ => new List<CustomerContact>()
+        };
     }
 
     private void CreateNewContact()
     {
-        Navigation.NavigateTo("/contacts/new");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/contacts/new");
     }
 
     private void ViewContact(int contactId)
     {
-        Navigation.NavigateTo($"/contacts/{contactId}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/contacts/{contactId}");
     }
 
     private void EditContact(int contactId)
     {
-        Navigation.NavigateTo($"/contacts/edit/{contactId}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/contacts/{contactId}/edit");
     }
 
     private async Task DeleteContact(CustomerContact contact)
@@ -143,19 +358,31 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider
     // IToolbarActionProvider implementation
     public ToolbarActionGroup GetActions()
     {
+        var hasSelection = GetSelectedItems().Any();
+
         var group = new ToolbarActionGroup();
         group.PrimaryActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
         {
             new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
             {
-                Label = "Add Contact",
-                Text = "Add Contact",
+                Label = "New",
+                Text = "New",
                 Icon = "fas fa-plus",
                 Action = EventCallback.Factory.Create(this, CreateNewContact),
                 IsDisabled = false,
                 Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Primary
+            },
+            new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+            {
+                Label = "Delete",
+                Text = "Delete",
+                Icon = "fas fa-trash",
+                Action = EventCallback.Factory.Create(this, DeleteSelectedContacts),
+                IsDisabled = !hasSelection,
+                Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Danger
             }
         };
+
         group.MenuActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
         {
             new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
@@ -165,32 +392,66 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider
                 Icon = "fas fa-sync-alt",
                 Action = EventCallback.Factory.Create(this, async () => await LoadContacts()),
                 IsDisabled = false
-            },
+            }
+        };
+
+        group.RelatedActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
+        {
             new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
             {
-                Label = "Export",
+                Label = "Export to Excel",
                 Text = "Export to Excel",
                 Icon = "fas fa-file-excel",
-                Action = EventCallback.Factory.Create(this, () => Console.WriteLine("Export clicked")),
+                Action = EventCallback.Factory.Create(this, ExportToExcel),
                 IsDisabled = false
             },
             new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
             {
-                Label = "Grid View",
-                Text = "Grid View",
-                Icon = "fas fa-th",
-                Action = EventCallback.Factory.Create(this, () => SetViewMode("grid")),
-                IsDisabled = false
-            },
-            new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-            {
-                Label = "List View",
-                Text = "List View",
-                Icon = "fas fa-list",
-                Action = EventCallback.Factory.Create(this, () => SetViewMode("list")),
+                Label = "Import from Excel",
+                Text = "Import from Excel",
+                Icon = "fas fa-file-import",
+                Action = EventCallback.Factory.Create(this, ImportFromExcel),
                 IsDisabled = false
             }
         };
+
         return group;
+    }
+
+    private async Task DeleteSelectedContacts()
+    {
+        var selected = GetSelectedItems();
+        if (!selected.Any()) return;
+
+        try
+        {
+            DbContext.CustomerContacts.RemoveRange(selected);
+            await DbContext.SaveChangesAsync();
+
+            selectedTableItems.Clear();
+            selectedListItems.Clear();
+            selectedCardItems.Clear();
+
+            await LoadContacts();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting contacts: {ex.Message}");
+        }
+    }
+
+    private void ExportToExcel()
+    {
+        Console.WriteLine("Export to Excel clicked");
+    }
+
+    private void ImportFromExcel()
+    {
+        Console.WriteLine("Import from Excel clicked");
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
     }
 }

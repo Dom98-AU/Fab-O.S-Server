@@ -1,0 +1,27 @@
+@namespace FabOS.WebServer.Components.Shared
+
+@if (!IsEditMode)
+{
+    <div class="view-only-banner">
+        <div class="banner-content">
+            <i class="fas fa-lock"></i>
+            <span class="banner-text">
+                <strong>View Only Mode</strong> - @EditorName is currently editing this PDF
+            </span>
+        </div>
+        @if (ShowRefreshButton)
+        {
+            <button class="btn btn-sm btn-outline-light" @onclick="OnRefreshClicked">
+                <i class="fas fa-sync-alt"></i>
+                Try to Edit
+            </button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsEditMode { get; set; }
+    [Parameter] public string EditorName { get; set; } = "Another user";
+    [Parameter] public bool ShowRefreshButton { get; set; } = true;
+    [Parameter] public EventCallback OnRefreshClicked { get; set; }
+}

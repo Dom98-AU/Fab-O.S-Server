@@ -1,25 +1,25 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using FabOS.WebServer.Data.Contexts;
+using FabOS.WebServer.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace FabOS.WebServer.Services.Implementations
 {
-    public interface ITenantService
-    {
-        int GetCurrentCompanyId();
-        int? GetCurrentUserId();
-        string GetCurrentUserName();
-        bool IsAuthenticated();
-    }
-
     public class TenantService : ITenantService
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ILogger<TenantService> _logger;
+        private readonly ApplicationDbContext _context;
 
-        public TenantService(IHttpContextAccessor httpContextAccessor, ILogger<TenantService> logger)
+        public TenantService(
+            IHttpContextAccessor httpContextAccessor,
+            ILogger<TenantService> logger,
+            ApplicationDbContext context)
         {
             _httpContextAccessor = httpContextAccessor;
             _logger = logger;
+            _context = context;
         }
 
         public int GetCurrentCompanyId()
@@ -89,6 +89,45 @@ namespace FabOS.WebServer.Services.Implementations
         public bool IsAuthenticated()
         {
             return _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
+        }
+
+        public async Task<string?> GetCurrentTenantSlugAsync()
+        {
+            try
+            {
+                var companyId = GetCurrentCompanyId();
+                return await GetTenantSlugByCompanyIdAsync(companyId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[TenantService] Error getting current tenant slug");
+                return null;
+            }
+        }
+
+        public async Task<string?> GetTenantSlugByCompanyIdAsync(int companyId)
+        {
+            try
+            {
+                var company = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.Id == companyId);
+
+                if (company == null)
+                {
+                    _logger.LogWarning("[TenantService] Company {CompanyId} not found", companyId);
+                    return null;
+                }
+
+                // Use Company.Code as the tenant slug (convert to lowercase, replace spaces with hyphens)
+                var tenantSlug = company.Code.ToLowerInvariant().Replace(" ", "-");
+                _logger.LogInformation("[TenantService] Company {CompanyId} has tenant slug '{TenantSlug}'", companyId, tenantSlug);
+                return tenantSlug;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[TenantService] Error getting tenant slug for company {CompanyId}", companyId);
+                return null;
+            }
         }
     }
 }

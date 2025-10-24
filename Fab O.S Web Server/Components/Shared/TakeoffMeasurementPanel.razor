@@ -3,6 +3,9 @@
 @using FabOS.WebServer.Services.Interfaces
 
 <div class="takeoff-measurement-footer @(IsVisible ? "visible" : "") @GetHeightClass()">
+    <!-- Resize Handle (top edge) -->
+    <div class="footer-resize-handle"></div>
+
     <!-- Footer Header -->
     <div class="footer-header">
         <div class="header-left">
@@ -17,9 +20,11 @@
             }
         </div>
         <div class="header-actions">
-            <button class="btn-expand" @onclick="CycleHeight" title="Resize Footer">
-                <i class="fas @GetExpandIcon()"></i>
+            <button class="btn-open-full" @onclick="OpenFullMeasurementsPage" title="Open in New Window">
+                <i class="fas fa-external-link-alt"></i>
+                Open Full View
             </button>
+            <!-- Height toggle button removed - use drag-to-resize instead -->
             <button class="btn-close" @onclick="TogglePanel" title="Toggle Footer">
                 <i class="fas @(IsVisible ? "fa-chevron-down" : "fa-chevron-up")"></i>
             </button>
@@ -97,61 +102,57 @@
             }
             else
             {
-                <!-- Grouped by Category (Horizontal Cards) -->
-                @foreach (var categoryGroup in GroupedMeasurements)
-                {
-                    <div class="category-column">
-                        <div class="category-header @(expandedCategory == categoryGroup.Key ? "expanded" : "")"
-                             @onclick="() => ToggleCategory(categoryGroup.Key)">
-                            <div class="category-title">
-                                <i class="fas @(expandedCategory == categoryGroup.Key ? "fa-chevron-down" : "fa-chevron-right")"></i>
-                                <span class="category-name">@categoryGroup.Key</span>
+                <!-- Measurements as Rows -->
+                <div class="measurements-list-rows">
+                    @foreach (var measurement in measurements)
+                    {
+                        <div class="measurement-row @(IsMeasurementHighlighted(measurement) ? "highlighted" : "")" @key="measurement.Id">
+                            <div class="row-item-info">
+                                <span class="item-code">@measurement.CatalogueItem?.ItemCode</span>
+                                <span class="item-desc">@measurement.CatalogueItem?.Description</span>
                             </div>
-                            <span class="badge">@categoryGroup.Value.Count</span>
-                            <span class="weight-badge">@categoryGroup.Value.Sum(m => m.CalculatedWeight ?? 0).ToString("F2") kg</span>
+                            <div class="row-category">
+                                <span class="badge badge-category">@(measurement.CatalogueItem?.Category ?? "Uncategorized")</span>
+                            </div>
+                            <div class="row-measurement">
+                                <span class="badge badge-type">@measurement.MeasurementType</span>
+                                <span class="value">@measurement.Value.ToString("F2") @measurement.Unit</span>
+                            </div>
+                            @if (measurement.CalculatedWeight.HasValue)
+                            {
+                                <div class="row-weight">
+                                    <i class="fas fa-weight-hanging"></i>
+                                    <span>@measurement.CalculatedWeight.Value.ToString("F2") kg</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="row-weight">
+                                    <span class="text-muted">—</span>
+                                </div>
+                            }
+                            <div class="row-date">
+                                <i class="fas fa-clock"></i>
+                                <span>@measurement.CreatedDate.ToLocalTime().ToString("g")</span>
+                            </div>
+                            <div class="row-actions">
+                                <button class="btn-icon" @onclick="() => DeleteMeasurement(measurement.Id)" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
                         </div>
-
-                        @if (expandedCategory == categoryGroup.Key)
-                        {
-                            <div class="category-items-scroll">
-                                @foreach (var measurement in categoryGroup.Value)
-                                {
-                                    <div class="measurement-card-compact">
-                                        <div class="card-header">
-                                            <span class="item-code">@measurement.CatalogueItem?.ItemCode</span>
-                                            <button class="btn-icon" @onclick="() => DeleteMeasurement(measurement.Id)" title="Delete">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </div>
-                                        <div class="card-body">
-                                            <span class="badge badge-type">@measurement.MeasurementType</span>
-                                            <span class="value">@measurement.Value.ToString("F2") @measurement.Unit</span>
-                                            @if (measurement.CalculatedWeight.HasValue)
-                                            {
-                                                <span class="weight">
-                                                    <i class="fas fa-weight-hanging"></i>
-                                                    @measurement.CalculatedWeight.Value.ToString("F2") kg
-                                                </span>
-                                            }
-                                        </div>
-                                        <div class="card-footer">
-                                            <i class="fas fa-clock"></i>
-                                            <span>@measurement.CreatedDate.ToLocalTime().ToString("g")</span>
-                                        </div>
-                                    </div>
-                                }
-                            </div>
-                        }
-                    </div>
-                }
+                    }
+                </div>
 
                 <!-- Footer Actions -->
-                <div class="footer-actions-column">
+                <div class="footer-actions-row">
                     <button class="btn btn-secondary btn-sm" @onclick="RefreshMeasurements" title="Refresh">
                         <i class="fas fa-sync-alt"></i>
+                        Refresh
                     </button>
                     <button class="btn btn-danger btn-sm" @onclick="ClearAllMeasurements" title="Clear All">
                         <i class="fas fa-trash-alt"></i>
+                        Clear All
                     </button>
                 </div>
             }

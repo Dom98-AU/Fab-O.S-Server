@@ -9,6 +9,7 @@ namespace FabOS.WebServer.Components.Pages;
 
 public partial class RevisionCard : ComponentBase, IToolbarActionProvider
 {
+    [Parameter] public string? TenantSlug { get; set; }
     [Parameter] public int TakeoffId { get; set; }
     [Parameter] public int Id { get; set; }
 
@@ -107,7 +108,7 @@ public partial class RevisionCard : ComponentBase, IToolbarActionProvider
                     revision.Description,
                     userId: null); // TODO: Implement authentication system
 
-                Navigation.NavigateTo($"/takeoffs/{TakeoffId}/revisions/{newRevision.Id}", replace: true);
+                Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}/revisions/{newRevision.Id}", replace: true);
             }
             else
             {
@@ -144,7 +145,7 @@ public partial class RevisionCard : ComponentBase, IToolbarActionProvider
         try
         {
             await RevisionService.DeleteRevisionAsync(Id);
-            Navigation.NavigateTo($"/takeoffs/{TakeoffId}/revisions");
+            Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}/revisions");
         }
         catch (Exception ex)
         {
@@ -181,7 +182,7 @@ public partial class RevisionCard : ComponentBase, IToolbarActionProvider
                 $"Copy of {revision.RevisionCode}",
                 userId: null); // TODO: Implement authentication system
 
-            Navigation.NavigateTo($"/takeoffs/{TakeoffId}/revisions/{newRevision.Id}");
+            Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}/revisions/{newRevision.Id}");
         }
         catch (Exception ex)
         {
@@ -316,14 +317,14 @@ public partial class RevisionCard : ComponentBase, IToolbarActionProvider
             {
                 Text = "View Takeoff",
                 Icon = "fas fa-file-alt",
-                ActionFunc = () => { Navigation.NavigateTo($"/takeoffs/{TakeoffId}"); return Task.CompletedTask; }
+                ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}"); return Task.CompletedTask; }
             });
 
             actionGroup.RelatedActions.Add(new ToolbarAction
             {
                 Text = "All Revisions",
                 Icon = "fas fa-list",
-                ActionFunc = () => { Navigation.NavigateTo($"/takeoffs/{TakeoffId}/revisions"); return Task.CompletedTask; }
+                ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}/revisions"); return Task.CompletedTask; }
             });
 
             if (Id > 0)
@@ -332,7 +333,7 @@ public partial class RevisionCard : ComponentBase, IToolbarActionProvider
                 {
                     Text = "Packages",
                     Icon = "fas fa-box",
-                    ActionFunc = () => { Navigation.NavigateTo($"/takeoffs/{TakeoffId}/revisions/{Id}/packages"); return Task.CompletedTask; },
+                    ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}/revisions/{Id}/packages"); return Task.CompletedTask; },
                     Tooltip = "View packages in this revision"
                 });
             }

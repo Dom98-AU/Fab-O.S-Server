@@ -1,0 +1,17 @@
+@rendermode InteractiveServer
+@using FabOS.WebServer.Services
+@using FabOS.WebServer.Components.Shared
+@inject SidebarService SidebarService
+@inject NavigationService NavService
+
+<nav class="fabos-standard-nav">
+    @foreach (var item in NavService.GetModuleItems(SidebarService.CurrentModule))
+    {
+        <a href="@item.Url" class="fabos-nav-item" title="@item.Title">
+            <span class="fabos-nav-icon">
+                <LucideIcon Name="@item.Icon" Size="18" />
+            </span>
+            <span class="fabos-nav-text">@item.Title</span>
+        </a>
+    }
+</nav>

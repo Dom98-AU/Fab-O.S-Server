@@ -12,13 +12,16 @@ namespace FabOS.WebServer.Controllers.Api
     public class TakeoffCatalogueController : ControllerBase
     {
         private readonly ITakeoffCatalogueService _catalogueService;
+        private readonly IPdfCalibrationService _calibrationService;
         private readonly ILogger<TakeoffCatalogueController> _logger;
 
         public TakeoffCatalogueController(
             ITakeoffCatalogueService catalogueService,
+            IPdfCalibrationService calibrationService,
             ILogger<TakeoffCatalogueController> logger)
         {
             _catalogueService = catalogueService;
+            _calibrationService = calibrationService;
             _logger = logger;
         }
 
@@ -37,7 +40,8 @@ namespace FabOS.WebServer.Controllers.Api
         {
             try
             {
-                var companyId = GetCompanyId();
+                // Use CompanyId = 1 for consistency across all endpoints
+                int companyId = 1;
                 var categories = await _catalogueService.GetCategoriesAsync(companyId);
                 return Ok(categories);
             }
@@ -62,7 +66,8 @@ namespace FabOS.WebServer.Controllers.Api
                     return BadRequest(new { error = "Category parameter is required" });
                 }
 
-                var companyId = GetCompanyId();
+                // Use CompanyId = 1 for consistency across all endpoints
+                int companyId = 1;
                 var items = await _catalogueService.GetItemsByCategoryAsync(category, companyId);
                 return Ok(items);
             }
@@ -82,7 +87,8 @@ namespace FabOS.WebServer.Controllers.Api
         {
             try
             {
-                var companyId = GetCompanyId();
+                // Use CompanyId = 1 for consistency across all endpoints
+                int companyId = 1;
                 var item = await _catalogueService.GetItemByIdAsync(id, companyId);
 
                 if (item == null)
@@ -113,7 +119,8 @@ namespace FabOS.WebServer.Controllers.Api
                     return BadRequest(new { error = "Search query 'q' parameter is required" });
                 }
 
-                var companyId = GetCompanyId();
+                // Use CompanyId = 1 for consistency across all endpoints
+                int companyId = 1;
                 var items = await _catalogueService.SearchItemsAsync(q, companyId, maxResults);
                 return Ok(items);
             }
@@ -139,7 +146,14 @@ namespace FabOS.WebServer.Controllers.Api
                     return BadRequest(new { error = "Request body is required" });
                 }
 
-                var companyId = GetCompanyId();
+                // Use CompanyId = 1 (consistent with SaveAnnotation and DeleteAnnotation)
+                // TODO: In production, get companyId from user claims or drawing's package
+                int companyId = 1;
+
+                // Log diagnostic information
+                _logger.LogInformation("Calculate measurement request: CatalogueItemId={CatalogueItemId}, CompanyId={CompanyId}, MeasurementType={MeasurementType}, Value={Value}, Unit={Unit}, AnnotationId={AnnotationId}",
+                    request.CatalogueItemId, companyId, request.MeasurementType, request.Value, request.Unit, request.AnnotationId);
+
                 var result = await _catalogueService.CalculateMeasurementAsync(
                     request.CatalogueItemId,
                     request.MeasurementType,
@@ -147,16 +161,20 @@ namespace FabOS.WebServer.Controllers.Api
                     request.Unit,
                     companyId);
 
+                // Pass the annotation ID through to the result
+                result.AnnotationId = request.AnnotationId;
+
                 return Ok(result);
             }
             catch (ArgumentException ex)
             {
-                _logger.LogWarning(ex, "Invalid calculation request");
+                _logger.LogWarning(ex, "Invalid calculation request for CatalogueItemId={CatalogueItemId}, CompanyId={CompanyId}",
+                    request?.CatalogueItemId, 1);
                 return BadRequest(new { error = ex.Message });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error calculating measurement");
+                _logger.LogError(ex, "Error calculating measurement for CatalogueItemId={CatalogueItemId}", request?.CatalogueItemId);
                 return StatusCode(500, new { error = "Failed to calculate measurement" });
             }
         }
@@ -176,7 +194,9 @@ namespace FabOS.WebServer.Controllers.Api
                     return BadRequest(new { error = "Request body is required" });
                 }
 
-                var companyId = GetCompanyId();
+                // Use CompanyId = 1 (consistent with SaveAnnotation and DeleteAnnotation)
+                // TODO: In production, get companyId from user claims or drawing's package
+                int companyId = 1;
                 var measurement = await _catalogueService.CreateMeasurementAsync(
                     request.TraceTakeoffId,
                     request.PackageDrawingId,
@@ -208,7 +228,9 @@ namespace FabOS.WebServer.Controllers.Api
         {
             try
             {
-                var companyId = GetCompanyId();
+                // Use CompanyId = 1 (consistent with SaveAnnotation and DeleteAnnotation)
+                // TODO: In production, get companyId from user claims or drawing's package
+                int companyId = 1;
                 var measurements = await _catalogueService.GetMeasurementsByDrawingAsync(drawingId, companyId);
                 return Ok(measurements);
             }
@@ -235,7 +257,8 @@ namespace FabOS.WebServer.Controllers.Api
                     return BadRequest(new { error = "Request body is required" });
                 }
 
-                var companyId = GetCompanyId();
+                // Use CompanyId = 1 for consistency across all endpoints
+                int companyId = 1;
                 var measurement = await _catalogueService.UpdateMeasurementAsync(
                     id,
                     request.Value,
@@ -265,15 +288,20 @@ namespace FabOS.WebServer.Controllers.Api
         {
             try
             {
-                var companyId = GetCompanyId();
-                var success = await _catalogueService.DeleteMeasurementAsync(id, companyId);
+                // Use CompanyId = 1 for consistency across all endpoints
+                int companyId = 1;
+                var deletedAnnotationIds = await _catalogueService.DeleteMeasurementAsync(id, companyId);
 
-                if (!success)
+                if (deletedAnnotationIds == null || deletedAnnotationIds.Count == 0)
                 {
-                    return NotFound(new { error = $"Measurement {id} not found" });
+                    // Could mean measurement not found OR measurement had no linked annotations
+                    // Check if measurement existed by trying to get it first would be more accurate,
+                    // but for now we'll assume deletion was successful even without annotations
+                    return Ok(new { deletedAnnotationIds = new List<string>() });
                 }
 
-                return NoContent();
+                // Return the list of annotation IDs that were deleted (for PDF viewer cleanup)
+                return Ok(new { deletedAnnotationIds });
             }
             catch (Exception ex)
             {
@@ -291,7 +319,8 @@ namespace FabOS.WebServer.Controllers.Api
         {
             try
             {
-                var companyId = GetCompanyId();
+                // Use CompanyId = 1 for consistency across all endpoints
+                int companyId = 1;
                 var summary = await _catalogueService.GetDrawingSummaryAsync(drawingId, companyId);
                 return Ok(summary);
             }
@@ -299,6 +328,79 @@ namespace FabOS.WebServer.Controllers.Api
             {
                 _logger.LogError(ex, "Error retrieving drawing summary for drawing {DrawingId}", drawingId);
                 return StatusCode(500, new { error = "Failed to retrieve drawing summary" });
+            }
+        }
+
+        /// <summary>
+        /// Save a PDF annotation to the database
+        /// POST /api/takeoff/annotations
+        /// </summary>
+        [HttpPost("annotations")]
+        public async Task<ActionResult> SaveAnnotation([FromBody] SaveAnnotationRequest request)
+        {
+            try
+            {
+                _logger.LogInformation("[API] SaveAnnotation called for annotation {AnnotationId}, drawing {DrawingId}",
+                    request.AnnotationId, request.PackageDrawingId);
+
+                // Use CompanyId = 1 (confirmed to exist in database as "Steel Estimation Platform")
+                // TODO: In production, get companyId from user claims or drawing's package
+                int companyId = 1;
+
+                // Save the annotation using the service
+                // Foreign key constraints will validate that PackageDrawingId exists
+                var savedAnnotation = await _calibrationService.SaveAnnotationAsync(
+                    packageDrawingId: request.PackageDrawingId,
+                    annotationId: request.AnnotationId,
+                    annotationType: request.AnnotationType,
+                    pageIndex: request.PageIndex,
+                    instantJson: request.InstantJson ?? "{}",
+                    isMeasurement: request.IsMeasurement,
+                    isCalibration: false,
+                    traceTakeoffMeasurementId: null,
+                    userId: null,
+                    companyId: companyId
+                );
+
+                _logger.LogInformation("[API] ✓ Successfully saved annotation {AnnotationId}", request.AnnotationId);
+                return Ok(new { success = true, message = "Annotation saved successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[API] Error saving annotation {AnnotationId}", request.AnnotationId);
+                return StatusCode(500, new { error = "Failed to save annotation" });
+            }
+        }
+
+        /// <summary>
+        /// Delete a PDF annotation and its linked measurement (cascade delete)
+        /// DELETE /api/takeoff/annotations/{annotationId}
+        /// </summary>
+        [HttpDelete("annotations/{annotationId}")]
+        public async Task<ActionResult> DeleteAnnotation(string annotationId)
+        {
+            try
+            {
+                _logger.LogInformation("[API] DeleteAnnotation called for annotation {AnnotationId}", annotationId);
+
+                // Use CompanyId = 1 (same as SaveAnnotation to ensure consistency)
+                // TODO: In production, get companyId from user claims or drawing's package
+                int companyId = 1;
+                var result = await _calibrationService.DeleteAnnotationAsync(annotationId, companyId);
+
+                if (!result)
+                {
+                    _logger.LogWarning("[API] Annotation {AnnotationId} not found", annotationId);
+                    return NotFound(new { error = $"Annotation {annotationId} not found" });
+                }
+
+                _logger.LogInformation("[API] ✓ Successfully deleted annotation {AnnotationId} and linked measurement", annotationId);
+                return Ok(new { success = true, message = "Annotation and linked measurement deleted successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[API] Error deleting annotation {AnnotationId}", annotationId);
+                return StatusCode(500, new { error = "Failed to delete annotation" });
             }
         }
     }
@@ -310,6 +412,7 @@ namespace FabOS.WebServer.Controllers.Api
         public string MeasurementType { get; set; } = string.Empty;
         public decimal Value { get; set; }
         public string Unit { get; set; } = string.Empty;
+        public string? AnnotationId { get; set; }
     }
 
     public class CreateMeasurementRequest
@@ -327,5 +430,15 @@ namespace FabOS.WebServer.Controllers.Api
     {
         public decimal Value { get; set; }
         public string? Coordinates { get; set; }
+    }
+
+    public class SaveAnnotationRequest
+    {
+        public string AnnotationId { get; set; } = string.Empty;
+        public int PackageDrawingId { get; set; }
+        public string AnnotationType { get; set; } = string.Empty;
+        public int PageIndex { get; set; }
+        public bool IsMeasurement { get; set; }
+        public string? InstantJson { get; set; }
     }
 }

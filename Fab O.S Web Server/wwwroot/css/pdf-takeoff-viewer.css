@@ -314,3 +314,12 @@
         height: auto;
     }
 }
+
+/* Hide PSPDFKit tooltips including "Line Width" tooltip */
+.PSPDFKit-Tooltip,
+[class*="PSPDFKit"][class*="Tooltip"],
+.PSPDFKit-Annotation-Tooltip {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+}

@@ -1,5 +1,28 @@
 ﻿@page "/"
+@page "/{tenantSlug}/home"
 @using Microsoft.AspNetCore.Authorization
+@using FabOS.WebServer.Services.Interfaces
+@inject ITenantService TenantService
+@inject NavigationManager Navigation
+
+@code {
+    [Parameter]
+    public string? TenantSlug { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // If accessed via "/" and user is authenticated, redirect to tenant-specific URL
+        if (string.IsNullOrEmpty(TenantSlug))
+        {
+            var tenantSlug = await TenantService.GetCurrentTenantSlugAsync();
+            if (!string.IsNullOrEmpty(tenantSlug))
+            {
+                Navigation.NavigateTo($"/{tenantSlug}/home", forceLoad: true);
+                return;
+            }
+        }
+    }
+}
 
 <div class="fabos-dashboard">
     <div class="fabos-welcome-section">
@@ -31,7 +54,7 @@
                 </div>
             </div>
             <div class="fabos-card-footer">
-                <a href="/trace/drawings" class="fabos-card-action">Open Trace Module</a>
+                <a href="/@(TenantSlug ?? "")/trace/takeoffs" class="fabos-card-action">Open Trace Module</a>
             </div>
         </div>
 
@@ -58,7 +81,7 @@
                 </div>
             </div>
             <div class="fabos-card-footer">
-                <a href="/estimate/quotes" class="fabos-card-action">Open Estimate Module</a>
+                <a href="/@(TenantSlug ?? "")/estimate/quotes" class="fabos-card-action">Open Estimate Module</a>
             </div>
         </div>
 
@@ -85,7 +108,7 @@
                 </div>
             </div>
             <div class="fabos-card-footer">
-                <a href="/fabmate/workorders" class="fabos-card-action">Open FabMate Module</a>
+                <a href="/@(TenantSlug ?? "")/fabmate/workorders" class="fabos-card-action">Open FabMate Module</a>
             </div>
         </div>
 
@@ -112,7 +135,7 @@
                 </div>
             </div>
             <div class="fabos-card-footer">
-                <a href="/qdocs/documents" class="fabos-card-action">Open QDocs Module</a>
+                <a href="/@(TenantSlug ?? "")/qdocs/documents" class="fabos-card-action">Open QDocs Module</a>
             </div>
         </div>
 

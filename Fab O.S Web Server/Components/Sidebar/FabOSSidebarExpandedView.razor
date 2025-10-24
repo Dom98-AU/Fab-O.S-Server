@@ -1,0 +1,67 @@
+@rendermode InteractiveServer
+@using FabOS.WebServer.Services
+@using FabOS.WebServer.Components.Shared
+@inject SidebarService SidebarService
+@inject NavigationService NavService
+
+<div class="fabos-expanded-content">
+    <!-- Quick Actions Section -->
+    <div class="fabos-nav-section">
+        <div class="fabos-section-header">
+            <span class="fabos-section-title">
+                <LucideIcon Name="zap" Size="12" /> Quick Actions
+            </span>
+        </div>
+        <div class="fabos-nav-items">
+            @foreach (var item in NavService.GetQuickActions())
+            {
+                <FabOSSidebarMenuItem Item="@item" />
+            }
+        </div>
+    </div>
+
+    <!-- Module Specific Navigation -->
+    <div class="fabos-nav-section">
+        <div class="fabos-section-header">
+            <span class="fabos-section-title">
+                <LucideIcon Name="@GetModuleIcon()" Size="12" /> @SidebarService.CurrentModule Module
+            </span>
+        </div>
+        <div class="fabos-nav-items">
+            @foreach (var item in NavService.GetModuleItems(SidebarService.CurrentModule))
+            {
+                <FabOSSidebarMenuItem Item="@item" />
+            }
+        </div>
+    </div>
+
+    <!-- Recent Items Section -->
+    <div class="fabos-nav-section">
+        <div class="fabos-section-header">
+            <span class="fabos-section-title">
+                <LucideIcon Name="clock" Size="12" /> Recent
+            </span>
+        </div>
+        <div class="fabos-nav-items">
+            @foreach (var item in NavService.GetRecentItems())
+            {
+                <FabOSSidebarMenuItem Item="@item" />
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private string GetModuleIcon()
+    {
+        return SidebarService.CurrentModule switch
+        {
+            "Trace" => "ruler",
+            "Estimate" => "dollar-sign",
+            "FabMate" => "wrench",
+            "QDocs" => "clipboard-list",
+            "Settings" => "settings",
+            _ => "folder"
+        };
+    }
+}

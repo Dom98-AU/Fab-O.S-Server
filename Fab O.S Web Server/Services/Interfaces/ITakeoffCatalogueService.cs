@@ -63,7 +63,8 @@ namespace FabOS.WebServer.Services.Interfaces
             decimal value,
             string unit,
             string? coordinates,
-            int companyId);
+            int companyId,
+            string? annotationId = null);
 
         /// <summary>
         /// Get all measurements for a specific drawing
@@ -81,13 +82,19 @@ namespace FabOS.WebServer.Services.Interfaces
 
         /// <summary>
         /// Delete a measurement
+        /// Returns list of annotation IDs that were deleted (so they can be removed from PDF viewer)
         /// </summary>
-        Task<bool> DeleteMeasurementAsync(int measurementId, int companyId);
+        Task<List<string>> DeleteMeasurementAsync(int measurementId, int companyId);
 
         /// <summary>
         /// Get summary statistics for all measurements on a drawing
         /// </summary>
         Task<DrawingMeasurementSummary> GetDrawingSummaryAsync(int packageDrawingId, int companyId);
+
+        /// <summary>
+        /// Get the TraceTakeoffId by following the hierarchy: PackageDrawing → Package → Revision → Takeoff
+        /// </summary>
+        Task<int?> GetTraceTakeoffIdFromPackageDrawingAsync(int packageDrawingId);
     }
 
     /// <summary>
@@ -101,6 +108,9 @@ namespace FabOS.WebServer.Services.Interfaces
         public string MeasurementType { get; set; } = string.Empty;
         public decimal MeasurementValue { get; set; }
         public string Unit { get; set; } = string.Empty;
+
+        // Annotation link (set by JavaScript after calculation)
+        public string? AnnotationId { get; set; }
 
         // Calculated results
         public decimal Quantity { get; set; }

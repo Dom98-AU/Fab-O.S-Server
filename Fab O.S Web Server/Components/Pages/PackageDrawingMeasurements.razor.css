@@ -1,0 +1,236 @@
+/* ========================================
+   MEASUREMENTS CONTAINER
+   ======================================== */
+
+.measurements-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 60px); /* Account for toolbar */
+    background: #F8F9FA;
+}
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    color: #666;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #E0E0E0;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    color: #999;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    opacity: 0.3;
+}
+
+.empty-state p {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.empty-state small {
+    font-size: 0.875rem;
+    color: #BBB;
+}
+
+/* ========================================
+   LIST VIEW CUSTOM CONTENT
+   ======================================== */
+
+.measurement-list-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.measurement-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.measurement-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+}
+
+.measurement-description {
+    font-size: 0.875rem;
+    color: #666;
+    margin: 0;
+}
+
+.measurement-meta {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.measurement-value {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.95rem;
+}
+
+.measurement-weight {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #4CAF50;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.measurement-date {
+    color: #999;
+    font-size: 0.8rem;
+}
+
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-type {
+    background: #F3E5F5;
+    color: #7B1FA2;
+}
+
+.badge-category {
+    background: #E3F2FD;
+    color: #1976D2;
+}
+
+/* ========================================
+   CARD VIEW CUSTOM CONTENT
+   ======================================== */
+
+.measurement-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.measurement-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px 8px 0 0;
+}
+
+.measurement-card-header h4 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.measurement-card-body {
+    flex: 1;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.card-description {
+    font-size: 0.875rem;
+    color: #666;
+    margin: 0;
+}
+
+.card-info {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.card-value {
+    font-weight: 600;
+    color: #333;
+    font-size: 1rem;
+}
+
+.card-weight {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #4CAF50;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.measurement-card-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #F0F0F0;
+    background: #F8F9FA;
+    color: #999;
+    font-size: 0.75rem;
+    border-radius: 0 0 8px 8px;
+}
+
+/* ========================================
+   HIGHLIGHTED STATE (Click-to-Highlight Feature)
+   ======================================== */
+
+.measurement-list-item.highlighted {
+    border: 2px solid #2293FB;
+    box-shadow: 0 4px 12px rgba(34, 147, 251, 0.3);
+    background: rgba(34, 147, 251, 0.05);
+    padding: 0.75rem;
+    border-radius: 8px;
+    animation: pulse-highlight 1s ease-in-out;
+}
+
+.measurement-card.highlighted {
+    border: 2px solid #2293FB;
+    box-shadow: 0 4px 12px rgba(34, 147, 251, 0.3);
+    transform: scale(1.02);
+    animation: pulse-highlight 1s ease-in-out;
+}
+
+@keyframes pulse-highlight {
+    0%, 100% {
+        box-shadow: 0 4px 12px rgba(34, 147, 251, 0.3);
+    }
+    50% {
+        box-shadow: 0 6px 20px rgba(34, 147, 251, 0.5);
+    }
+}

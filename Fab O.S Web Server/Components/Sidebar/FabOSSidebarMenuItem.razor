@@ -1,0 +1,36 @@
+@rendermode InteractiveServer
+@using FabOS.WebServer.Models
+@using FabOS.WebServer.Services
+@using FabOS.WebServer.Components.Shared
+@inject SidebarService SidebarService
+
+<div class="fabos-nav-item-container">
+    <a href="@Item.Url" class="fabos-nav-item @(IsPinned ? "pinned-indicator" : "")">
+        <span class="fabos-nav-icon">
+            <LucideIcon Name="@Item.Icon" Size="18" />
+        </span>
+        <span class="fabos-nav-text">@Item.Title</span>
+        @if (!string.IsNullOrEmpty(Item.Description))
+        {
+            <span class="fabos-nav-desc">@Item.Description</span>
+        }
+    </a>
+
+    @if (SidebarService.IsPinMode)
+    {
+        <button type="button"
+                class="fabos-pin-button @(IsPinned ? "pinned" : "")"
+                @onclick="TogglePin"
+                title="@(IsPinned ? "Unpin" : "Pin to sidebar")">
+            <LucideIcon Name="pin" Size="14" />
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public NavigationItem Item { get; set; } = new();
+
+    private bool IsPinned => SidebarService.IsPinned(Item.Url);
+
+    private async Task TogglePin() => await SidebarService.TogglePinAsync(Item.Url);
+}

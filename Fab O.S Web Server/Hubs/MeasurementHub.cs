@@ -87,6 +87,14 @@ namespace FabOS.WebServer.Hubs
         Task NotifyMeasurementDeletedAsync(int packageDrawingId, int measurementId, string? annotationId = null);
         Task NotifyMeasurementUpdatedAsync(int packageDrawingId, int measurementId);
         Task NotifyInstantJsonUpdatedAsync(int packageDrawingId);
+
+        // PDF Lock notifications
+        Task NotifyLockAcquiredAsync(int packageDrawingId, string userName, string sessionId);
+        Task NotifyLockReleasedAsync(int packageDrawingId, string sessionId);
+        Task NotifyLockStolenAsync(int packageDrawingId, string newUserName, string oldSessionId);
+
+        // Click-to-highlight feature
+        Task NotifyAnnotationSelectedAsync(int packageDrawingId, string annotationId);
     }
 
     /// <summary>
@@ -154,6 +162,60 @@ namespace FabOS.WebServer.Hubs
             await _hubContext.Clients.Group(groupName).SendAsync("InstantJsonUpdated", new
             {
                 PackageDrawingId = packageDrawingId
+            });
+        }
+
+        public async Task NotifyLockAcquiredAsync(int packageDrawingId, string userName, string sessionId)
+        {
+            var groupName = $"Drawing_{packageDrawingId}";
+            _logger.LogInformation("[MeasurementHubService] 🔒 Broadcasting LockAcquired to {GroupName}: User={UserName}, SessionId={SessionId}",
+                groupName, userName, sessionId);
+
+            await _hubContext.Clients.Group(groupName).SendAsync("LockAcquired", new
+            {
+                PackageDrawingId = packageDrawingId,
+                UserName = userName,
+                SessionId = sessionId
+            });
+        }
+
+        public async Task NotifyLockReleasedAsync(int packageDrawingId, string sessionId)
+        {
+            var groupName = $"Drawing_{packageDrawingId}";
+            _logger.LogInformation("[MeasurementHubService] 🔓 Broadcasting LockReleased to {GroupName}: SessionId={SessionId}",
+                groupName, sessionId);
+
+            await _hubContext.Clients.Group(groupName).SendAsync("LockReleased", new
+            {
+                PackageDrawingId = packageDrawingId,
+                SessionId = sessionId
+            });
+        }
+
+        public async Task NotifyLockStolenAsync(int packageDrawingId, string newUserName, string oldSessionId)
+        {
+            var groupName = $"Drawing_{packageDrawingId}";
+            _logger.LogWarning("[MeasurementHubService] ⚠️ Broadcasting LockStolen to {GroupName}: NewUser={NewUserName}, OldSessionId={OldSessionId}",
+                groupName, newUserName, oldSessionId);
+
+            await _hubContext.Clients.Group(groupName).SendAsync("LockStolen", new
+            {
+                PackageDrawingId = packageDrawingId,
+                NewUserName = newUserName,
+                OldSessionId = oldSessionId
+            });
+        }
+
+        public async Task NotifyAnnotationSelectedAsync(int packageDrawingId, string annotationId)
+        {
+            var groupName = $"Drawing_{packageDrawingId}";
+            _logger.LogInformation("[MeasurementHubService] 🖱️ Broadcasting AnnotationSelected to {GroupName}: AnnotationId={AnnotationId}",
+                groupName, annotationId);
+
+            await _hubContext.Clients.Group(groupName).SendAsync("AnnotationSelected", new
+            {
+                PackageDrawingId = packageDrawingId,
+                AnnotationId = annotationId
             });
         }
     }

@@ -138,6 +138,34 @@ public class PdfAnnotation
     public int? TraceTakeoffMeasurementId { get; set; }
 
     /// <summary>
+    /// Measurement value with unit (e.g., "3.48 in", "8.51 sq in")
+    /// Extracted from annotation.note field for easy querying
+    /// </summary>
+    [StringLength(100)]
+    public string? MeasurementValue { get; set; }
+
+    /// <summary>
+    /// Measurement scale configuration (JSON format)
+    /// Contains: { from, to, unitFrom, unitTo }
+    /// Example: { "from": 1, "to": 1.00019, "unitFrom": "in", "unitTo": "in" }
+    /// </summary>
+    [StringLength(500)]
+    public string? MeasurementScale { get; set; }
+
+    /// <summary>
+    /// Measurement precision (e.g., "0.01", "0.001")
+    /// </summary>
+    [StringLength(20)]
+    public string? MeasurementPrecision { get; set; }
+
+    /// <summary>
+    /// Coordinates data (JSON format)
+    /// Stores: startPoint, endPoint, bbox, points arrays
+    /// Allows querying and spatial analysis of measurements
+    /// </summary>
+    public string? CoordinatesData { get; set; }
+
+    /// <summary>
     /// User who created this annotation
     /// </summary>
     public int? CreatedByUserId { get; set; }

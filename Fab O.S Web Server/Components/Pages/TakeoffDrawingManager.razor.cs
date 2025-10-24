@@ -11,6 +11,7 @@ namespace FabOS.WebServer.Components.Pages;
 
 public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvider
 {
+    [Parameter] public string? TenantSlug { get; set; }
     [Parameter] public int? TakeoffId { get; set; }
 
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;

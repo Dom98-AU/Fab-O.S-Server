@@ -12,37 +12,13 @@
     <ChildContent>
         @if (IsVisible && PackageDrawingId > 0)
         {
-            <div class="pdf-viewer-container-with-controls">
-                <div class="viewer-toolbar">
-                    <button class="btn btn-sm btn-warning" @onclick="OpenInFoxitViewer" title="Test with Foxit SDK POC">
-                        <i class="fas fa-flask"></i>
-                        Test with Foxit SDK
-                    </button>
-                </div>
-                <NutrientPdfViewer PackageDrawingId="@PackageDrawingId"
-                                  OnClose="HandleClose"
-                                  @ref="nutrientViewer" />
-            </div>
+            <NutrientPdfViewer PackageDrawingId="@PackageDrawingId"
+                              OnClose="HandleClose"
+                              @ref="nutrientViewer" />
         }
     </ChildContent>
 </ModalTemplate>
 
-<style>
-    .pdf-viewer-container-with-controls {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-    }
-
-    .viewer-toolbar {
-        padding: 0.5rem;
-        background: #f8f9fa;
-        border-bottom: 1px solid #dee2e6;
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-    }
-</style>
 
 <!-- Scale Calibration Modal -->
 <ModalTemplate @bind-IsVisible="showScaleCalibrationModal"
@@ -109,11 +85,5 @@
     private string GetModalTitle()
     {
         return $"{Title} (Nutrient)";
-    }
-
-    private void OpenInFoxitViewer()
-    {
-        // Navigate to Foxit viewer with same drawing
-        Navigation.NavigateTo($"/takeoff/foxit/{PackageDrawingId}", forceLoad: true);
     }
 }

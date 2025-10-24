@@ -67,7 +67,8 @@ public class User
     [Required]
     public DateTime LastModified { get; set; }
 
-    public int? CompanyId { get; set; }
+    [Required]
+    public int CompanyId { get; set; } = 1; // Required - defaults to default company
 
     [StringLength(100)]
     public string? PasswordSalt { get; set; }
@@ -80,7 +81,7 @@ public class User
 
     // Navigation properties
     [ForeignKey("CompanyId")]
-    public virtual Company? Company { get; set; }
+    public virtual Company Company { get; set; } = null!; // Required - every user belongs to a company
 
     public virtual ICollection<Project> OwnedProjects { get; set; } = new List<Project>();
     public virtual ICollection<Project> ModifiedProjects { get; set; } = new List<Project>();

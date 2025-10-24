@@ -4,8 +4,8 @@
 @typeparam TPage where TPage : ISharePointFilesPage<SharePointFileInfo>
 
 <div class="sharepoint-file-browser">
-    <!-- Breadcrumb Navigation -->
-    @if (Page.GetBreadcrumbs().Any())
+    <!-- Breadcrumb Navigation (optional, can be controlled by parent) -->
+    @if (ShowBreadcrumbs && Page.GetBreadcrumbs().Any())
     {
         <div class="breadcrumb-nav">
             <nav class="breadcrumb">
@@ -92,6 +92,7 @@
     [Parameter] public TPage Page { get; set; } = default!;
     [Parameter] public SharePointFolderState FolderState { get; set; } = new();
     [Parameter] public SharePointViewType CurrentView { get; set; } = SharePointViewType.Grid;
+    [Parameter] public bool ShowBreadcrumbs { get; set; } = true;
     [Parameter] public EventCallback<SharePointFileInfo> OnFileDoubleClick { get; set; }
     [Parameter] public EventCallback<SharePointFolderInfo> OnFolderDoubleClick { get; set; }
     [Parameter] public EventCallback OnRefreshRequested { get; set; }

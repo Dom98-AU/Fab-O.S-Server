@@ -1,0 +1,40 @@
+@rendermode InteractiveServer
+@using FabOS.WebServer.Services
+@using FabOS.WebServer.Components.Shared
+@inject SidebarService SidebarService
+
+<div class="fabos-sidebar-header">
+    <!-- Hamburger Button -->
+    <button type="button"
+            class="fabos-hamburger-button"
+            @onclick="SidebarService.ToggleCollapsed"
+            title="@(SidebarService.IsCollapsed ? "Expand Sidebar" : "Collapse Sidebar")">
+        @if (!SidebarService.IsCollapsed)
+        {
+            <div class="fabos-hamburger">
+                <span class="fabos-hamburger-line"></span>
+                <span class="fabos-hamburger-line"></span>
+                <span class="fabos-hamburger-line"></span>
+            </div>
+        }
+        else
+        {
+            <LucideIcon Name="menu" Size="20" />
+        }
+    </button>
+
+    @if (!SidebarService.IsCollapsed)
+    {
+        <!-- Logo Button (opens module selector) -->
+        <button type="button" class="fabos-logo-button" @onclick="SidebarService.ToggleModuleSelector">
+            <img src="/images/f_symbol_square_auto.png" alt="Fab.OS" class="fabos-logo" />
+            <div class="fabos-brand-info">
+                <span class="fabos-brand-text">Fab.OS</span>
+                <span class="fabos-module-indicator">@SidebarService.CurrentModule</span>
+            </div>
+            <span class="fabos-chevron">
+                <LucideIcon Name="chevron-down" Size="12" />
+            </span>
+        </button>
+    }
+</div>

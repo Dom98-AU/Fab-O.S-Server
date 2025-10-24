@@ -63,7 +63,7 @@
     pointer-events: auto;
     animation: slideIn 0.3s ease;
     transition: left 0.3s ease;
-    z-index: 1041;
+    z-index: 1050; /* Above catalogue sidebar to prevent overlap */
 }
 
 /* Base adjustments for collapsed/expanded main sidebar (without catalogue) */
@@ -142,6 +142,46 @@ body.modal-open.sidebar-expanded.catalogue-sidebar-expanded .modal-fullscreen {
 
 body.modal-open.sidebar-expanded.catalogue-sidebar-full .modal-fullscreen {
     left: calc(100vw - 420px + 420px);
+}
+
+/* ========================================
+   VIEWER FULLSCREEN MODE OVERRIDES
+   ======================================== */
+
+/* In fullscreen mode with catalogue sidebar open (320px width) */
+body.viewer-fullscreen.catalogue-sidebar-open .modal-fullscreen {
+    left: 320px !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 1050 !important;
+}
+
+/* In fullscreen mode with catalogue sidebar expanded (480px width) */
+body.viewer-fullscreen.catalogue-sidebar-expanded .modal-fullscreen {
+    left: 480px !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 1050 !important;
+}
+
+/* In fullscreen mode with catalogue sidebar full width */
+body.viewer-fullscreen.catalogue-sidebar-full .modal-fullscreen {
+    left: calc(100vw - 320px) !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 1050 !important;
+}
+
+/* In fullscreen mode without catalogue sidebar */
+body.viewer-fullscreen:not(.catalogue-sidebar-open):not(.catalogue-sidebar-expanded):not(.catalogue-sidebar-full) .modal-fullscreen {
+    left: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 1050 !important;
 }
 
 /* Animations */

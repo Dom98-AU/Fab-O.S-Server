@@ -1,0 +1,175 @@
+#!/bin/bash
+
+# Fab.OS Platform - Pre-Commit Hook
+# Validates URL architecture before allowing commits
+# Installation: Copy to .git/hooks/pre-commit and make executable
+
+echo "🔍 Fab.OS URL Architecture Validation"
+echo "======================================"
+echo ""
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Function to check if dotnet is installed
+check_dotnet() {
+    if ! command -v dotnet &> /dev/null; then
+        echo -e "${RED}❌ ERROR: .NET SDK not found${NC}"
+        echo "   Please install .NET 8 SDK to run route validation"
+        exit 1
+    fi
+}
+
+# Function to run route validation tests
+run_route_tests() {
+    echo "📝 Running route validation tests..."
+    echo ""
+
+    # Run tests
+    dotnet test --filter "Category=RouteValidation" --no-build --verbosity quiet
+
+    local exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
+        echo ""
+        echo -e "${GREEN}✅ All route validation tests passed${NC}"
+        return 0
+    else
+        echo ""
+        echo -e "${RED}❌ Route validation tests failed${NC}"
+        echo ""
+        echo "Common issues:"
+        echo "  • Routes missing /{tenantSlug} parameter"
+        echo "  • Uppercase letters in URLs (must be lowercase)"
+        echo "  • Singular resource names (must be plural)"
+        echo "  • Missing route constraints on IDs (use {id:int})"
+        echo "  • Underscores in URLs (use hyphens)"
+        echo ""
+        echo "Fix these issues before committing."
+        echo "See: Fab O.S System Architecture/URL-ROUTING-STANDARDS.md"
+        return 1
+    fi
+}
+
+# Function to validate changed .razor files
+validate_changed_files() {
+    echo "📂 Checking changed Razor files..."
+    echo ""
+
+    # Get list of staged .razor files
+    local razor_files=$(git diff --cached --name-only --diff-filter=ACM | grep '\.razor$')
+
+    if [ -z "$razor_files" ]; then
+        echo "   No Razor files changed"
+        return 0
+    fi
+
+    local has_violations=0
+
+    for file in $razor_files; do
+        if [ -f "$file" ]; then
+            # Extract @page directives
+            local page_directives=$(grep -E "^@page" "$file")
+
+            if [ ! -z "$page_directives" ]; then
+                echo "   Checking: $file"
+
+                # Check each @page directive
+                while IFS= read -r line; do
+                    # Extract the route from @page directive
+                    local route=$(echo "$line" | sed -n 's/@page "\([^"]*\)".*/\1/p')
+
+                    if [ ! -z "$route" ]; then
+                        # Check if route starts with /{tenantSlug}
+                        if [[ ! "$route" =~ ^\{tenantSlug\}/ ]]; then
+                            echo -e "      ${RED}❌ Missing {tenantSlug}: $route${NC}"
+                            has_violations=1
+                        fi
+
+                        # Check for uppercase (excluding parameters)
+                        local route_without_params=$(echo "$route" | sed 's/{[^}]*}//g')
+                        if [[ "$route_without_params" =~ [A-Z] ]]; then
+                            echo -e "      ${YELLOW}⚠️  Contains uppercase: $route${NC}"
+                            has_violations=1
+                        fi
+
+                        # Check for underscores (excluding parameters)
+                        if [[ "$route_without_params" =~ _ ]]; then
+                            echo -e "      ${YELLOW}⚠️  Contains underscore: $route${NC}"
+                            has_violations=1
+                        fi
+
+                        # Check for ID parameters without constraints
+                        if [[ "$route" =~ \{[^}]*id[^}]*\} ]] && [[ ! "$route" =~ :int ]]; then
+                            echo -e "      ${RED}❌ Missing :int constraint: $route${NC}"
+                            has_violations=1
+                        fi
+
+                        if [ $has_violations -eq 0 ]; then
+                            echo -e "      ${GREEN}✓ Valid: $route${NC}"
+                        fi
+                    fi
+                done <<< "$page_directives"
+            fi
+        fi
+    done
+
+    echo ""
+
+    if [ $has_violations -eq 1 ]; then
+        echo -e "${RED}❌ URL architecture violations found in staged files${NC}"
+        return 1
+    else
+        echo -e "${GREEN}✅ All staged Razor files comply with URL architecture${NC}"
+        return 0
+    fi
+}
+
+# Main execution
+main() {
+    check_dotnet
+
+    local file_check_result=0
+    local test_result=0
+
+    # Validate changed files
+    validate_changed_files
+    file_check_result=$?
+
+    # Run tests if project has been built
+    if [ -d "bin" ]; then
+        run_route_tests
+        test_result=$?
+    else
+        echo -e "${YELLOW}⚠️  Skipping route tests (project not built)${NC}"
+        echo "   Run 'dotnet build' to enable pre-commit tests"
+    fi
+
+    echo ""
+
+    # Determine overall result
+    if [ $file_check_result -eq 0 ] && [ $test_result -eq 0 ]; then
+        echo -e "${GREEN}✅ Pre-commit validation passed${NC}"
+        echo "   Commit allowed"
+        exit 0
+    else
+        echo -e "${RED}❌ Pre-commit validation failed${NC}"
+        echo "   Commit blocked"
+        echo ""
+        echo "To bypass this check (NOT RECOMMENDED):"
+        echo "  git commit --no-verify"
+        echo ""
+        echo "To fix violations:"
+        echo "  1. Review URL-ROUTING-STANDARDS.md"
+        echo "  2. Update routes to include /{tenantSlug}"
+        echo "  3. Use lowercase, plural, kebab-case URLs"
+        echo "  4. Add :int constraints to ID parameters"
+        exit 1
+    fi
+}
+
+# Run main function
+main

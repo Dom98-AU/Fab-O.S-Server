@@ -3,6 +3,7 @@
 @using FabOS.WebServer.Models.Entities
 @using FabOS.WebServer.Data.Contexts
 @using FabOS.WebServer.Services.Implementations
+@using FabOS.WebServer.Services.Implementations.CloudStorage
 @using FabOS.WebServer.Services.Interfaces
 @using Microsoft.EntityFrameworkCore
 @using System.Text.Json
@@ -12,9 +13,13 @@
 @inject IJSRuntime JS
 @inject ILogger<NutrientPdfViewer> Logger
 @inject IPdfCalibrationService CalibrationService
-@inject ISharePointService SharePointService
+@inject SharePointStorageProvider CloudStorage
 @inject IServiceScopeFactory ScopeFactory
-@implements IDisposable
+@inject NavigationManager NavigationManager
+@inject IPdfLockService LockService
+@inject FabOS.WebServer.Hubs.IMeasurementHubService MeasurementHubService
+@inject IHttpContextAccessor HttpContextAccessor
+@implements IAsyncDisposable
 
 <div class="nutrient-pdf-viewer">
     @if (isLoading)
@@ -55,53 +60,92 @@
     }
     else
     {
-        <!-- Catalogue Sidebar (Left) -->
-        <TakeoffCatalogueSidebar IsVisible="@sidebarVisible"
-                                IsVisibleChanged="@((bool v) => sidebarVisible = v)"
-                                SelectedItem="@selectedCatalogueItem"
-                                SelectedItemChanged="@OnCatalogueItemSelected" />
-
-        <!-- Top Toolbar -->
-        <div class="nutrient-toolbar">
-            <div class="toolbar-section">
-                <button class="tool-btn" @onclick="ToggleSidebar" title="Toggle Catalogue">
-                    <i class="fas fa-boxes"></i>
-                    Catalogue
-                </button>
-                <h3>@drawing.DrawingNumber - @drawing.DrawingTitle</h3>
-            </div>
-
-            <div class="toolbar-section tools">
-                <div class="tool-group">
-                    <button class="tool-btn" @onclick="ToggleMeasurementPanel" title="Toggle Measurements">
-                        <i class="fas fa-calculator"></i>
-                        Measurements
+        <!-- Fullscreen Container Wrapper -->
+        <div id="@fullscreenContainerId" class="fullscreen-wrapper">
+            <!-- Top Toolbar -->
+            <div class="nutrient-toolbar">
+                <div class="toolbar-section">
+                    <button class="tool-btn" @onclick="ToggleSidebar" title="Toggle Catalogue">
+                        <i class="fas fa-boxes"></i>
+                        Catalogue
                     </button>
+                    <h3>@drawing.DrawingNumber - @drawing.DrawingTitle</h3>
                 </div>
 
-                <div class="tool-group">
-                    @if (OnClose.HasDelegate)
-                    {
-                        <button class="btn btn-secondary" @onclick="HandleCloseAsync">
-                            <i class="fas fa-save"></i>
-                            Save & Close
+                <div class="toolbar-section tools">
+                    <div class="tool-group">
+                        <button class="tool-btn" @onclick="ToggleMeasurementPanel" title="Toggle Measurements">
+                            <i class="fas fa-calculator"></i>
+                            Measurements
                         </button>
-                    }
+                        <button class="tool-btn" @onclick="OpenFullMeasurementsPage" title="Open Measurements in New Window">
+                            <i class="fas fa-external-link-alt"></i>
+                            Full View
+                        </button>
+                    </div>
+
+                    <div class="tool-group">
+                        @if (!isFullscreen)
+                        {
+                            <button class="btn btn-primary" @onclick="ToggleFullscreen" title="Enter Fullscreen">
+                                <i class="fas fa-expand"></i>
+                                Fullscreen
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-warning" @onclick="ToggleFullscreen" title="Exit Fullscreen">
+                                <i class="fas fa-compress"></i>
+                                Exit Fullscreen
+                            </button>
+                        }
+
+                        @if (OnClose.HasDelegate)
+                        {
+                            <button type="button" class="btn btn-secondary" @onclick="HandleCloseAsync" @onclick:stopPropagation="true" disabled="@isSaving">
+                                @if (isSaving)
+                                {
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <text>Saving...</text>
+                                }
+                                else
+                                {
+                                    <i class="fas fa-save"></i>
+                                    <text>Save & Close</text>
+                                }
+                            </button>
+                        }
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Nutrient PDF Container -->
-        <div class="nutrient-container-wrapper">
-            <div id="@containerId" class="nutrient-pdf-container"></div>
-        </div>
+            <!-- View-Only Mode Banner -->
+            <ViewOnlyBanner IsEditMode="@isEditMode"
+                           EditorName="@(activeLock?.UserName ?? "Another user")"
+                           OnRefreshClicked="@TryAcquireEditMode" />
 
-        <!-- Measurement Panel (Right) -->
-        <TakeoffMeasurementPanel PackageDrawingId="@PackageDrawingId"
-                                IsVisible="@measurementPanelVisible"
-                                IsVisibleChanged="@((bool v) => measurementPanelVisible = v)"
-                                OnMeasurementSaved="@OnMeasurementSaved"
-                                @ref="measurementPanel" />
+            <!-- Main Content Area (3-column layout) -->
+            <div class="viewer-main-content">
+                <!-- Catalogue Sidebar (Left) -->
+                <TakeoffCatalogueSidebar IsVisible="@sidebarVisible"
+                                        IsVisibleChanged="@((bool v) => sidebarVisible = v)"
+                                        SelectedItem="@selectedCatalogueItem"
+                                        SelectedItemChanged="@OnCatalogueItemSelected" />
+
+                <!-- Nutrient PDF Container (Center) -->
+                <div class="nutrient-container-wrapper">
+                    <div id="@containerId" class="nutrient-pdf-container"></div>
+                </div>
+
+                <!-- Measurement Panel (Right) -->
+                <TakeoffMeasurementPanel PackageDrawingId="@PackageDrawingId"
+                                        PdfContainerId="@containerId"
+                                        IsVisible="@measurementPanelVisible"
+                                        IsVisibleChanged="@((bool v) => measurementPanelVisible = v)"
+                                        OnMeasurementSaved="@OnMeasurementSaved"
+                                        @ref="measurementPanel" />
+            </div>
+        </div><!-- End Fullscreen Wrapper -->
     }
 </div>
 
@@ -118,6 +162,8 @@
     private bool isLoading = true;
     private string? errorMessage = null;
     private string containerId = $"nutrient-container-{Guid.NewGuid():N}";
+    private string fullscreenContainerId = $"fullscreen-wrapper-{Guid.NewGuid():N}";
+    private bool isFullscreen = false;
 
     // Nutrient license key - Development license with full features including Document Editor for calibration saving
     // License includes: Webviewer + Annotation + Comments & Replies + Content Editor + Document Editor + Measurement tools
@@ -133,6 +179,20 @@
     private bool sidebarVisible = true;
     private bool measurementPanelVisible = true;
     private CatalogueItem? selectedCatalogueItem = null;
+
+    // PDF LOCK SYSTEM - Lock management fields
+    private string sessionId = Guid.NewGuid().ToString();
+    private bool isEditMode = false;
+    private PdfEditLock? currentLock = null;
+    private PdfEditLock? activeLock = null; // Lock held by another user (for banner)
+    private Timer? heartbeatTimer;
+    private Timer? inactivityWarningTimer;
+    private DateTime lastActivityTime = DateTime.UtcNow;
+    private int currentUserId;
+    private string currentUserName = "Unknown User";
+    private int currentCompanyId = 1; // Retrieved from authenticated user, defaults to 1
+    private bool disposed = false;
+    private bool isSaving = false; // Flag to prevent modal close during save
     private TakeoffMeasurementPanel? measurementPanel;
 
     protected override async Task OnInitializedAsync()
@@ -184,7 +244,8 @@
             {
                 var loadResult = await JS.InvokeAsync<JsonElement>("nutrientViewer.loadPdf",
                     containerId,
-                    pdfUrlToLoad);
+                    pdfUrlToLoad,
+                    isEditMode);
 
                 // Check if load failed immediately (not async failure)
                 if (loadResult.TryGetProperty("success", out var loadSuccess) && !loadSuccess.GetBoolean())
@@ -219,6 +280,14 @@
 
         try
         {
+            // STEP 1: Initialize lock system FIRST (before loading PDF)
+            if (PackageDrawingId > 0)
+            {
+                Logger.LogInformation("[NutrientPdfViewer] Initializing lock system before PDF load...");
+                await InitializeLockSystemAsync();
+                Logger.LogInformation("[NutrientPdfViewer] Lock system initialized - isEditMode={IsEditMode}", isEditMode);
+            }
+
             // Create DotNet reference for JavaScript callbacks
             dotNetRef = DotNetObjectReference.Create(this);
             Logger.LogInformation("[NutrientPdfViewer] DotNetObjectReference created");
@@ -246,7 +315,7 @@
                 else if (PackageDrawingId > 0)
                 {
                     pdfUrlToLoad = $"/api/packagedrawings/{PackageDrawingId}/sharepoint-content";
-                    Logger.LogInformation("[NutrientPdfViewer] Using SharePoint API endpoint for PDF (drawing {DrawingId})", PackageDrawingId);
+                    Logger.LogInformation("[NutrientPdfViewer] Using SharePoint API endpoint for PDF (drawing {DrawingId}) - isEditMode={IsEditMode}", PackageDrawingId, isEditMode);
                 }
 
                 needsToLoadPdf = true;
@@ -328,6 +397,54 @@
         measurementPanelVisible = !measurementPanelVisible;
         Logger.LogInformation("[NutrientPdfViewer] Measurement panel toggled: {Visible}", measurementPanelVisible);
         StateHasChanged();
+    }
+
+    private async Task OpenFullMeasurementsPage()
+    {
+        try
+        {
+            if (drawing?.PackageId == null)
+            {
+                Logger.LogWarning("[NutrientPdfViewer] Cannot open measurements page - package ID not available");
+                return;
+            }
+
+            var url = $"/packages/{drawing.PackageId}/drawings/{PackageDrawingId}/measurements";
+            Logger.LogInformation("[NutrientPdfViewer] Opening measurements page in new window: {Url}", url);
+
+            // Open in new window/tab using JavaScript
+            await JS.InvokeVoidAsync("open", url, "_blank");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error opening measurements page");
+        }
+    }
+
+    private async Task ToggleFullscreen()
+    {
+        try
+        {
+            if (!isFullscreen)
+            {
+                // Enter fullscreen
+                Logger.LogInformation("[NutrientPdfViewer] Entering fullscreen mode");
+                await JS.InvokeVoidAsync("nutrientViewer.enterFullscreen", fullscreenContainerId);
+                isFullscreen = true;
+            }
+            else
+            {
+                // Exit fullscreen
+                Logger.LogInformation("[NutrientPdfViewer] Exiting fullscreen mode");
+                await JS.InvokeVoidAsync("nutrientViewer.exitFullscreen");
+                isFullscreen = false;
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error toggling fullscreen");
+        }
     }
 
     // Catalogue event handlers
@@ -412,6 +529,9 @@
     {
         Logger.LogInformation("[NutrientPdfViewer] Annotation created");
 
+        // Reset inactivity timer - user is actively making changes
+        await ResetInactivityTimerAsync();
+
         try
         {
             // Extract annotation data
@@ -444,29 +564,100 @@
     }
 
     [JSInvokable]
-    public Task OnAnnotationUpdated(JsonElement annotationData)
+    public async Task OnAnnotationUpdated(JsonElement annotationData)
     {
         Logger.LogInformation("[NutrientPdfViewer] Annotation updated");
+
+        // Reset inactivity timer - user is actively making changes
+        await ResetInactivityTimerAsync();
+
         // TODO: Update annotation in database
-        return Task.CompletedTask;
     }
 
     [JSInvokable]
-    public async Task OnAnnotationDeleted(string annotationId)
+    public async Task<string> OnAnnotationDeleted(string annotationId)
     {
-        Logger.LogInformation("[NutrientPdfViewer] Annotation deleted: {AnnotationId}", annotationId);
+        await JS.InvokeVoidAsync("console.log", "[C# OnAnnotationDeleted] ============================================");
+        await JS.InvokeVoidAsync("console.log", $"[C# OnAnnotationDeleted] Method called with annotation ID: {annotationId}");
+
+        Logger.LogInformation("[NutrientPdfViewer] ============================================");
+        Logger.LogInformation("[NutrientPdfViewer] OnAnnotationDeleted called from JavaScript");
+        Logger.LogInformation("[NutrientPdfViewer] Annotation ID: {AnnotationId}", annotationId);
+
+        // Reset inactivity timer - user is actively making changes
+        await ResetInactivityTimerAsync();
 
         try
         {
-            // TODO: Get companyId from tenant context
-            const int companyId = 1;
+            await JS.InvokeVoidAsync("console.log", "[C# OnAnnotationDeleted] About to call DeleteAnnotationAsync...");
+            Logger.LogInformation("[NutrientPdfViewer] Calling DeleteAnnotationAsync...");
 
-            await CalibrationService.DeleteAnnotationAsync(annotationId, companyId);
-            Logger.LogInformation("[NutrientPdfViewer] ✓ Annotation {AnnotationId} deleted from database", annotationId);
+            var result = await CalibrationService.DeleteAnnotationAsync(annotationId, currentCompanyId);
+
+            await JS.InvokeVoidAsync("console.log", $"[C# OnAnnotationDeleted] DeleteAnnotationAsync returned: {result}");
+            Logger.LogInformation("[NutrientPdfViewer] DeleteAnnotationAsync returned: {Result}", result);
+
+            if (result)
+            {
+                await JS.InvokeVoidAsync("console.log", "[C# OnAnnotationDeleted] ✓ Annotation deleted from database, refreshing panel...");
+                Logger.LogInformation("[NutrientPdfViewer] ✓ Annotation {AnnotationId} deleted from database", annotationId);
+
+                // Refresh measurement panel to reflect the deletion
+                Logger.LogInformation("[NutrientPdfViewer] Refreshing measurement panel (panel exists: {Exists})", measurementPanel != null);
+                if (measurementPanel != null)
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        Logger.LogInformation("[NutrientPdfViewer] Calling RefreshMeasurementsAsync...");
+                        await measurementPanel.RefreshMeasurementsAsync();
+                        StateHasChanged();
+                        Logger.LogInformation("[NutrientPdfViewer] ✓ Measurement panel refreshed");
+                    });
+                }
+
+                await JS.InvokeVoidAsync("console.log", "[C# OnAnnotationDeleted] ✓ Panel refreshed successfully");
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("console.log", $"[C# OnAnnotationDeleted] ✗ Annotation {annotationId} not found or not deleted");
+                Logger.LogWarning("[NutrientPdfViewer] ✗ Annotation {AnnotationId} not found or not deleted", annotationId);
+            }
         }
         catch (Exception ex)
         {
+            await JS.InvokeVoidAsync("console.error", $"[C# OnAnnotationDeleted] ERROR: {ex.Message}");
+            await JS.InvokeVoidAsync("console.error", $"[C# OnAnnotationDeleted] Stack trace: {ex.StackTrace}");
             Logger.LogError(ex, "[NutrientPdfViewer] Error deleting annotation from database");
+            return $"ERROR: {ex.Message}";
+        }
+
+        await JS.InvokeVoidAsync("console.log", "[C# OnAnnotationDeleted] ============================================");
+        Logger.LogInformation("[NutrientPdfViewer] ============================================");
+        return $"Processed deletion for annotation: {annotationId}";
+    }
+
+    /// <summary>
+    /// Called from JavaScript when a PDF annotation is clicked (click-to-highlight feature).
+    /// Forwards the selection to TakeoffMeasurementPanel to highlight the corresponding measurement row.
+    /// Also broadcasts via SignalR for multi-tab support (full view mode).
+    /// </summary>
+    [JSInvokable]
+    public async Task OnAnnotationSelected(string annotationId)
+    {
+        Logger.LogInformation("[NutrientPdfViewer] 🖱️ Annotation selected: {AnnotationId}", annotationId);
+
+        // Forward to local measurement panel (if docked on right side)
+        if (measurementPanel != null)
+        {
+            await measurementPanel.OnAnnotationSelected(annotationId);
+            Logger.LogInformation("[NutrientPdfViewer] ✓ Forwarded to local measurement panel");
+        }
+
+        // Broadcast via SignalR for full view mode (separate tab/window)
+        if (PackageDrawingId > 0)
+        {
+            await MeasurementHubService.NotifyAnnotationSelectedAsync(PackageDrawingId, annotationId);
+            Logger.LogInformation("[NutrientPdfViewer] ✓ Broadcasted annotation selection via SignalR");
         }
     }
 
@@ -485,8 +676,7 @@
 
         try
         {
-            const int companyId = 1;
-            int? userId = null;
+            int? userId = currentUserId > 0 ? currentUserId : null;
 
             // Save calibration to database
             await CalibrationService.SaveCalibrationAsync(
@@ -499,7 +689,7 @@
                 calibrationLineStart: null,
                 calibrationLineEnd: null,
                 userId,
-                companyId
+                currentCompanyId
             );
 
             Logger.LogInformation("[NutrientPdfViewer] ✓ Calibration saved to database: Scale 1:{Scale} ({Unit})", scaleRatio, unit);
@@ -519,10 +709,19 @@
 
         try
         {
-            // Deserialize the calculation result
-            var result = System.Text.Json.JsonSerializer.Deserialize<MeasurementCalculationResult>(calculationResult.GetRawText());
+            // Deserialize the calculation result (case-insensitive to handle JavaScript camelCase)
+            var options = new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+            var result = System.Text.Json.JsonSerializer.Deserialize<MeasurementCalculationResult>(calculationResult.GetRawText(), options);
 
             Logger.LogInformation("[NutrientPdfViewer] Deserialization successful: {Success}", result != null);
+            if (result != null)
+            {
+                Logger.LogInformation("[NutrientPdfViewer] Deserialized values - ItemCode: {ItemCode}, CatalogueItemId: {CatalogueItemId}, Weight: {Weight}",
+                    result.ItemCode, result.CatalogueItemId, result.Weight);
+            }
             Logger.LogInformation("[NutrientPdfViewer] Measurement panel reference: {Exists}", measurementPanel != null);
 
             if (result != null && measurementPanel != null)
@@ -649,9 +848,7 @@
     {
         try
         {
-            // TODO: Get userId and companyId from tenant context
-            const int companyId = 1;
-            int? userId = null;
+            int? userId = currentUserId > 0 ? currentUserId : null;
 
             var annotationId = annotationData.GetProperty("id").GetString();
             var annotationType = annotationData.GetProperty("type").GetString();
@@ -673,7 +870,7 @@
                     false, // isCalibration - would need to detect from annotation type
                     null, // traceTakeoffMeasurementId - would be set when measurement is saved
                     userId,
-                    companyId
+                    currentCompanyId
                 );
 
                 Logger.LogInformation("[NutrientPdfViewer] ✓ Annotation {AnnotationId} saved to database", annotationId);
@@ -692,9 +889,7 @@
     {
         try
         {
-            // TODO: Get userId and companyId from tenant context
-            const int companyId = 1;
-            int? userId = null;
+            int? userId = currentUserId > 0 ? currentUserId : null;
 
             // Extract scale configuration from annotation data
             if (!annotationData.TryGetProperty("scale", out var scaleElement))
@@ -768,7 +963,7 @@
                 calibrationLineStart,
                 calibrationLineEnd,
                 userId,
-                companyId
+                currentCompanyId
             );
 
             Logger.LogInformation("[NutrientPdfViewer] ✓ Calibration saved to database: Scale 1:{Scale} ({Unit})", scale, unit);
@@ -818,32 +1013,42 @@
     }
 
     /// <summary>
-    /// Handle the Close button click - export data FIRST while SignalR circuit is alive,
-    /// then close modal, then upload to SharePoint in background
-    /// This prevents SignalR timeout issues
+    /// Handle the Close button click - export PDF, show progress, AWAIT SharePoint upload, then close
+    /// CRITICAL: Must await SharePoint upload to prevent race condition where user reopens PDF before upload completes
     /// </summary>
     private async Task HandleCloseAsync()
     {
+        // Prevent multiple simultaneous saves
+        if (isSaving)
+        {
+            Logger.LogWarning("[NutrientPdfViewer] Save already in progress, ignoring duplicate click");
+            return;
+        }
+
+        isSaving = true;
+        StateHasChanged(); // Update UI to show "Saving..." button state
+
+        Logger.LogInformation("[NutrientPdfViewer] ========================================");
+        Logger.LogInformation("[NutrientPdfViewer] HandleCloseAsync CALLED - Button clicked!");
+        Logger.LogInformation("[NutrientPdfViewer] isSaving=true");
+        Logger.LogInformation("[NutrientPdfViewer] ========================================");
+
         try
         {
             if (PackageDrawingId > 0)
             {
                 Logger.LogInformation("[NutrientPdfViewer] Starting close sequence for drawing {DrawingId}", PackageDrawingId);
 
-                // STEP 1: Export all data from JavaScript BEFORE closing modal (while SignalR circuit is still alive)
-                Logger.LogInformation("[NutrientPdfViewer] Step 1: Exporting data from JavaScript...");
+                // Show progress indicator
+                await JS.InvokeVoidAsync("showProgressIndicator", "Saving PDF changes...");
 
-                var instantJson = await JS.InvokeAsync<string>("nutrientViewer.exportAnnotations", containerId);
-                Logger.LogInformation("[NutrientPdfViewer] Exported Instant JSON: {Length} chars", instantJson?.Length ?? 0);
+                // STEP 1: Export PDF with embedded annotations
+                Logger.LogInformation("[NutrientPdfViewer] Step 1: Exporting PDF from JavaScript...");
 
-                var calibrationConfig = await JS.InvokeAsync<string>("nutrientViewer.exportMeasurementConfig", containerId);
-                Logger.LogInformation("[NutrientPdfViewer] Exported calibration config: {Length} chars", calibrationConfig?.Length ?? 0);
-
-                // Export PDF as base64 to avoid SignalR message size limits with large byte arrays
                 var pdfBase64 = await JS.InvokeAsync<string>("nutrientViewer.exportPDF", containerId);
                 Logger.LogInformation("[NutrientPdfViewer] Exported PDF (base64): {Length} chars", pdfBase64?.Length ?? 0);
 
-                // Convert base64 back to bytes
+                // Convert base64 to bytes
                 byte[]? pdfBytes = null;
                 if (!string.IsNullOrEmpty(pdfBase64))
                 {
@@ -858,81 +1063,61 @@
                     }
                 }
 
-                // STEP 2: Save to database synchronously (fast operation)
-                Logger.LogInformation("[NutrientPdfViewer] Step 2: Saving to database...");
-
-                if (!string.IsNullOrEmpty(instantJson) || !string.IsNullOrEmpty(calibrationConfig))
+                // STEP 2: Update file in cloud storage (AWAIT this - critical!)
+                if (pdfBytes != null && pdfBytes.Length > 0)
                 {
-                    var drawingToUpdate = await DbContext.PackageDrawings
+                    await JS.InvokeVoidAsync("updateProgressIndicator", "Uploading to cloud storage...");
+                    Logger.LogInformation("[NutrientPdfViewer] Step 2: Uploading to cloud storage via {Provider}...",
+                        CloudStorage.ProviderName);
+
+                    var drawing = await DbContext.PackageDrawings
                         .FirstOrDefaultAsync(pd => pd.Id == PackageDrawingId);
 
-                    if (drawingToUpdate != null)
+                    if (drawing != null && !string.IsNullOrEmpty(drawing.SharePointItemId))
                     {
-                        if (!string.IsNullOrEmpty(instantJson))
-                        {
-                            drawingToUpdate.InstantJson = instantJson;
-                            drawingToUpdate.InstantJsonLastUpdated = DateTime.UtcNow;
-                        }
+                        // Update the existing file in cloud storage - AWAIT this!
+                        using var pdfStream = new MemoryStream(pdfBytes);
+                        var updateResult = await CloudStorage.UpdateFileAsync(
+                            drawing.SharePointItemId,
+                            pdfStream,
+                            "application/pdf"
+                        );
 
-                        if (!string.IsNullOrEmpty(calibrationConfig))
-                        {
-                            drawingToUpdate.CalibrationConfig = calibrationConfig;
-                            drawingToUpdate.CalibrationConfigLastUpdated = DateTime.UtcNow;
-                        }
+                        Logger.LogInformation("[NutrientPdfViewer] ✓ PDF updated in {Provider}: FileId={FileId}, Size={Size} bytes",
+                            CloudStorage.ProviderName, updateResult.FileId, updateResult.Size);
+
+                        // Clear Instant JSON and calibration config since they're now embedded in PDF
+                        drawing.InstantJson = null;
+                        drawing.InstantJsonLastUpdated = DateTime.UtcNow;
+                        drawing.CalibrationConfig = null;
+                        drawing.CalibrationConfigLastUpdated = DateTime.UtcNow;
 
                         await DbContext.SaveChangesAsync();
-                        Logger.LogInformation("[NutrientPdfViewer] ✓ PDF state saved to database");
+                        Logger.LogInformation("[NutrientPdfViewer] ✓ Cleared Instant JSON (annotations embedded in PDF)");
+                    }
+                    else
+                    {
+                        Logger.LogWarning("[NutrientPdfViewer] Cannot update SharePoint file - SharePointItemId is null or empty");
                     }
                 }
 
-                // STEP 3: Close the modal NOW - don't wait for SharePoint upload
+                // STEP 3: Release lock
+                if (isEditMode && currentLock != null)
+                {
+                    await LockService.ReleaseLockAsync(sessionId);
+                    await MeasurementHubService.NotifyLockReleasedAsync(PackageDrawingId, sessionId);
+                    Logger.LogInformation("[NutrientPdfViewer] ✓ Lock released");
+                }
+
+                // Hide progress indicator
+                await JS.InvokeVoidAsync("hideProgressIndicator");
+
+                // STEP 4: Close the modal
                 Logger.LogInformation("[NutrientPdfViewer] Step 3: Closing modal...");
                 await OnClose.InvokeAsync();
 
-                // STEP 4: Update file in SharePoint in background (slow operation, happens after modal is closed)
-                // Use UpdateFileAsync to replace existing file content (keeps same SharePointItemId)
-                if (pdfBytes != null && pdfBytes.Length > 0)
-                {
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            using var scope = ScopeFactory.CreateScope();
-                            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                            var sharePointSvc = scope.ServiceProvider.GetRequiredService<ISharePointService>();
-                            var logger = scope.ServiceProvider.GetRequiredService<ILogger<NutrientPdfViewer>>();
-
-                            logger.LogInformation("[NutrientPdfViewer] Step 4: Updating file in SharePoint in background...");
-
-                            var drawing = await dbContext.PackageDrawings
-                                .FirstOrDefaultAsync(pd => pd.Id == PackageDrawingId);
-
-                            if (drawing != null && !string.IsNullOrEmpty(drawing.SharePointItemId))
-                            {
-                                // Update the existing file in SharePoint using its SharePointItemId
-                                // This replaces the file content while keeping the same ID
-                                using var pdfStream = new MemoryStream(pdfBytes);
-                                var updatedFile = await sharePointSvc.UpdateFileAsync(
-                                    drawing.SharePointItemId,
-                                    pdfStream,
-                                    "application/pdf"
-                                );
-
-                                logger.LogInformation("[NutrientPdfViewer] ✓ PDF updated in SharePoint: {FileName} (ID: {ItemId})",
-                                    updatedFile.Name, updatedFile.Id);
-                            }
-                            else
-                            {
-                                logger.LogWarning("[NutrientPdfViewer] Cannot update SharePoint file - SharePointItemId is null or empty for drawing {DrawingId}",
-                                    PackageDrawingId);
-                            }
-                        }
-                        catch (Exception spEx)
-                        {
-                            Logger.LogError(spEx, "[NutrientPdfViewer] Error updating file in SharePoint in background");
-                        }
-                    });
-                }
+                // Show success toast
+                await JS.InvokeVoidAsync("showToast", "PDF saved successfully", "success");
             }
             else
             {
@@ -943,6 +1128,17 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "[NutrientPdfViewer] Error in HandleCloseAsync");
+
+            // Hide progress indicator
+            try
+            {
+                await JS.InvokeVoidAsync("hideProgressIndicator");
+            }
+            catch { }
+
+            // Show error toast
+            await JS.InvokeVoidAsync("showToast", $"Error saving PDF: {ex.Message}", "error");
+
             // Always try to close the modal even if there's an error
             try
             {
@@ -952,6 +1148,11 @@
             {
                 Logger.LogError(closeEx, "[NutrientPdfViewer] Error closing modal");
             }
+        }
+        finally
+        {
+            isSaving = false;
+            Logger.LogInformation("[NutrientPdfViewer] isSaving=false, HandleCloseAsync completed");
         }
     }
 
@@ -989,8 +1190,10 @@
         }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        if (disposed) return;
+
         if (dotNetRef != null)
         {
             // Instant JSON is now saved in HandleCloseAsync(), before disposal
@@ -999,7 +1202,7 @@
             // Unload Nutrient instance
             try
             {
-                _ = JS.InvokeVoidAsync("nutrientViewer.unload", containerId);
+                await JS.InvokeVoidAsync("nutrientViewer.unload", containerId);
             }
             catch (Exception ex)
             {
@@ -1007,6 +1210,208 @@
             }
 
             dotNetRef.Dispose();
+        }
+
+        // Release lock on dispose
+        if (isEditMode && currentLock != null)
+        {
+            try
+            {
+                await LockService.ReleaseLockAsync(sessionId);
+                await MeasurementHubService.NotifyLockReleasedAsync(PackageDrawingId, sessionId);
+                Logger.LogInformation("[NutrientPdfViewer] Lock released in DisposeAsync");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "[NutrientPdfViewer] Error releasing lock in DisposeAsync");
+            }
+        }
+
+        heartbeatTimer?.Dispose();
+        inactivityWarningTimer?.Dispose();
+        disposed = true;
+    }
+
+    // ========================================
+    // PDF LOCK SYSTEM - METHODS
+    // ========================================
+
+    private async Task InitializeLockSystemAsync()
+    {
+        try
+        {
+            // Get current user info from authentication
+            var httpContext = HttpContextAccessor.HttpContext;
+            if (httpContext?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userIdClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+                var userNameClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.Name);
+
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    currentUserId = userId;
+                }
+
+                if (userNameClaim != null)
+                {
+                    currentUserName = userNameClaim.Value;
+                }
+            }
+
+            Logger.LogInformation("[NutrientPdfViewer] Initializing lock system: SessionId={SessionId}, UserId={UserId}, UserName={UserName}",
+                sessionId, currentUserId, currentUserName);
+
+            // Get company ID from authenticated user
+            if (currentUserId > 0)
+            {
+                var user = await DbContext.Users.FindAsync(currentUserId);
+                currentCompanyId = user?.CompanyId ?? 1; // Default to 1 if user has no company
+                Logger.LogInformation("[NutrientPdfViewer] Retrieved CompanyId={CompanyId} for user {UserId}", currentCompanyId, currentUserId);
+            }
+
+            // Try to acquire edit lock
+            currentLock = await LockService.TryAcquireLockAsync(
+                PackageDrawingId,
+                sessionId,
+                currentUserId,
+                currentUserName);
+
+            isEditMode = (currentLock != null);
+
+            if (isEditMode)
+            {
+                Logger.LogInformation("[NutrientPdfViewer] ✓ Edit lock acquired: LockId={LockId}", currentLock!.Id);
+
+                // Start heartbeat (every 30 seconds)
+                heartbeatTimer = new Timer(async _ =>
+                {
+                    if (!disposed)
+                    {
+                        try
+                        {
+                            await LockService.UpdateHeartbeatAsync(sessionId);
+                            Logger.LogDebug("[NutrientPdfViewer] Heartbeat sent");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogError(ex, "[NutrientPdfViewer] Error sending heartbeat");
+                        }
+                    }
+                }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+
+                // Start inactivity monitor (check every minute)
+                StartInactivityMonitor();
+
+                // Notify others via SignalR
+                await MeasurementHubService.NotifyLockAcquiredAsync(
+                    PackageDrawingId, currentUserName, sessionId);
+            }
+            else
+            {
+                // Get info about who has the lock
+                activeLock = await LockService.GetActiveLockAsync(PackageDrawingId);
+                Logger.LogWarning("[NutrientPdfViewer] ✗ Could not acquire lock - locked by {UserName}",
+                    activeLock?.UserName ?? "Unknown");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error initializing lock system");
+        }
+    }
+
+    private void StartInactivityMonitor()
+    {
+        inactivityWarningTimer = new Timer(async _ =>
+        {
+            if (disposed || !isEditMode) return;
+
+            var inactiveMinutes = (DateTime.UtcNow - lastActivityTime).TotalMinutes;
+
+            if (inactiveMinutes >= 10)
+            {
+                await HandleInactivityTimeoutAsync();
+            }
+            else if (inactiveMinutes >= 9)
+            {
+                await ShowInactivityWarningAsync(1);
+            }
+            else if (inactiveMinutes >= 8)
+            {
+                await ShowInactivityWarningAsync(2);
+            }
+        }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+    }
+
+    private async Task HandleInactivityTimeoutAsync()
+    {
+        Logger.LogWarning("[NutrientPdfViewer] ⏰ Inactivity timeout - switching to view-only mode");
+
+        try
+        {
+            // Release lock
+            if (currentLock != null)
+            {
+                await LockService.ReleaseLockAsync(sessionId);
+                await MeasurementHubService.NotifyLockReleasedAsync(PackageDrawingId, sessionId);
+            }
+
+            // Switch to view-only mode
+            isEditMode = false;
+            await JS.InvokeVoidAsync("nutrientViewer.setViewOnlyMode", containerId);
+
+            // Stop timers
+            heartbeatTimer?.Dispose();
+            heartbeatTimer = null;
+            inactivityWarningTimer?.Dispose();
+            inactivityWarningTimer = null;
+
+            // Notify user
+            await JS.InvokeVoidAsync("showToast",
+                "You've been disconnected due to 10 minutes of inactivity. You are now in view-only mode.",
+                "warning");
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Error handling inactivity timeout");
+        }
+    }
+
+    private async Task ShowInactivityWarningAsync(int minutesLeft)
+    {
+        await JS.InvokeVoidAsync("showToast",
+            $"⚠️ You'll be disconnected in {minutesLeft} minute(s) due to inactivity. Make an annotation change to stay active.",
+            "warning");
+    }
+
+    private async Task ResetInactivityTimerAsync()
+    {
+        lastActivityTime = DateTime.UtcNow;
+
+        if (isEditMode && currentLock != null)
+        {
+            await LockService.UpdateActivityAsync(sessionId);
+        }
+    }
+
+    private async Task TryAcquireEditMode()
+    {
+        await InitializeLockSystemAsync();
+        await InvokeAsync(StateHasChanged);
+
+        if (!isEditMode)
+        {
+            await JS.InvokeVoidAsync("showToast",
+                $"Still locked by {activeLock?.UserName ?? "another user"}. Please try again later.",
+                "warning");
+        }
+        else
+        {
+            // Reload PDF in edit mode
+            var pdfUrl = $"/api/packagedrawings/{PackageDrawingId}/pdf";
+            await JS.InvokeVoidAsync("nutrientViewer.loadPdf", containerId, pdfUrl, isEditMode);
         }
     }
 }
@@ -1149,5 +1554,65 @@
         width: 100%;
         height: 100%;
         background: white;
+    }
+
+    /* Fullscreen wrapper styles - always maintain flex layout */
+    .fullscreen-wrapper {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0; /* Allow flex children to shrink */
+    }
+
+    /* Main content area - 3-column layout (sidebar, PDF, measurements) */
+    .viewer-main-content {
+        display: flex;
+        flex-direction: row;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* When in fullscreen mode, apply full viewport sizing */
+    .fullscreen-wrapper:fullscreen,
+    .fullscreen-wrapper:-webkit-full-screen,
+    .fullscreen-wrapper:-moz-full-screen,
+    .fullscreen-wrapper:-ms-fullscreen {
+        background: #f5f5f5;
+        width: 100vw;
+        height: 100vh;
+    }
+
+    /* Override catalogue sidebar positioning in fullscreen mode */
+    .fullscreen-wrapper:fullscreen .takeoff-catalogue-sidebar,
+    .fullscreen-wrapper:-webkit-full-screen .takeoff-catalogue-sidebar,
+    .fullscreen-wrapper:-moz-full-screen .takeoff-catalogue-sidebar,
+    .fullscreen-wrapper:-ms-fullscreen .takeoff-catalogue-sidebar {
+        position: relative !important;
+        left: 0 !important;
+        top: 0 !important;
+        height: 100%;
+        flex-shrink: 0;
+    }
+
+    /* Override measurement panel positioning in fullscreen mode */
+    .fullscreen-wrapper:fullscreen .takeoff-measurement-panel,
+    .fullscreen-wrapper:-webkit-full-screen .takeoff-measurement-panel,
+    .fullscreen-wrapper:-moz-full-screen .takeoff-measurement-panel,
+    .fullscreen-wrapper:-ms-fullscreen .takeoff-measurement-panel {
+        position: relative !important;
+        right: 0 !important;
+        top: 0 !important;
+        height: 100%;
+        flex-shrink: 0;
+    }
+
+    .btn-warning {
+        background: #ffc107;
+        color: #000;
+    }
+
+    .btn-warning:hover {
+        background: #e0a800;
     }
 </style>

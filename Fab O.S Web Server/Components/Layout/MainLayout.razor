@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @using FabOS.WebServer.Components.Layout
+@using FabOS.WebServer.Components.Sidebar
 @using FabOS.WebServer.Components.Shared
 @using FabOS.WebServer.Services
 @using System.Linq
@@ -7,8 +8,11 @@
 @implements IDisposable
 
 <div class="fabos-app">
-    <!-- Interactive Sidebar Component -->
-    <InteractiveSidebar />
+    <!-- NEW Modular Sidebar Component (White Theme with Lucide Icons) -->
+    <FabOSSidebar />
+
+    <!-- OLD Monolithic Sidebar (Dark Theme) - Commented out for comparison -->
+    @* <InteractiveSidebar /> *@
 
     <!-- Main Content Area -->
     <div class="fabos-main-content">

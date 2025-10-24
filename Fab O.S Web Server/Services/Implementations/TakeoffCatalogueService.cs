@@ -151,6 +151,24 @@ namespace FabOS.WebServer.Services.Implementations
             {
                 await using var context = await _contextFactory.CreateDbContextAsync();
 
+                // First, check if the item exists at all (for better diagnostic messaging)
+                var anyItem = await context.CatalogueItems
+                    .FirstOrDefaultAsync(c => c.Id == id);
+
+                if (anyItem != null && anyItem.CompanyId != companyId)
+                {
+                    _logger.LogWarning(
+                        "Catalogue item {Id} exists but belongs to company {ActualCompanyId}, user is in company {RequestedCompanyId}",
+                        id, anyItem.CompanyId, companyId);
+
+                    // If companyId is 0 or invalid, try to return the item anyway for development
+                    if (companyId == 0)
+                    {
+                        _logger.LogWarning("CompanyId is 0 - returning item anyway for development purposes");
+                        return anyItem;
+                    }
+                }
+
                 var item = await context.CatalogueItems
                     .FirstOrDefaultAsync(c => c.Id == id && c.CompanyId == companyId);
 
@@ -313,10 +331,14 @@ namespace FabOS.WebServer.Services.Implementations
             decimal value,
             string unit,
             string? coordinates,
-            int companyId)
+            int companyId,
+            string? annotationId = null)
         {
             try
             {
+                _logger.LogInformation("====== CreateMeasurementAsync CALLED ======");
+                _logger.LogInformation("AnnotationId parameter: '{AnnotationId}'", annotationId ?? "NULL");
+
                 // Calculate weight based on catalogue item
                 var calculation = await CalculateMeasurementAsync(catalogueItemId, measurementType, value, unit, companyId);
 
@@ -337,6 +359,29 @@ namespace FabOS.WebServer.Services.Implementations
 
                 context.TraceTakeoffMeasurements.Add(measurement);
                 await context.SaveChangesAsync();
+
+                // If an annotation ID was provided, link it to this measurement
+                if (!string.IsNullOrWhiteSpace(annotationId))
+                {
+                    var annotation = await context.PdfAnnotations
+                        .FirstOrDefaultAsync(a => a.AnnotationId == annotationId && a.PackageDrawingId == packageDrawingId);
+
+                    if (annotation != null)
+                    {
+                        annotation.TraceTakeoffMeasurementId = measurement.Id;
+                        annotation.IsMeasurement = true;
+                        annotation.ModifiedDate = DateTime.UtcNow;
+                        await context.SaveChangesAsync();
+
+                        _logger.LogInformation("✓ Linked annotation {AnnotationId} to measurement {MeasurementId}",
+                            annotationId, measurement.Id);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Annotation {AnnotationId} not found for linking to measurement {MeasurementId}",
+                            annotationId, measurement.Id);
+                    }
+                }
 
                 // Load navigation properties
                 await context.Entry(measurement)
@@ -430,7 +475,7 @@ namespace FabOS.WebServer.Services.Implementations
             }
         }
 
-        public async Task<bool> DeleteMeasurementAsync(int measurementId, int companyId)
+        public async Task<List<string>> DeleteMeasurementAsync(int measurementId, int companyId)
         {
             try
             {
@@ -444,15 +489,31 @@ namespace FabOS.WebServer.Services.Implementations
                 if (measurement == null)
                 {
                     _logger.LogWarning("Measurement {Id} not found for company {CompanyId}", measurementId, companyId);
-                    return false;
+                    return new List<string>();
                 }
 
+                // CASCADE DELETE: Find and delete all annotations linked to this measurement
+                var linkedAnnotations = await context.PdfAnnotations
+                    .Where(a => a.TraceTakeoffMeasurementId == measurementId)
+                    .ToListAsync();
+
+                // Store annotation IDs to return (so they can be deleted from PDF viewer)
+                var annotationIds = linkedAnnotations.Select(a => a.AnnotationId).ToList();
+
+                if (linkedAnnotations.Any())
+                {
+                    context.PdfAnnotations.RemoveRange(linkedAnnotations);
+                    _logger.LogInformation("Cascade deleting {Count} linked annotation(s) for measurement {MeasurementId}",
+                        linkedAnnotations.Count, measurementId);
+                }
+
+                // Now delete the measurement
                 context.TraceTakeoffMeasurements.Remove(measurement);
                 await context.SaveChangesAsync();
 
                 _logger.LogInformation("Deleted measurement {Id}", measurementId);
 
-                return true;
+                return annotationIds;
             }
             catch (Exception ex)
             {
@@ -501,6 +562,55 @@ namespace FabOS.WebServer.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error generating summary for drawing {DrawingId}", packageDrawingId);
+                throw;
+            }
+        }
+
+        public async Task<int?> GetTraceTakeoffIdFromPackageDrawingAsync(int packageDrawingId)
+        {
+            try
+            {
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                // Follow the hierarchy: PackageDrawing → Package → TakeoffRevision → TraceTakeoff
+                var drawing = await context.PackageDrawings
+                    .Include(pd => pd.Package)
+                        .ThenInclude(p => p!.Revision)
+                            .ThenInclude(r => r!.Takeoff)
+                    .FirstOrDefaultAsync(pd => pd.Id == packageDrawingId);
+
+                if (drawing == null)
+                {
+                    _logger.LogWarning("PackageDrawing {DrawingId} not found", packageDrawingId);
+                    return null;
+                }
+
+                if (drawing.Package == null)
+                {
+                    _logger.LogWarning("PackageDrawing {DrawingId} is not linked to a Package", packageDrawingId);
+                    return null;
+                }
+
+                if (drawing.Package.Revision == null)
+                {
+                    _logger.LogWarning("Package {PackageId} is not linked to a TakeoffRevision", drawing.PackageId);
+                    return null;
+                }
+
+                if (drawing.Package.Revision.Takeoff == null)
+                {
+                    _logger.LogWarning("TakeoffRevision {RevisionId} is not linked to a TraceTakeoff", drawing.Package.RevisionId);
+                    return null;
+                }
+
+                var takeoffId = drawing.Package.Revision.Takeoff.Id;
+                _logger.LogInformation("Resolved TraceTakeoffId {TakeoffId} for PackageDrawing {DrawingId}", takeoffId, packageDrawingId);
+
+                return takeoffId;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting TraceTakeoffId for PackageDrawing {DrawingId}", packageDrawingId);
                 throw;
             }
         }

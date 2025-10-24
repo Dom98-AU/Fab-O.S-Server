@@ -1,12 +1,25 @@
-@page "/takeoffs"
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: TraceDrawing (Takeoff)
+Views: Table, List, Card
+Features: ViewPreferences, ColumnManagement, Search, Selection, Sorting
+Pattern: Standard
+Modern UI: Yes
+Last Updated: 2025-10-23
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/trace/takeoffs"
 @rendermode InteractiveServer
 @using FabOS.WebServer.Components.Shared
 @using FabOS.WebServer.Components.Shared.Interfaces
 @using FabOS.WebServer.Data.Contexts
 @using FabOS.WebServer.Models.Entities
 @using FabOS.WebServer.Models
+@using FabOS.WebServer.Models.ViewState
 @using Microsoft.EntityFrameworkCore
-
 
 <PageTitle>Takeoffs - Fab.OS</PageTitle>
 
@@ -24,20 +37,19 @@
     }
     else
     {
-        <!-- Results Summary and View Switcher -->
-        <div class="content-header">
-            <div class="results-summary">
-                <span class="results-count">@filteredTakeoffs.Count takeoff@(filteredTakeoffs.Count != 1 ? "s" : "") found</span>
-                @if (!string.IsNullOrEmpty(searchTerm))
-                {
-                    <span class="search-filter">• Filtered by "@searchTerm"</span>
-                }
-            </div>
-            
-            <GenericViewSwitcher TItem="TraceDrawing" CurrentView="@currentView"
-                                CurrentViewChanged="@OnViewChanged"
-                                ShowViewPreferences="true" />
-        </div>
+        <!-- Table View Toolbar -->
+        <TableViewToolbar TItem="TraceDrawing"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="Takeoff"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
 
         <!-- Views -->
         @if (filteredTakeoffs.Any())
