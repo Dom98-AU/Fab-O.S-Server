@@ -9,8 +9,10 @@ public partial class InteractiveSidebar : ComponentBase
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ITenantService TenantService { get; set; } = default!;
+    [Inject] private IWebHostEnvironment Environment { get; set; } = default!;
 
     private string? tenantSlug;
+    private bool isInitialized = false;
     private bool IsCollapsed = false;
     private bool IsExpanded = false;
     private bool IsPinMode = false;
@@ -50,26 +52,84 @@ public partial class InteractiveSidebar : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
-        // Get tenant slug from the current user
-        tenantSlug = await TenantService.GetCurrentTenantSlugAsync();
-
-        // Debug logging
-        Console.WriteLine($"[InteractiveSidebar] OnInitializedAsync - tenantSlug: '{tenantSlug}'");
-
-        // CRITICAL: If no tenant slug found, use a default for development
-        // In production, this should redirect to a tenant selection page
-        if (string.IsNullOrEmpty(tenantSlug))
+        try
         {
-            Console.WriteLine("[InteractiveSidebar] WARNING: tenantSlug is null or empty!");
-            Console.WriteLine("[InteractiveSidebar] Using default tenant 'default' for development");
-            tenantSlug = "default"; // Default tenant for development (matches Company.Code = "DEFAULT")
+            // Get tenant slug from the current user
+            tenantSlug = await TenantService.GetCurrentTenantSlugAsync();
+
+            // Debug logging
+            Console.WriteLine($"[InteractiveSidebar] OnInitializedAsync - tenantSlug: '{tenantSlug}'");
+
+            // In development, handle null tenant slug with fallback
+            // In production, TenantService will throw exceptions before reaching here
+            if (string.IsNullOrEmpty(tenantSlug))
+            {
+                if (Environment.IsProduction())
+                {
+                    // This should never happen in production - TenantService should have thrown
+                    Console.WriteLine("[InteractiveSidebar] CRITICAL ERROR: Null tenant slug in production!");
+                    NavigationManager.NavigateTo("/error?message=Unable to determine tenant context");
+                    return;
+                }
+
+                Console.WriteLine("[InteractiveSidebar] WARNING: tenantSlug is null or empty!");
+                Console.WriteLine("[InteractiveSidebar] Using default tenant 'default' for development");
+                tenantSlug = "default"; // Default tenant for development only
+            }
+
+            // Update navigation URLs with tenant slug
+            Console.WriteLine("[InteractiveSidebar] Updating navigation URLs with tenant slug");
+            UpdateNavigationUrlsWithTenant();
+
+            // Mark as initialized so navigation can render
+            isInitialized = true;
+            StateHasChanged();
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            // User is not authenticated - redirect to login
+            Console.WriteLine($"[InteractiveSidebar] Unauthorized access: {ex.Message}");
+            NavigationManager.NavigateTo("/Account/Login?returnUrl=" + Uri.EscapeDataString(NavigationManager.Uri), true);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Tenant configuration error (missing CompanyId claim or company not found)
+            Console.WriteLine($"[InteractiveSidebar] Tenant configuration error: {ex.Message}");
 
-        // Update navigation URLs with tenant slug
-        Console.WriteLine("[InteractiveSidebar] Updating navigation URLs with tenant slug");
-        UpdateNavigationUrlsWithTenant();
+            if (Environment.IsProduction())
+            {
+                // In production, show error page
+                NavigationManager.NavigateTo($"/error?message={Uri.EscapeDataString(ex.Message)}");
+            }
+            else
+            {
+                // In development, use fallback and continue
+                Console.WriteLine("[InteractiveSidebar] Using fallback tenant 'default' for development");
+                tenantSlug = "default";
+                UpdateNavigationUrlsWithTenant();
+                isInitialized = true;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Unexpected error
+            Console.WriteLine($"[InteractiveSidebar] Unexpected error during initialization: {ex.Message}");
 
-        StateHasChanged();
+            if (Environment.IsProduction())
+            {
+                NavigationManager.NavigateTo("/error?message=An unexpected error occurred. Please try again or contact support.");
+            }
+            else
+            {
+                // In development, use fallback and continue
+                Console.WriteLine("[InteractiveSidebar] Using fallback tenant 'default' for development");
+                tenantSlug = "default";
+                UpdateNavigationUrlsWithTenant();
+                isInitialized = true;
+                StateHasChanged();
+            }
+        }
     }
 
     private void UpdateNavigationUrlsWithTenant()
@@ -175,25 +235,24 @@ public partial class InteractiveSidebar : ComponentBase
 
     private List<NavItem> GetQuickActions()
     {
-        var prefix = string.IsNullOrEmpty(tenantSlug) ? "" : $"/{tenantSlug}";
+        // tenantSlug is guaranteed to be set because component only renders after initialization
         return new List<NavItem>
         {
-            new NavItem { Label = "New Takeoff", Title = "New Takeoff", Description = "Start a new takeoff", Icon = "➕", Url = $"{prefix}/trace/takeoffs" },
-            new NavItem { Label = "Upload Drawing", Title = "Upload Drawing", Description = "Upload new drawings", Icon = "📤", Url = $"{prefix}/trace/takeoffs/drawings" },
+            new NavItem { Label = "New Takeoff", Title = "New Takeoff", Description = "Start a new takeoff", Icon = "➕", Url = $"/{tenantSlug}/trace/takeoffs" },
+            new NavItem { Label = "Upload Drawing", Title = "Upload Drawing", Description = "Upload new drawings", Icon = "📤", Url = $"/{tenantSlug}/trace/takeoffs/drawings" },
             new NavItem { Label = "View Database", Title = "View Database", Description = "Database management", Icon = "💾", Url = "/database" }
         };
     }
 
     private List<NavItem> GetModuleNavigation()
     {
-        var prefix = string.IsNullOrEmpty(tenantSlug) ? "" : $"/{tenantSlug}";
-
+        // tenantSlug is guaranteed to be set because component only renders after initialization
         // Return navigation items based on current module
         if (CurrentModule == "Settings")
         {
             return new List<NavItem>
             {
-                new NavItem { Label = "Customers", Title = "Customers", Description = "Manage customers and contacts", Icon = "🏭", Url = $"{prefix}/trace/customers", IsPinned = PinnedItems.Any(p => p.Url == $"{prefix}/trace/customers") },
+                new NavItem { Label = "Customers", Title = "Customers", Description = "Manage customers and contacts", Icon = "🏭", Url = $"/{tenantSlug}/trace/customers", IsPinned = PinnedItems.Any(p => p.Url == $"/{tenantSlug}/trace/customers") },
                 new NavItem { Label = "Company", Title = "Company Settings", Description = "Configure company details", Icon = "🏢", Url = "/settings/company", IsPinned = PinnedItems.Any(p => p.Url == "/settings/company") },
                 new NavItem { Label = "Users", Title = "User Management", Description = "Manage users and permissions", Icon = "👥", Url = "/settings/users", IsPinned = PinnedItems.Any(p => p.Url == "/settings/users") },
                 new NavItem { Label = "Security", Title = "Security Settings", Description = "Security configuration", Icon = "🔒", Url = "/settings/security", IsPinned = PinnedItems.Any(p => p.Url == "/settings/security") }
@@ -203,8 +262,8 @@ public partial class InteractiveSidebar : ComponentBase
         {
             return new List<NavItem>
             {
-                new NavItem { Label = "Takeoffs", Title = "Takeoffs", Description = "Manage takeoffs", Icon = "📐", Url = $"{prefix}/trace/takeoffs", IsPinned = PinnedItems.Any(p => p.Url == $"{prefix}/trace/takeoffs") },
-                new NavItem { Label = "Drawings", Title = "Drawing Management", Description = "Manage drawings", Icon = "📄", Url = $"{prefix}/trace/drawings", IsPinned = PinnedItems.Any(p => p.Url == $"{prefix}/trace/drawings") },
+                new NavItem { Label = "Takeoffs", Title = "Takeoffs", Description = "Manage takeoffs", Icon = "📐", Url = $"/{tenantSlug}/trace/takeoffs", IsPinned = PinnedItems.Any(p => p.Url == $"/{tenantSlug}/trace/takeoffs") },
+                new NavItem { Label = "Drawings", Title = "Drawing Management", Description = "Manage drawings", Icon = "📄", Url = $"/{tenantSlug}/trace/drawings", IsPinned = PinnedItems.Any(p => p.Url == $"/{tenantSlug}/trace/drawings") },
                 new NavItem { Label = "Drawing Library", Title = "Drawing Library", Description = "Browse drawings", Icon = "📚", Url = "/drawing-management", IsPinned = PinnedItems.Any(p => p.Url == "/drawing-management") },
                 new NavItem { Label = "PDF Viewer", Title = "PDF Viewer", Description = "View PDF files", Icon = "📏", Url = "/test-pdf-viewer", IsPinned = PinnedItems.Any(p => p.Url == "/test-pdf-viewer") },
                 new NavItem { Label = "Database", Title = "Database", Description = "Database management", Icon = "💾", Url = "/database", IsPinned = PinnedItems.Any(p => p.Url == "/database") }
@@ -216,10 +275,10 @@ public partial class InteractiveSidebar : ComponentBase
 
     private List<NavItem> GetRecentItems()
     {
-        var prefix = string.IsNullOrEmpty(tenantSlug) ? "" : $"/{tenantSlug}";
+        // tenantSlug is guaranteed to be set because component only renders after initialization
         return new List<NavItem>
         {
-            new NavItem { Label = "Recent Takeoffs", Title = "Recent Takeoffs", Description = "View recent takeoffs", Icon = "📐", Url = $"{prefix}/trace/takeoffs" },
+            new NavItem { Label = "Recent Takeoffs", Title = "Recent Takeoffs", Description = "View recent takeoffs", Icon = "📐", Url = $"/{tenantSlug}/trace/takeoffs" },
             new NavItem { Label = "Test PDF", Title = "Test PDF", Description = "PDF viewer test", Icon = "📄", Url = "/test-pdf-viewer" },
             new NavItem { Label = "Drawing Library", Title = "Drawing Library", Description = "Browse drawings", Icon = "📚", Url = "/drawing-management" }
         };

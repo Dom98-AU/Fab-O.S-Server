@@ -16,7 +16,12 @@ NC='\033[0m' # No Color
 
 # Function to check if dotnet is installed
 check_dotnet() {
-    if ! command -v dotnet &> /dev/null; then
+    # Check for both 'dotnet' (Linux/Mac) and 'dotnet.exe' (WSL/Windows)
+    if command -v dotnet &> /dev/null; then
+        DOTNET_CMD="dotnet"
+    elif command -v dotnet.exe &> /dev/null; then
+        DOTNET_CMD="dotnet.exe"
+    else
         echo -e "${RED}❌ ERROR: .NET SDK not found${NC}"
         echo "   Please install .NET 8 SDK to run route validation"
         exit 1
@@ -29,7 +34,7 @@ run_route_tests() {
     echo ""
 
     # Run tests
-    dotnet test --filter "Category=RouteValidation" --no-build --verbosity quiet
+    $DOTNET_CMD test --filter "Category=RouteValidation" --no-build --verbosity quiet
 
     local exit_code=$?
 

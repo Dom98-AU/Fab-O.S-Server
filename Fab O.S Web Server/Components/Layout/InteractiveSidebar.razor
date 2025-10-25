@@ -1,6 +1,17 @@
 @rendermode InteractiveServer
 @using FabOS.WebServer.Services.Implementations
 
+@if (!isInitialized)
+{
+    <!-- Loading state while tenant slug is being fetched -->
+    <div class="fabos-sidebar">
+        <div class="fabos-sidebar-header">
+            <span>Loading...</span>
+        </div>
+    </div>
+}
+else
+{
 <!-- Sidebar -->
 <div class="fabos-sidebar @(IsCollapsed ? "collapsed" : "") @(IsExpanded ? "expanded" : "")">
     <!-- Header with Logo and Controls -->
@@ -216,11 +227,11 @@
             <!-- Standard View - Core Navigation -->
             @if (CurrentModule == "Trace")
             {
-                <a href="@($"/{tenantSlug ?? ""}/trace/takeoffs")" class="fabos-nav-item" title="Takeoffs">
+                <a href="@($"/{tenantSlug}/trace/takeoffs")" class="fabos-nav-item" title="Takeoffs">
                     <span class="fabos-nav-icon">📐</span>
                     @if (!IsCollapsed) { <span class="fabos-nav-text">Takeoffs</span> }
                 </a>
-                <a href="@($"/{tenantSlug ?? ""}/trace/drawings")" class="fabos-nav-item" title="Drawing Management">
+                <a href="@($"/{tenantSlug}/trace/drawings")" class="fabos-nav-item" title="Drawing Management">
                     <span class="fabos-nav-icon">📄</span>
                     @if (!IsCollapsed) { <span class="fabos-nav-text">Drawing Management</span> }
                 </a>
@@ -232,7 +243,7 @@
                     <span class="fabos-nav-icon">📏</span>
                     @if (!IsCollapsed) { <span class="fabos-nav-text">PDF Viewer</span> }
                 </a>
-                <a href="@($"/{tenantSlug ?? ""}/trace/takeoffs/drawings")" class="fabos-nav-item" title="Takeoff Manager">
+                <a href="@($"/{tenantSlug}/trace/takeoffs/drawings")" class="fabos-nav-item" title="Takeoff Manager">
                     <span class="fabos-nav-icon">📋</span>
                     @if (!IsCollapsed) { <span class="fabos-nav-text">Takeoff Manager</span> }
                 </a>
@@ -835,6 +846,7 @@
         width: 100%;
     }
 </style>
+}
 
 <script>
     window.updateSidebarBodyClass = (isCollapsed, isExpanded) => {

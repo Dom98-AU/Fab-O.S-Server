@@ -11,47 +11,70 @@ namespace FabOS.WebServer.Services.Implementations
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ILogger<TenantService> _logger;
         private readonly ApplicationDbContext _context;
+        private readonly IWebHostEnvironment _environment;
 
         public TenantService(
             IHttpContextAccessor httpContextAccessor,
             ILogger<TenantService> logger,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            IWebHostEnvironment environment)
         {
             _httpContextAccessor = httpContextAccessor;
             _logger = logger;
             _context = context;
+            _environment = environment;
         }
 
         public int GetCurrentCompanyId()
         {
             var httpContext = _httpContextAccessor.HttpContext;
+
+            // In production, require authentication - fail fast
             if (httpContext?.User?.Identity?.IsAuthenticated != true)
             {
-                _logger.LogWarning("Attempting to get CompanyId for unauthenticated user");
-                return 1; // Default company for testing - should throw in production
+                if (_environment.IsProduction())
+                {
+                    _logger.LogError("[TenantService] Unauthenticated user attempted to access tenant resources");
+                    throw new UnauthorizedAccessException("User must be authenticated to access tenant resources");
+                }
+
+                _logger.LogWarning("[TenantService] Unauthenticated user in development - using default CompanyId=1");
+                return 1; // Development fallback only
             }
 
+            // Try to get CompanyId from claims (primary method)
             var companyIdClaim = httpContext.User.FindFirst("CompanyId")
                 ?? httpContext.User.FindFirst(ClaimTypes.GroupSid)
                 ?? httpContext.User.FindFirst("company_id");
 
             if (companyIdClaim != null && int.TryParse(companyIdClaim.Value, out var companyId))
             {
+                _logger.LogDebug("[TenantService] Found CompanyId={CompanyId} in user claims", companyId);
                 return companyId;
             }
 
-            // Try to get from session if available
+            // Fallback to session (secondary method)
             if (httpContext.Session != null)
             {
                 var sessionCompanyId = httpContext.Session.GetInt32("CompanyId");
                 if (sessionCompanyId.HasValue)
                 {
+                    _logger.LogDebug("[TenantService] Found CompanyId={CompanyId} in session", sessionCompanyId.Value);
                     return sessionCompanyId.Value;
                 }
             }
 
-            _logger.LogWarning($"CompanyId not found for user {httpContext.User.Identity.Name}");
-            return 1; // Default company - in production this should throw an exception
+            // No CompanyId found - fail in production, fallback in development
+            var userName = httpContext.User.Identity?.Name ?? "Unknown";
+            if (_environment.IsProduction())
+            {
+                _logger.LogError("[TenantService] User '{UserName}' is missing required CompanyId claim", userName);
+                throw new InvalidOperationException(
+                    $"User '{userName}' is missing required CompanyId claim. Please contact support.");
+            }
+
+            _logger.LogWarning("[TenantService] CompanyId not found for user '{UserName}' in development - using default CompanyId=1", userName);
+            return 1; // Development fallback only
         }
 
         public int? GetCurrentUserId()
@@ -96,11 +119,38 @@ namespace FabOS.WebServer.Services.Implementations
             try
             {
                 var companyId = GetCurrentCompanyId();
-                return await GetTenantSlugByCompanyIdAsync(companyId);
+                var tenantSlug = await GetTenantSlugByCompanyIdAsync(companyId);
+
+                // In production, tenant slug is required - don't return null
+                if (string.IsNullOrEmpty(tenantSlug) && _environment.IsProduction())
+                {
+                    _logger.LogError("[TenantService] Failed to resolve tenant slug for CompanyId={CompanyId} in production", companyId);
+                    throw new InvalidOperationException(
+                        $"Unable to resolve tenant for company {companyId}. Database may be misconfigured.");
+                }
+
+                return tenantSlug;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Re-throw auth exceptions without wrapping
+                throw;
+            }
+            catch (InvalidOperationException)
+            {
+                // Re-throw validation exceptions without wrapping
+                throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[TenantService] Error getting current tenant slug");
+                _logger.LogError(ex, "[TenantService] Unexpected error getting current tenant slug");
+
+                if (_environment.IsProduction())
+                {
+                    throw new InvalidOperationException("Unable to determine tenant context. Please try again or contact support.", ex);
+                }
+
+                _logger.LogWarning("[TenantService] Returning null tenant slug in development due to error");
                 return null;
             }
         }

@@ -429,6 +429,10 @@ app.UseStaticFiles(new StaticFileOptions
 // Add Session middleware before Authentication
 app.UseSession();
 
+// CRITICAL: UseRouting must come before UseAuthorization when using FallbackPolicy
+// This allows the authorization middleware to know which endpoint is being accessed
+app.UseRouting();
+
 // Add Hybrid Authentication middleware
 app.UseMiddleware<HybridAuthenticationMiddleware>();
 
