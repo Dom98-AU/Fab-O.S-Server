@@ -20,7 +20,7 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private FabOS.WebServer.Services.BreadcrumbService BreadcrumbService { get; set; } = default!;
 
-    private TraceDrawing? takeoff;
+    private Takeoff? takeoff;
     private List<Package> packages = new();
     private List<Package> filteredPackages = new();
     private bool isLoading = true;
@@ -208,12 +208,12 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
     private void HandleRowClick(Package package)
     {
         // Single click navigates to package card
-        Navigation.NavigateTo($"/packages/{package.Id}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/packages/{package.Id}");
     }
 
     private void HandleRowDoubleClick(Package package)
     {
-        Navigation.NavigateTo($"/packages/{package.Id}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/packages/{package.Id}");
     }
 
     private void HandleTableSelectionChanged(List<Package> selected)
@@ -237,7 +237,7 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
     private void CreateNew()
     {
         // Navigate to new package with takeoff pre-selected
-        Navigation.NavigateTo($"/packages/0?takeoffId={TakeoffId}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/packages/0?takeoffId={TakeoffId}");
     }
 
     private void EditPackage()
@@ -245,7 +245,7 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
         var selected = GetSelectedPackages();
         if (selected.Any())
         {
-            Navigation.NavigateTo($"/packages/{selected.First().Id}");
+            Navigation.NavigateTo($"/{TenantSlug}/trace/packages/{selected.First().Id}");
         }
     }
 
@@ -355,7 +355,7 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
                 {
                     Text = "View All Packages",
                     Icon = "fas fa-box",
-                    ActionFunc = () => { Navigation.NavigateTo("/packages"); return Task.CompletedTask; },
+                    ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/packages"); return Task.CompletedTask; },
                     IsDisabled = false,
                     Tooltip = "View all packages"
                 }

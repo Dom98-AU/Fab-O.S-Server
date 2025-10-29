@@ -222,7 +222,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
             if (Id == 0)
             {
                 // Navigate to the new package
-                Navigation.NavigateTo($"/packages/{package.Id}", replace: true);
+                Navigation.NavigateTo($"/{TenantSlug}/trace/packages/{package.Id}", replace: true);
             }
             else
             {
@@ -248,7 +248,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
             package.IsDeleted = true;
             package.LastModified = DateTime.UtcNow;
             await DbContext.SaveChangesAsync();
-            Navigation.NavigateTo("/packages");
+            Navigation.NavigateTo($"/{TenantSlug}/trace/packages");
         }
         catch (Exception ex)
         {
@@ -267,7 +267,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
     {
         if (Id == 0)
         {
-            Navigation.NavigateTo("/packages");
+            Navigation.NavigateTo($"/{TenantSlug}/trace/packages");
         }
         else
         {
@@ -289,7 +289,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                     Text = "New",
                     Label = "New",
                     Icon = "fas fa-plus",
-                    ActionFunc = () => { Navigation.NavigateTo("/packages/0"); return Task.CompletedTask; },
+                    ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/packages/0"); return Task.CompletedTask; },
                     IsDisabled = false,
                     Tooltip = "Create new package"
                 },
@@ -346,7 +346,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 {
                     Text = "View All Packages",
                     Icon = "fas fa-box",
-                    ActionFunc = () => { Navigation.NavigateTo("/packages"); return Task.CompletedTask; },
+                    ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/packages"); return Task.CompletedTask; },
                     IsDisabled = false,
                     Tooltip = "View all packages"
                 },
@@ -362,7 +362,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 {
                     Text = "SharePoint Takeoff Files",
                     Icon = "fas fa-folder-open",
-                    ActionFunc = () => { Navigation.NavigateTo($"/packages/{Id}/sharepoint-files"); return Task.CompletedTask; },
+                    ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/packages/{Id}/sharepoint-files"); return Task.CompletedTask; },
                     IsDisabled = Id == 0,
                     Tooltip = "View SharePoint takeoff files for this package"
                 }

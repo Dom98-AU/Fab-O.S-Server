@@ -17,19 +17,12 @@ else
     <!-- Header with Logo and Controls -->
     <div class="fabos-sidebar-header">
         <!-- Hamburger Menu (always visible - left side) -->
-        <button type="button" class="fabos-hamburger-button" @onclick="ToggleSidebar" title="@(IsCollapsed ? "Expand Sidebar" : "Collapse Sidebar")">
-            @if (!IsCollapsed)
-            {
-                <div class="fabos-hamburger">
-                    <span class="fabos-hamburger-line"></span>
-                    <span class="fabos-hamburger-line"></span>
-                    <span class="fabos-hamburger-line"></span>
-                </div>
-            }
-            else
-            {
-                <span style="font-size: 20px; color: white;">☰</span>
-            }
+        <button type="button" class="fabos-hamburger-button" title="Toggle Sidebar" @onclick="ToggleSidebar">
+            <div class="fabos-hamburger">
+                <span class="fabos-hamburger-line"></span>
+                <span class="fabos-hamburger-line"></span>
+                <span class="fabos-hamburger-line"></span>
+            </div>
         </button>
         
         @if (!IsCollapsed)
@@ -339,7 +332,7 @@ else
         background: linear-gradient(to bottom, #1a1a2e, #16213e);
         color: white;
         transition: width 0.3s ease;
-        z-index: 1000;
+        z-index: 1041; /* Above modal backdrop (1040) so hamburger stays clickable when modal is open */
         display: flex;
         flex-direction: column;
         box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
@@ -482,6 +475,7 @@ else
         width: 20px;
         height: 16px;
         justify-content: space-between;
+        pointer-events: none; /* CRITICAL: Let clicks pass through to button */
     }
 
     .fabos-hamburger-line {
@@ -495,6 +489,7 @@ else
         position: relative;
         opacity: 1;
         box-sizing: border-box;
+        pointer-events: none; /* CRITICAL: Let clicks pass through to button */
     }
     
     .fabos-hamburger-line.collapsed:nth-child(1) {
@@ -848,13 +843,10 @@ else
 </style>
 }
 
-<script>
-    window.updateSidebarBodyClass = (isCollapsed, isExpanded) => {
-        document.body.classList.remove('sidebar-collapsed', 'sidebar-expanded');
-        if (isCollapsed) {
-            document.body.classList.add('sidebar-collapsed');
-        } else if (isExpanded) {
-            document.body.classList.add('sidebar-expanded');
-        }
-    };
-</script>
+
+@*
+    NOTE: The above script is now redundant - sidebar JavaScript interop has been moved to /wwwroot/js/sidebar-interop.js
+    This ensures the event handlers are attached before Blazor connects,
+    preventing SignalR reconnection issues when clicking the hamburger button.
+    This old script block will be removed in a future cleanup.
+*@

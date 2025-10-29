@@ -13,10 +13,11 @@ namespace FabOS.WebServer.Components.Pages
 {
     public partial class PackageDrawingMeasurements : ComponentBase, IToolbarActionProvider, IAsyncDisposable
     {
-        [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
+        [Inject] private IDbContextFactory<ApplicationDbContext> DbContextFactory { get; set; } = default!;
         [Inject] private ILogger<PackageDrawingMeasurements> Logger { get; set; } = default!;
         [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
+        [Parameter] public string? TenantSlug { get; set; }
         [Parameter] public int PackageId { get; set; }
         [Parameter] public int DrawingId { get; set; }
 
@@ -25,7 +26,11 @@ namespace FabOS.WebServer.Components.Pages
         private List<TraceTakeoffMeasurement> filteredMeasurements = new();
         private bool isLoading = true;
         private string drawingName = string.Empty;
+        private string drawingNumber = string.Empty;
         private string searchQuery = string.Empty;
+
+        // Export modal reference
+        private MeasurementExportModal? _exportModal;
 
         // View state
         private GenericViewSwitcher<TraceTakeoffMeasurement>.ViewType currentView = GenericViewSwitcher<TraceTakeoffMeasurement>.ViewType.List;
@@ -79,7 +84,17 @@ namespace FabOS.WebServer.Components.Pages
                         Tooltip = hasSelection ? "Delete selected measurements" : "Select measurements to delete"
                     }
                 },
-                MenuActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>(),
+                MenuActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
+                {
+                    new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+                    {
+                        Text = "Export to Excel",
+                        Icon = "fas fa-file-excel",
+                        ActionFunc = () => OpenExportModal(),
+                        IsDisabled = !allMeasurements.Any(),
+                        Tooltip = allMeasurements.Any() ? "Export measurements to Excel" : "No measurements to export"
+                    }
+                },
                 RelatedActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
                 {
                     new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
@@ -120,12 +135,14 @@ namespace FabOS.WebServer.Components.Pages
         {
             try
             {
-                var drawing = await DbContext.PackageDrawings
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+                var drawing = await dbContext.PackageDrawings
                     .Where(d => d.Id == DrawingId)
-                    .Select(d => new { d.DrawingTitle })
+                    .Select(d => new { d.DrawingTitle, d.DrawingNumber })
                     .FirstOrDefaultAsync();
 
                 drawingName = drawing?.DrawingTitle ?? "Unknown Drawing";
+                drawingNumber = drawing?.DrawingNumber ?? string.Empty;
             }
             catch (Exception ex)
             {
@@ -277,7 +294,8 @@ namespace FabOS.WebServer.Components.Pages
                 isLoading = true;
                 Logger.LogInformation("[PackageDrawingMeasurements] 📊 Starting to load measurements for DrawingId={DrawingId}", DrawingId);
 
-                allMeasurements = await DbContext.TraceTakeoffMeasurements
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+                allMeasurements = await dbContext.TraceTakeoffMeasurements
                     .Include(m => m.CatalogueItem)
                         .ThenInclude(c => c!.Category)
                     .Where(m => m.PackageDrawingId == DrawingId)
@@ -378,12 +396,13 @@ namespace FabOS.WebServer.Components.Pages
                     return;
                 }
 
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
                 foreach (var measurement in itemsToDelete)
                 {
-                    DbContext.TraceTakeoffMeasurements.Remove(measurement);
+                    dbContext.TraceTakeoffMeasurements.Remove(measurement);
                 }
 
-                await DbContext.SaveChangesAsync();
+                await dbContext.SaveChangesAsync();
 
                 // Clear selections
                 selectedTableItems.Clear();
@@ -455,81 +474,204 @@ namespace FabOS.WebServer.Components.Pages
         {
             try
             {
+                Logger.LogInformation("[PackageDrawingMeasurements] ============================================");
+                Logger.LogInformation("[PackageDrawingMeasurements] 🔌 INITIALIZING SIGNALR HUB CONNECTION");
+                Logger.LogInformation("[PackageDrawingMeasurements] PackageId: {PackageId}, DrawingId: {DrawingId}", PackageId, DrawingId);
+
+                // Build the hub URL using NavigationManager to get base URI
+                var hubUrl = NavigationManager.ToAbsoluteUri("/measurementHub").ToString();
+                Logger.LogInformation("[PackageDrawingMeasurements] 🔌 Connecting to SignalR Hub at {HubUrl}", hubUrl);
+
                 hubConnection = new HubConnectionBuilder()
-                    .WithUrl(NavigationManager.ToAbsoluteUri("/hubs/measurements"))
-                    .WithAutomaticReconnect()
+                    .WithUrl(hubUrl)
+                    .WithAutomaticReconnect(new[] { TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) })
                     .Build();
 
-                hubConnection.On<int>("MeasurementAdded", async (drawingId) =>
-                {
-                    if (drawingId == DrawingId)
-                    {
-                        Logger.LogInformation("[PackageDrawingMeasurements] New measurement added via SignalR");
-                        await InvokeAsync(async () =>
-                        {
-                            await LoadMeasurements();
-                            StateHasChanged();
-                        });
-                    }
-                });
-
-                hubConnection.On<int>("MeasurementDeleted", async (drawingId) =>
-                {
-                    if (drawingId == DrawingId)
-                    {
-                        Logger.LogInformation("[PackageDrawingMeasurements] Measurement deleted via SignalR");
-                        await InvokeAsync(async () =>
-                        {
-                            await LoadMeasurements();
-                            StateHasChanged();
-                        });
-                    }
-                });
-
-                // Click-to-highlight: Listen for annotation selections from PDF viewer
-                hubConnection.On<object>("AnnotationSelected", async (payload) =>
+                // Register event handlers BEFORE connecting - use the same events as TakeoffMeasurementPanel
+                hubConnection.On<MeasurementEventData>("MeasurementCreated", async (data) =>
                 {
                     try
                     {
-                        var json = System.Text.Json.JsonSerializer.Serialize(payload);
-                        var data = System.Text.Json.JsonSerializer.Deserialize<AnnotationSelectedPayload>(json);
-
-                        if (data?.PackageDrawingId == DrawingId && !string.IsNullOrEmpty(data.AnnotationId))
+                        if (data.PackageDrawingId == DrawingId)
                         {
-                            Logger.LogInformation("[PackageDrawingMeasurements] 🖱️ Annotation selected via SignalR: {AnnotationId}", data.AnnotationId);
-                            await InvokeAsync(() =>
+                            Logger.LogInformation("[PackageDrawingMeasurements] ✓ Received MeasurementCreated: MeasurementId={MeasurementId}",
+                                data.MeasurementId);
+
+                            await InvokeAsync(async () =>
                             {
-                                selectedAnnotationId = data.AnnotationId;
+                                await LoadMeasurements();
                                 StateHasChanged();
                             });
                         }
                     }
                     catch (Exception ex)
                     {
-                        Logger.LogError(ex, "[PackageDrawingMeasurements] Error handling AnnotationSelected");
+                        Logger.LogError(ex, "[PackageDrawingMeasurements] ❌ Error handling MeasurementCreated event");
                     }
                 });
 
+                hubConnection.On<MeasurementEventData>("MeasurementDeleted", async (data) =>
+                {
+                    try
+                    {
+                        if (data.PackageDrawingId == DrawingId)
+                        {
+                            Logger.LogInformation("[PackageDrawingMeasurements] ✓ Received MeasurementDeleted: PackageDrawingId={PackageDrawingId}, MeasurementId={MeasurementId}",
+                                data.PackageDrawingId, data.MeasurementId);
+
+                            await InvokeAsync(async () =>
+                            {
+                                await LoadMeasurements();
+                                StateHasChanged();
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "[PackageDrawingMeasurements] ❌ Error handling MeasurementDeleted event");
+                    }
+                });
+
+                hubConnection.On<MeasurementEventData>("MeasurementUpdated", async (data) =>
+                {
+                    try
+                    {
+                        if (data.PackageDrawingId == DrawingId)
+                        {
+                            Logger.LogInformation("[PackageDrawingMeasurements] ✓ Received MeasurementUpdated: MeasurementId={MeasurementId}",
+                                data.MeasurementId);
+
+                            await InvokeAsync(async () =>
+                            {
+                                await LoadMeasurements();
+                                StateHasChanged();
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "[PackageDrawingMeasurements] ❌ Error handling MeasurementUpdated event");
+                    }
+                });
+
+                hubConnection.On<MeasurementEventData>("InstantJsonUpdated", async (data) =>
+                {
+                    try
+                    {
+                        if (data.PackageDrawingId == DrawingId)
+                        {
+                            Logger.LogInformation("[PackageDrawingMeasurements] ✓ Received InstantJsonUpdated for PackageDrawingId={PackageDrawingId} - reloading measurements",
+                                data.PackageDrawingId);
+
+                            await InvokeAsync(async () =>
+                            {
+                                await LoadMeasurements();
+                                StateHasChanged();
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "[PackageDrawingMeasurements] ❌ Error handling InstantJsonUpdated event");
+                    }
+                });
+
+                // Handle reconnection
+                hubConnection.Reconnected += async (connectionId) =>
+                {
+                    Logger.LogInformation("[PackageDrawingMeasurements] ✓ SignalR Hub reconnected with ConnectionId={ConnectionId}", connectionId);
+
+                    // Re-subscribe to drawing group after reconnection
+                    if (DrawingId > 0)
+                    {
+                        await hubConnection.InvokeAsync("SubscribeToDrawing", DrawingId);
+                        Logger.LogInformation("[PackageDrawingMeasurements] ✓ Re-subscribed to Drawing_{DrawingId}", DrawingId);
+                    }
+
+                    // Refresh to catch any missed updates
+                    await InvokeAsync(async () =>
+                    {
+                        await LoadMeasurements();
+                        StateHasChanged();
+                    });
+                };
+
+                hubConnection.Reconnecting += (error) =>
+                {
+                    Logger.LogWarning("[PackageDrawingMeasurements] ⚠️ SignalR Hub reconnecting...");
+                    return Task.CompletedTask;
+                };
+
+                hubConnection.Closed += async (error) =>
+                {
+                    if (error != null)
+                    {
+                        Logger.LogError(error, "[PackageDrawingMeasurements] ❌ SignalR Hub connection closed with error");
+                    }
+                    else
+                    {
+                        Logger.LogInformation("[PackageDrawingMeasurements] SignalR Hub connection closed");
+                    }
+                };
+
+                // Start the connection
                 await hubConnection.StartAsync();
-                Logger.LogInformation("[PackageDrawingMeasurements] SignalR connected");
+                Logger.LogInformation("[PackageDrawingMeasurements] ✓ SignalR Hub connected with ConnectionId={ConnectionId}", hubConnection.ConnectionId);
+
+                // Subscribe to the drawing-specific group
+                if (DrawingId > 0)
+                {
+                    await hubConnection.InvokeAsync("SubscribeToDrawing", DrawingId);
+                    Logger.LogInformation("[PackageDrawingMeasurements] ✓ Subscribed to Drawing_{DrawingId} group", DrawingId);
+                }
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "[PackageDrawingMeasurements] Could not initialize SignalR");
+                Logger.LogError(ex, "[PackageDrawingMeasurements] ❌❌❌ FAILED TO INITIALIZE SIGNALR HUB CONNECTION ❌❌❌");
+                Logger.LogError(ex, "[PackageDrawingMeasurements] Exception Type: {ExceptionType}", ex.GetType().Name);
+                Logger.LogError(ex, "[PackageDrawingMeasurements] Exception Message: {Message}", ex.Message);
+                Logger.LogError(ex, "[PackageDrawingMeasurements] Stack Trace: {StackTrace}", ex.StackTrace);
             }
         }
 
         private void NavigateBack()
         {
-            NavigationManager.NavigateTo($"/packages/{PackageId}");
+            NavigationManager.NavigateTo($"/{TenantSlug}/trace/packages/{PackageId}");
         }
 
         public async ValueTask DisposeAsync()
         {
-            if (hubConnection != null)
+            try
             {
-                await hubConnection.DisposeAsync();
+                if (hubConnection != null)
+                {
+                    // Unsubscribe from drawing group before disconnecting
+                    if (DrawingId > 0 && hubConnection.State == HubConnectionState.Connected)
+                    {
+                        await hubConnection.InvokeAsync("UnsubscribeFromDrawing", DrawingId);
+                        Logger.LogInformation("[PackageDrawingMeasurements] ✓ Unsubscribed from Drawing_{DrawingId}", DrawingId);
+                    }
+
+                    // Stop and dispose the connection
+                    await hubConnection.StopAsync();
+                    await hubConnection.DisposeAsync();
+                    Logger.LogInformation("[PackageDrawingMeasurements] ✓ SignalR Hub connection disposed");
+                }
             }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "[PackageDrawingMeasurements] ❌ Error disposing SignalR Hub connection");
+            }
+        }
+
+        /// <summary>
+        /// DTO for SignalR event data - matches the anonymous object sent from MeasurementHubService
+        /// </summary>
+        private class MeasurementEventData
+        {
+            public int PackageDrawingId { get; set; }
+            public int MeasurementId { get; set; }
+            public string? AnnotationId { get; set; }
         }
 
         /// <summary>
@@ -551,13 +693,27 @@ namespace FabOS.WebServer.Components.Pages
             return false;
         }
 
+        // ========================================
+        // Export Functionality
+        // ========================================
+
         /// <summary>
-        /// Payload structure for SignalR AnnotationSelected event
+        /// Open the export modal
         /// </summary>
-        private class AnnotationSelectedPayload
+        private Task OpenExportModal()
         {
-            public int PackageDrawingId { get; set; }
-            public string AnnotationId { get; set; } = string.Empty;
+            Logger.LogInformation("[PackageDrawingMeasurements] Opening export modal");
+            _exportModal?.Show();
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Handle export modal close
+        /// </summary>
+        private Task HandleExportModalClose()
+        {
+            Logger.LogInformation("[PackageDrawingMeasurements] Export modal closed");
+            return Task.CompletedTask;
         }
     }
 }

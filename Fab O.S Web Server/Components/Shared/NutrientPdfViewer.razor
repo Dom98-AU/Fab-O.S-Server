@@ -9,7 +9,7 @@
 @using System.Text.Json
 @using Microsoft.JSInterop
 @using Microsoft.Extensions.DependencyInjection
-@inject ApplicationDbContext DbContext
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject IJSRuntime JS
 @inject ILogger<NutrientPdfViewer> Logger
 @inject IPdfCalibrationService CalibrationService
@@ -19,6 +19,7 @@
 @inject IPdfLockService LockService
 @inject FabOS.WebServer.Hubs.IMeasurementHubService MeasurementHubService
 @inject IHttpContextAccessor HttpContextAccessor
+@inject ITenantService TenantService
 @implements IAsyncDisposable
 
 <div class="nutrient-pdf-viewer">
@@ -62,88 +63,97 @@
     {
         <!-- Fullscreen Container Wrapper -->
         <div id="@fullscreenContainerId" class="fullscreen-wrapper">
-            <!-- Top Toolbar -->
-            <div class="nutrient-toolbar">
-                <div class="toolbar-section">
-                    <button class="tool-btn" @onclick="ToggleSidebar" title="Toggle Catalogue">
-                        <i class="fas fa-boxes"></i>
-                        Catalogue
-                    </button>
-                    <h3>@drawing.DrawingNumber - @drawing.DrawingTitle</h3>
-                </div>
-
-                <div class="toolbar-section tools">
-                    <div class="tool-group">
-                        <button class="tool-btn" @onclick="ToggleMeasurementPanel" title="Toggle Measurements">
-                            <i class="fas fa-calculator"></i>
-                            Measurements
+            @if (PackageDrawingId > 0)
+            {
+                <!-- Top Toolbar (Only for takeoff viewer, not upload preview) -->
+                <div class="nutrient-toolbar">
+                    <div class="toolbar-section">
+                        <button class="tool-btn" @onclick="ToggleSidebar" title="Toggle Catalogue">
+                            <i class="fas fa-boxes"></i>
+                            Catalogue
                         </button>
-                        <button class="tool-btn" @onclick="OpenFullMeasurementsPage" title="Open Measurements in New Window">
-                            <i class="fas fa-external-link-alt"></i>
-                            Full View
-                        </button>
+                        <h3>@drawing.DrawingNumber - @drawing.DrawingTitle</h3>
                     </div>
 
-                    <div class="tool-group">
-                        @if (!isFullscreen)
-                        {
-                            <button class="btn btn-primary" @onclick="ToggleFullscreen" title="Enter Fullscreen">
-                                <i class="fas fa-expand"></i>
-                                Fullscreen
+                    <div class="toolbar-section tools">
+                        <div class="tool-group">
+                            <button class="tool-btn" @onclick="ToggleMeasurementPanel" title="Toggle Measurements">
+                                <i class="fas fa-calculator"></i>
+                                Measurements
                             </button>
-                        }
-                        else
-                        {
-                            <button class="btn btn-warning" @onclick="ToggleFullscreen" title="Exit Fullscreen">
-                                <i class="fas fa-compress"></i>
-                                Exit Fullscreen
+                            <button class="tool-btn" @onclick="OpenFullMeasurementsPage" title="Open Measurements in New Window">
+                                <i class="fas fa-external-link-alt"></i>
+                                Full View
                             </button>
-                        }
+                        </div>
 
-                        @if (OnClose.HasDelegate)
-                        {
-                            <button type="button" class="btn btn-secondary" @onclick="HandleCloseAsync" @onclick:stopPropagation="true" disabled="@isSaving">
-                                @if (isSaving)
-                                {
-                                    <i class="fas fa-spinner fa-spin"></i>
-                                    <text>Saving...</text>
-                                }
-                                else
-                                {
-                                    <i class="fas fa-save"></i>
-                                    <text>Save & Close</text>
-                                }
-                            </button>
-                        }
+                        <div class="tool-group">
+                            @if (!isFullscreen)
+                            {
+                                <button class="btn btn-primary" @onclick="ToggleFullscreen" title="Enter Fullscreen">
+                                    <i class="fas fa-expand"></i>
+                                    Fullscreen
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-warning" @onclick="ToggleFullscreen" title="Exit Fullscreen">
+                                    <i class="fas fa-compress"></i>
+                                    Exit Fullscreen
+                                </button>
+                            }
+
+                            @if (OnClose.HasDelegate)
+                            {
+                                <button type="button" class="btn btn-secondary" @onclick="HandleCloseAsync" @onclick:stopPropagation="true" disabled="@isSaving">
+                                    @if (isSaving)
+                                    {
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <text>Saving...</text>
+                                    }
+                                    else
+                                    {
+                                        <i class="fas fa-save"></i>
+                                        <text>Save & Close</text>
+                                    }
+                                </button>
+                            }
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- View-Only Mode Banner -->
-            <ViewOnlyBanner IsEditMode="@isEditMode"
-                           EditorName="@(activeLock?.UserName ?? "Another user")"
-                           OnRefreshClicked="@TryAcquireEditMode" />
+                <!-- View-Only Mode Banner (Only for takeoff viewer) -->
+                <ViewOnlyBanner IsEditMode="@isEditMode"
+                               EditorName="@(activeLock?.UserName ?? "Another user")"
+                               OnRefreshClicked="@TryAcquireEditMode" />
+            }
 
-            <!-- Main Content Area (3-column layout) -->
-            <div class="viewer-main-content">
-                <!-- Catalogue Sidebar (Left) -->
-                <TakeoffCatalogueSidebar IsVisible="@sidebarVisible"
-                                        IsVisibleChanged="@((bool v) => sidebarVisible = v)"
-                                        SelectedItem="@selectedCatalogueItem"
-                                        SelectedItemChanged="@OnCatalogueItemSelected" />
+            <!-- Main Content Area -->
+            <div class="viewer-main-content @(PackageDrawingId == 0 ? "upload-preview-mode" : "")">
+                @if (PackageDrawingId > 0)
+                {
+                    <!-- Catalogue Sidebar (Left) - Only for takeoff viewer -->
+                    <TakeoffCatalogueSidebar IsVisible="@sidebarVisible"
+                                            IsVisibleChanged="@((bool v) => sidebarVisible = v)"
+                                            SelectedItem="@selectedCatalogueItem"
+                                            SelectedItemChanged="@OnCatalogueItemSelected" />
+                }
 
                 <!-- Nutrient PDF Container (Center) -->
                 <div class="nutrient-container-wrapper">
                     <div id="@containerId" class="nutrient-pdf-container"></div>
                 </div>
 
-                <!-- Measurement Panel (Right) -->
-                <TakeoffMeasurementPanel PackageDrawingId="@PackageDrawingId"
-                                        PdfContainerId="@containerId"
-                                        IsVisible="@measurementPanelVisible"
-                                        IsVisibleChanged="@((bool v) => measurementPanelVisible = v)"
-                                        OnMeasurementSaved="@OnMeasurementSaved"
-                                        @ref="measurementPanel" />
+                @if (PackageDrawingId > 0)
+                {
+                    <!-- Measurement Panel (Right) - Only for takeoff viewer -->
+                    <TakeoffMeasurementPanel PackageDrawingId="@PackageDrawingId"
+                                            PdfContainerId="@containerId"
+                                            IsVisible="@measurementPanelVisible"
+                                            IsVisibleChanged="@OnMeasurementPanelVisibilityChanged"
+                                            OnMeasurementSaved="@OnMeasurementSaved"
+                                            @ref="measurementPanel" />
+                }
             </div>
         </div><!-- End Fullscreen Wrapper -->
     }
@@ -353,7 +363,8 @@
     {
         try
         {
-            drawing = await DbContext.PackageDrawings
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            drawing = await dbContext.PackageDrawings
                 .Include(pd => pd.Package)
                 .FirstOrDefaultAsync(pd => pd.Id == PackageDrawingId);
 
@@ -392,11 +403,79 @@
         StateHasChanged(); // CRITICAL: Force re-render to pass new value to child component
     }
 
-    private void ToggleMeasurementPanel()
+    private async Task ToggleMeasurementPanel()
     {
         measurementPanelVisible = !measurementPanelVisible;
+        Logger.LogInformation("[NutrientPdfViewer] ========================================");
         Logger.LogInformation("[NutrientPdfViewer] Measurement panel toggled: {Visible}", measurementPanelVisible);
         StateHasChanged();
+
+        // CRITICAL: Update modal positioning when measurement panel visibility changes
+        // Call immediately to start positioning updates
+        await Task.Delay(50); // Wait for DOM render
+        try
+        {
+            await JS.InvokeVoidAsync("updateModalAndFooterPositions");
+            Logger.LogInformation("[NutrientPdfViewer] ✅ Called updateModalAndFooterPositions IMMEDIATELY");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] ❌ Error calling updateModalAndFooterPositions immediately");
+        }
+
+        // Wait for CSS transition to complete (footer has 0.3s transform transition)
+        await Task.Delay(300); // Wait for 0.3s transition
+        try
+        {
+            await JS.InvokeVoidAsync("updateModalAndFooterPositions");
+            Logger.LogInformation("[NutrientPdfViewer] ✅ Called updateModalAndFooterPositions AFTER TRANSITION");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] ❌ Error calling updateModalAndFooterPositions after transition");
+        }
+
+        Logger.LogInformation("[NutrientPdfViewer] Called JavaScript to update modal positions after measurement panel toggle");
+        Logger.LogInformation("[NutrientPdfViewer] ========================================");
+    }
+
+    /// <summary>
+    /// Called when the measurement panel's visibility changes (from the child component's TogglePanel button)
+    /// </summary>
+    private async Task OnMeasurementPanelVisibilityChanged(bool isVisible)
+    {
+        Logger.LogInformation("[NutrientPdfViewer] ========================================");
+        Logger.LogInformation("[NutrientPdfViewer] OnMeasurementPanelVisibilityChanged called: {IsVisible}", isVisible);
+
+        measurementPanelVisible = isVisible;
+        StateHasChanged();
+
+        // CRITICAL: Update modal positioning when measurement panel visibility changes
+        // Call immediately to start positioning updates
+        await Task.Delay(50); // Wait for DOM render
+        try
+        {
+            await JS.InvokeVoidAsync("updateModalAndFooterPositions");
+            Logger.LogInformation("[NutrientPdfViewer] ✅ Called updateModalAndFooterPositions IMMEDIATELY");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] ❌ Error calling updateModalAndFooterPositions immediately");
+        }
+
+        // Wait for CSS transition to complete (footer has 0.3s transform transition)
+        await Task.Delay(300); // Wait for 0.3s transition
+        try
+        {
+            await JS.InvokeVoidAsync("updateModalAndFooterPositions");
+            Logger.LogInformation("[NutrientPdfViewer] ✅ Called updateModalAndFooterPositions AFTER TRANSITION");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] ❌ Error calling updateModalAndFooterPositions after transition");
+        }
+
+        Logger.LogInformation("[NutrientPdfViewer] ========================================");
     }
 
     private async Task OpenFullMeasurementsPage()
@@ -409,7 +488,8 @@
                 return;
             }
 
-            var url = $"/packages/{drawing.PackageId}/drawings/{PackageDrawingId}/measurements";
+            var tenantSlug = await TenantService.GetCurrentTenantSlugAsync() ?? "default";
+            var url = $"/{tenantSlug}/trace/packages/{drawing.PackageId}/drawings/{PackageDrawingId}/measurements";
             Logger.LogInformation("[NutrientPdfViewer] Opening measurements page in new window: {Url}", url);
 
             // Open in new window/tab using JavaScript
@@ -762,8 +842,10 @@
         {
             Logger.LogInformation("[NutrientPdfViewer] Restoring PDF state for drawing {DrawingId}", PackageDrawingId);
 
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+
             // Load the drawing with its saved Instant JSON and calibration config
-            var drawingWithState = await DbContext.PackageDrawings
+            var drawingWithState = await dbContext.PackageDrawings
                 .AsNoTracking()
                 .FirstOrDefaultAsync(pd => pd.Id == PackageDrawingId);
 
@@ -1070,7 +1152,8 @@
                     Logger.LogInformation("[NutrientPdfViewer] Step 2: Uploading to cloud storage via {Provider}...",
                         CloudStorage.ProviderName);
 
-                    var drawing = await DbContext.PackageDrawings
+                    await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+                    var drawing = await dbContext.PackageDrawings
                         .FirstOrDefaultAsync(pd => pd.Id == PackageDrawingId);
 
                     if (drawing != null && !string.IsNullOrEmpty(drawing.SharePointItemId))
@@ -1092,7 +1175,7 @@
                         drawing.CalibrationConfig = null;
                         drawing.CalibrationConfigLastUpdated = DateTime.UtcNow;
 
-                        await DbContext.SaveChangesAsync();
+                        await dbContext.SaveChangesAsync();
                         Logger.LogInformation("[NutrientPdfViewer] ✓ Cleared Instant JSON (annotations embedded in PDF)");
                     }
                     else
@@ -1240,6 +1323,14 @@
     {
         try
         {
+            // For upload preview mode (PackageDrawingId == 0), skip lock system and enable edit mode
+            if (PackageDrawingId == 0)
+            {
+                Logger.LogInformation("[NutrientPdfViewer] Upload preview mode - skipping lock system, enabling edit mode");
+                isEditMode = true;
+                return;
+            }
+
             // Get current user info from authentication
             var httpContext = HttpContextAccessor.HttpContext;
             if (httpContext?.User?.Identity?.IsAuthenticated == true)
@@ -1264,7 +1355,8 @@
             // Get company ID from authenticated user
             if (currentUserId > 0)
             {
-                var user = await DbContext.Users.FindAsync(currentUserId);
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+                var user = await dbContext.Users.FindAsync(currentUserId);
                 currentCompanyId = user?.CompanyId ?? 1; // Default to 1 if user has no company
                 Logger.LogInformation("[NutrientPdfViewer] Retrieved CompanyId={CompanyId} for user {UserId}", currentCompanyId, currentUserId);
             }
@@ -1571,6 +1663,16 @@
         flex: 1;
         min-height: 0;
         overflow: hidden;
+    }
+
+    /* Upload preview mode - full width PDF viewer without sidebars */
+    .viewer-main-content.upload-preview-mode {
+        display: block;
+    }
+
+    .viewer-main-content.upload-preview-mode .nutrient-container-wrapper {
+        width: 100%;
+        height: 100%;
     }
 
     /* When in fullscreen mode, apply full viewport sizing */

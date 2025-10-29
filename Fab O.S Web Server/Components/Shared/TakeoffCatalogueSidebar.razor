@@ -91,6 +91,10 @@
                                     {
                                         <span class="weight-badge">@item.Mass_kg_m2.Value.ToString("F3") kg/m²</span>
                                     }
+                                    @if (item.StandardLength_m.HasValue)
+                                    {
+                                        <span class="weight-badge">@item.StandardLength_m m</span>
+                                    }
                                 </div>
                             </div>
                         }
@@ -193,6 +197,10 @@
                                                                         @if (item.SurfaceArea_m2_per_m.HasValue)
                                                                         {
                                                                             <span class="weight-badge">@item.SurfaceArea_m2_per_m.Value.ToString("F3") m²/m</span>
+                                                                        }
+                                                                        @if (item.StandardLength_m.HasValue)
+                                                                        {
+                                                                            <span class="weight-badge">@item.StandardLength_m m</span>
                                                                         }
                                                                     </div>
                                                                 </div>

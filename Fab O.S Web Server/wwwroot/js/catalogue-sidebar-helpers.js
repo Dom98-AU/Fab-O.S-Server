@@ -1,6 +1,13 @@
 /**
- * Catalogue Sidebar Helpers
- * Manages body classes for catalogue sidebar state to coordinate with modals
+ * Catalogue Sidebar Helpers (Modernized with CSS Variables)
+ *
+ * Manages body classes for catalogue sidebar state.
+ * Positioning is now handled by CSS custom properties - no MutationObserver needed!
+ *
+ * CSS Variables automatically handle responsive positioning:
+ * - var(--main-sidebar-width) updates when main sidebar collapses/expands
+ * - Catalogue sidebar position: left: var(--main-sidebar-width)
+ * - Modal position: left: calc(var(--main-sidebar-width) + var(--catalogue-sidebar-width))
  */
 
 /**
@@ -28,35 +35,28 @@ export function updateCatalogueSidebarState(isVisible, widthClass) {
         }
     }
 
-    console.log('[Catalogue Sidebar] Body classes after update:', document.body.className);
-    console.log('[Catalogue Sidebar] Has modal-open:', document.body.classList.contains('modal-open'));
-    console.log('[Catalogue Sidebar] Has catalogue-sidebar-open:', document.body.classList.contains('catalogue-sidebar-open'));
+    // Get computed CSS variable values for debugging
+    const rootStyles = getComputedStyle(document.documentElement);
+    const mainSidebarWidth = rootStyles.getPropertyValue('--main-sidebar-width').trim();
+    const catalogueSidebarWidth = rootStyles.getPropertyValue('--catalogue-sidebar-width').trim();
 
-    // Check modal element position
+    console.log('[Catalogue Sidebar] 📏 CSS Variable --main-sidebar-width:', mainSidebarWidth);
+    console.log('[Catalogue Sidebar] 📏 CSS Variable --catalogue-sidebar-width:', catalogueSidebarWidth);
+    console.log('[Catalogue Sidebar] Body classes after update:', document.body.className);
+
+    // Check element positions
     const modal = document.querySelector('.modal-fullscreen');
     const catalogueSidebar = document.querySelector('.takeoff-catalogue-sidebar');
 
     if (modal) {
         const modalStyle = window.getComputedStyle(modal);
         console.log('[Catalogue Sidebar] 🎯 MODAL computed left:', modalStyle.left);
-        console.log('[Catalogue Sidebar] 🎯 MODAL computed z-index:', modalStyle.zIndex);
-
-        // Check which CSS rule is being applied
-        const matchedRules = [];
-        if (document.body.classList.contains('modal-open')) {
-            matchedRules.push('body.modal-open');
-        }
-        if (document.body.classList.contains('catalogue-sidebar-open')) {
-            matchedRules.push('catalogue-sidebar-open');
-        }
-        console.log('[Catalogue Sidebar] 🎯 Active body classes for CSS:', matchedRules.join(' + '));
     }
 
     if (catalogueSidebar) {
         const sidebarStyle = window.getComputedStyle(catalogueSidebar);
         console.log('[Catalogue Sidebar] 📍 SIDEBAR computed left:', sidebarStyle.left);
-        console.log('[Catalogue Sidebar] 📍 SIDEBAR computed z-index:', sidebarStyle.zIndex);
-        console.log('[Catalogue Sidebar] 📍 SIDEBAR has .visible class:', catalogueSidebar.classList.contains('visible'));
+        console.log('[Catalogue Sidebar] 📍 SIDEBAR width:', sidebarStyle.width);
     }
 
     console.log(`[Catalogue Sidebar] ====================================`);

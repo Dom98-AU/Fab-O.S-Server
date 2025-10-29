@@ -87,7 +87,7 @@ public class User
     public virtual ICollection<Project> ModifiedProjects { get; set; } = new List<Project>();
     public virtual ICollection<Package> CreatedPackages { get; set; } = new List<Package>();
     public virtual ICollection<Package> ModifiedPackages { get; set; } = new List<Package>();
-    public virtual ICollection<TraceDrawing> UploadedTraceDrawings { get; set; } = new List<TraceDrawing>();
+    public virtual ICollection<Takeoff> UploadedTraceDrawings { get; set; } = new List<Takeoff>();
     public virtual ICollection<MachineCenter> CreatedMachineCenters { get; set; } = new List<MachineCenter>();
     public virtual ICollection<MachineCenter> ModifiedMachineCenters { get; set; } = new List<MachineCenter>();
 }

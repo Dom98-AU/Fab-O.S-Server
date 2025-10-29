@@ -20,12 +20,12 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
 
     private bool isLoading = true;
     private string searchTerm = "";
-    private GenericViewSwitcher<TraceDrawing>.ViewType currentView = GenericViewSwitcher<TraceDrawing>.ViewType.Table;
-    private List<TraceDrawing> allTakeoffs = new();
-    private List<TraceDrawing> filteredTakeoffs = new();
-    private List<TraceDrawing> selectedTableItems = new();
-    private List<TraceDrawing> selectedListItems = new();
-    private List<TraceDrawing> selectedCardItems = new();
+    private GenericViewSwitcher<Takeoff>.ViewType currentView = GenericViewSwitcher<Takeoff>.ViewType.Table;
+    private List<Takeoff> allTakeoffs = new();
+    private List<Takeoff> filteredTakeoffs = new();
+    private List<Takeoff> selectedTableItems = new();
+    private List<Takeoff> selectedListItems = new();
+    private List<Takeoff> selectedCardItems = new();
 
     // View state management
     private ViewState? currentViewState;
@@ -35,10 +35,10 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
 
 
     // Table columns configuration
-    private List<GenericTableView<TraceDrawing>.TableColumn<TraceDrawing>> tableColumns = new()
+    private List<GenericTableView<Takeoff>.TableColumn<Takeoff>> tableColumns = new()
     {
         new() { Header = "Takeoff Number", ValueSelector = item => item.TakeoffNumber ?? "N/A", IsSortable = true },
-        new() { Header = "Description", ValueSelector = item => item.TraceName ?? "No description", IsSortable = true },
+        new() { Header = "Description", ValueSelector = item => item.Description ?? item.TraceName ?? "No description", IsSortable = true },
         new() { Header = "Project", ValueSelector = item => item.ProjectName ?? "N/A", IsSortable = true },
         new() { Header = "Customer", ValueSelector = item => item.Customer?.Name ?? "N/A", IsSortable = true },
         new() { Header = "Type", ValueSelector = item => item.FileType, IsSortable = true },
@@ -47,26 +47,26 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
     };
 
     // Missing template properties for Takeoffs.razor
-    private RenderFragment<TraceDrawing>? TableActionsTemplate => null;
+    private RenderFragment<Takeoff>? TableActionsTemplate => null;
 
-    private RenderFragment<TraceDrawing> ListIconTemplate => item => builder =>
+    private RenderFragment<Takeoff> ListIconTemplate => item => builder =>
     {
         builder.OpenElement(0, "i");
         builder.AddAttribute(1, "class", "fas fa-drafting-compass");
         builder.CloseElement();
     };
 
-    private RenderFragment<TraceDrawing> ListTitleTemplate => item => builder =>
+    private RenderFragment<Takeoff> ListTitleTemplate => item => builder =>
     {
         builder.AddContent(0, item.TakeoffNumber ?? "N/A");
     };
 
-    private RenderFragment<TraceDrawing> ListSubtitleTemplate => item => builder =>
+    private RenderFragment<Takeoff> ListSubtitleTemplate => item => builder =>
     {
-        builder.AddContent(0, item.TraceName ?? "No description");
+        builder.AddContent(0, item.Description ?? item.TraceName ?? "No description");
     };
 
-    private RenderFragment<TraceDrawing> ListStatusTemplate => item => builder =>
+    private RenderFragment<Takeoff> ListStatusTemplate => item => builder =>
     {
         builder.OpenElement(0, "span");
         builder.AddAttribute(1, "class", $"badge bg-{(item.ProcessingStatus == "Completed" ? "success" : "secondary")}");
@@ -74,7 +74,7 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
         builder.CloseElement();
     };
 
-    private RenderFragment<TraceDrawing> ListDetailsTemplate => item => builder =>
+    private RenderFragment<Takeoff> ListDetailsTemplate => item => builder =>
     {
         builder.AddContent(0, $"Project: {item.ProjectName ?? "N/A"}");
     };
@@ -103,7 +103,7 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
             },
             new ColumnDefinition
             {
-                PropertyName = "TraceName",
+                PropertyName = "Description",
                 DisplayName = "Description",
                 Type = ColumnType.Text,
                 IsVisible = true,
@@ -205,7 +205,7 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
     {
         if (string.IsNullOrWhiteSpace(searchTerm))
         {
-            filteredTakeoffs = new List<TraceDrawing>(allTakeoffs);
+            filteredTakeoffs = new List<Takeoff>(allTakeoffs);
         }
         else
         {
@@ -226,41 +226,41 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
         StateHasChanged();
     }
 
-    private void OnViewChanged(GenericViewSwitcher<TraceDrawing>.ViewType newView)
+    private void OnViewChanged(GenericViewSwitcher<Takeoff>.ViewType newView)
     {
         currentView = newView;
         StateHasChanged();
     }
 
-    private void HandleTableSelectionChanged(List<TraceDrawing> selected)
+    private void HandleTableSelectionChanged(List<Takeoff> selected)
     {
         selectedTableItems = selected;
         StateHasChanged();
     }
 
-    private void HandleListSelectionChanged(List<TraceDrawing> selected)
+    private void HandleListSelectionChanged(List<Takeoff> selected)
     {
         selectedListItems = selected;
         StateHasChanged();
     }
 
-    private void HandleCardSelectionChanged(List<TraceDrawing> selected)
+    private void HandleCardSelectionChanged(List<Takeoff> selected)
     {
         selectedCardItems = selected;
         StateHasChanged();
     }
 
-    private void HandleRowClick(TraceDrawing item)
+    private void HandleRowClick(Takeoff item)
     {
         OpenTakeoff(item.Id);
     }
 
-    private void HandleRowDoubleClick(TraceDrawing item)
+    private void HandleRowDoubleClick(Takeoff item)
     {
         OpenTakeoff(item.Id);
     }
 
-    private void OnSelectionChanged((TraceDrawing item, bool selected) args)
+    private void OnSelectionChanged((Takeoff item, bool selected) args)
     {
         if (args.selected)
         {

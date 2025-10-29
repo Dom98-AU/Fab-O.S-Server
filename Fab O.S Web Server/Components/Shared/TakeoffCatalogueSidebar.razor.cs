@@ -1,6 +1,7 @@
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Services.Interfaces;
 using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
 
 namespace FabOS.WebServer.Components.Shared
@@ -11,7 +12,7 @@ namespace FabOS.WebServer.Components.Shared
         [Inject] private ILogger<TakeoffCatalogueSidebar> Logger { get; set; } = default!;
         [Inject] private IJSRuntime JS { get; set; } = default!;
         [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
-        [Inject] private Data.Contexts.ApplicationDbContext DbContext { get; set; } = default!;
+        [Inject] private IDbContextFactory<Data.Contexts.ApplicationDbContext> DbContextFactory { get; set; } = default!;
 
         [Parameter] public bool IsVisible { get; set; } = true;
         [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
@@ -56,7 +57,8 @@ namespace FabOS.WebServer.Components.Shared
                 var userIdClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
-                    var user = await DbContext.Users.FindAsync(userId);
+                    await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+                    var user = await dbContext.Users.FindAsync(userId);
                     currentCompanyId = user?.CompanyId ?? 1;
                     Logger.LogInformation("[TakeoffCatalogueSidebar] Retrieved CompanyId={CompanyId} for user {UserId}", currentCompanyId, userId);
                 }

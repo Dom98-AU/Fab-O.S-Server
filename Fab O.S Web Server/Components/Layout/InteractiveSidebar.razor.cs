@@ -152,14 +152,29 @@ public partial class InteractiveSidebar : ComponentBase
 
     private async Task ToggleSidebar()
     {
+        Console.WriteLine($"========================================");
+        Console.WriteLine($"[InteractiveSidebar] ⚡ ToggleSidebar called!");
+        Console.WriteLine($"[InteractiveSidebar] Current state - IsCollapsed: {IsCollapsed}, IsExpanded: {IsExpanded}");
+
         IsCollapsed = !IsCollapsed;
         if (IsCollapsed)
         {
             IsExpanded = false;
             ShowModuleSelector = false;
+            Console.WriteLine($"[InteractiveSidebar] ✅ Sidebar is now COLLAPSED");
+        }
+        else
+        {
+            Console.WriteLine($"[InteractiveSidebar] ✅ Sidebar is now EXPANDED (normal)");
         }
 
+        Console.WriteLine($"[InteractiveSidebar] New state - IsCollapsed: {IsCollapsed}, IsExpanded: {IsExpanded}");
+        Console.WriteLine($"[InteractiveSidebar] 🔄 Calling UpdateSidebarBodyClass to sync JavaScript...");
+
         await UpdateSidebarBodyClass();
+
+        Console.WriteLine($"[InteractiveSidebar] ✓ UpdateSidebarBodyClass completed");
+        Console.WriteLine($"========================================");
     }
 
     private async Task ToggleExpanded()
@@ -290,10 +305,20 @@ public partial class InteractiveSidebar : ComponentBase
         {
             var isCollapsed = IsCollapsed;
             var isExpanded = IsExpanded;
+            Console.WriteLine($"[InteractiveSidebar] 📞 UpdateSidebarBodyClass - Preparing to call JavaScript");
+            Console.WriteLine($"[InteractiveSidebar] 📊 Parameters: isCollapsed={isCollapsed}, isExpanded={isExpanded}");
+            Console.WriteLine($"[InteractiveSidebar] 🔧 Calling JSRuntime.InvokeVoidAsync('updateSidebarBodyClass', {isCollapsed}, {isExpanded})...");
+
             await JSRuntime.InvokeVoidAsync("updateSidebarBodyClass", isCollapsed, isExpanded);
+
+            Console.WriteLine($"[InteractiveSidebar] ✅ JavaScript call completed successfully");
+            Console.WriteLine($"[InteractiveSidebar] 💡 Expected body class: {(isCollapsed ? "sidebar-collapsed" : isExpanded ? "sidebar-expanded" : "none")}");
+            Console.WriteLine($"[InteractiveSidebar] 💡 Expected --main-sidebar-width: {(isCollapsed ? "60px" : isExpanded ? "420px" : "280px")}");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Console.WriteLine($"[InteractiveSidebar] ❌ UpdateSidebarBodyClass - ERROR: {ex.Message}");
+            Console.WriteLine($"[InteractiveSidebar] Stack trace: {ex.StackTrace}");
             // Ignore JavaScript errors during component disposal or when JS isn't available
         }
     }

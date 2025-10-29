@@ -25,7 +25,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<RoutingOperation> RoutingOperations { get; set; }
 
     // Steel estimation entities
-    public DbSet<TraceDrawing> TraceDrawings { get; set; }
+    public DbSet<Takeoff> Takeoffs { get; set; } // Previously TraceDrawings - renamed for clarity
+    public DbSet<Takeoff> TraceDrawings => Takeoffs; // Backward compatibility alias
     public DbSet<TakeoffRevision> TakeoffRevisions { get; set; }
     public DbSet<TraceMeasurement> TraceMeasurements { get; set; }
     public DbSet<TraceBeamDetection> TraceBeamDetections { get; set; }
@@ -211,19 +212,19 @@ public class ApplicationDbContext : DbContext
             .Property(c => c.MaxUsers)
             .HasDefaultValue(10);
 
-        modelBuilder.Entity<TraceDrawing>()
+        modelBuilder.Entity<Takeoff>()
             .Property(td => td.UploadDate)
             .HasDefaultValueSql("getutcdate()");
 
-        modelBuilder.Entity<TraceDrawing>()
+        modelBuilder.Entity<Takeoff>()
             .Property(td => td.ProcessingStatus)
             .HasDefaultValue("Pending");
 
-        modelBuilder.Entity<TraceDrawing>()
+        modelBuilder.Entity<Takeoff>()
             .Property(td => td.ScaleUnit)
             .HasDefaultValue("mm");
 
-        modelBuilder.Entity<TraceDrawing>()
+        modelBuilder.Entity<Takeoff>()
             .Property(td => td.OCRStatus)
             .HasDefaultValue("NotProcessed");
 

@@ -74,6 +74,9 @@ public class CustomerContact
     [Key]
     public int Id { get; set; }
 
+    [StringLength(50)]
+    public string? ContactNumber { get; set; }
+
     [Required]
     public int CustomerId { get; set; }
 

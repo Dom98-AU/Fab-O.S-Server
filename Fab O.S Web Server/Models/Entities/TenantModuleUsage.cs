@@ -82,5 +82,5 @@ public class Project
     public virtual Customer? Customer { get; set; }
 
     public virtual ICollection<Package> Packages { get; set; } = new List<Package>();
-    public virtual ICollection<TraceDrawing> TraceDrawings { get; set; } = new List<TraceDrawing>();
+    public virtual ICollection<Takeoff> TraceDrawings { get; set; } = new List<Takeoff>();
 }

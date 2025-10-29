@@ -22,7 +22,7 @@ public partial class RevisionsList : ComponentBase, IToolbarActionProvider
 
     private List<TakeoffRevision> allRevisions = new();
     private List<TakeoffRevision> filteredRevisions = new();
-    private TraceDrawing? takeoff;
+    private Takeoff? takeoff;
     private bool isLoading = true;
     private string? errorMessage;
     private string searchTerm = "";

@@ -4,8 +4,8 @@
 /* Container - Page background gradient */
 .modern-table-container {
     min-height: auto;
-    background: linear-gradient(to bottom right, #f8fafc, #e2e8f0);
-    padding: 2rem;
+    background: transparent;
+    padding: 1rem;
     margin: 0;
 }
 
@@ -34,14 +34,14 @@
 
 /* Table Header */
 .modern-table-header {
-    background-color: #f8fafc;
+    background-color: #f9fafb;
     border-bottom: 1px solid #e2e8f0;
 }
 
 .modern-table-header th {
     text-align: left;
-    padding: 1rem 1.5rem;
-    font-size: 0.875rem;
+    padding: 1.25rem 1.75rem;
+    font-size: 1rem;
     font-weight: 600;
     color: #475569;
     text-transform: none;
@@ -50,7 +50,7 @@
     position: sticky;
     top: 0;
     z-index: 10;
-    background-color: #f8fafc;
+    background-color: #f9fafb;
 }
 
 .modern-table-header th:first-child {
@@ -81,7 +81,7 @@
     border: none;
     cursor: pointer;
     padding: 0;
-    font-size: 0.875rem;
+    font-size: 1rem;
     font-weight: 600;
     color: #475569;
     transition: color 150ms ease;
@@ -97,7 +97,7 @@
 }
 
 .sort-icon {
-    font-size: 0.75rem;
+    font-size: 0.875rem;
     color: #64748b;
 }
 
@@ -109,11 +109,11 @@
 }
 
 .modern-table-row:hover {
-    background-color: #f8fafc;
+    background-color: #f9fafb;
 }
 
 .modern-table-row.selected {
-    background-color: #eff6ff;
+    background-color: #f3f4f6;
 }
 
 .modern-table-row:last-child {
@@ -122,9 +122,9 @@
 
 /* Table Cells */
 .modern-table-row td {
-    padding: 1rem 1.5rem;
+    padding: 1.25rem 1.75rem;
     color: #64748b;
-    font-size: 1rem;
+    font-size: 1.125rem;
     font-weight: 400;
     vertical-align: middle;
 }
@@ -343,7 +343,7 @@
 
 .modern-table-header .frozen-column {
     z-index: 15;
-    background-color: #f8fafc;
+    background-color: #f9fafb;
 }
 
 .modern-table-row .frozen-column {
@@ -351,11 +351,11 @@
 }
 
 .modern-table-row:hover .frozen-column {
-    background-color: #f8fafc;
+    background-color: #f9fafb;
 }
 
 .modern-table-row.selected .frozen-column {
-    background-color: #eff6ff;
+    background-color: #f3f4f6;
 }
 
 /* Loading State */

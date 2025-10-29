@@ -13,6 +13,7 @@ namespace FabOS.WebServer.Components.Pages;
 
 public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDisposable
 {
+    [Parameter] public string TenantSlug { get; set; } = string.Empty;
     [Parameter] public int Id { get; set; }
 
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
@@ -24,7 +25,7 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
     private Customer? customer;
     private CustomerAddress? primaryAddress;
     private CustomerContact? primaryContact;
-    private List<TraceDrawing>? relatedDrawings;
+    private List<Takeoff>? relatedDrawings;
     private bool isLoading = false;
     private bool isEditMode = false;
     private bool isNewCustomer = false;
@@ -148,7 +149,7 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
         // Default breadcrumb for new customer
         await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
             "Customers",
-            "/customers",
+            $"/{TenantSlug}/trace/customers",
             "Customer",
             null,
             "New Customer"
@@ -181,7 +182,7 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
         // Default breadcrumb for existing customer
         await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
             "Customers",
-            "/customers",
+            $"/{TenantSlug}/trace/customers",
             "Customer",
             Id
         );
@@ -355,7 +356,7 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
             hasUnsavedChanges = false;
 
             // Navigate back to return URL or customers list
-            Console.WriteLine($"Navigating back to: {returnUrl ?? "/customers"}");
+            Console.WriteLine($"Navigating back to: {returnUrl ?? $"/{TenantSlug}/trace/customers"}");
             NavigateBack();
         }
         catch (Exception ex)
@@ -382,7 +383,7 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
         if (hasUnsavedChanges)
         {
             // Show warning if there are unsaved changes
-            pendingNavigationUrl = returnUrl ?? "/customers";
+            pendingNavigationUrl = returnUrl ?? $"/{TenantSlug}/trace/customers";
             showUnsavedChangesDialog = true;
             StateHasChanged();
         }
@@ -407,18 +408,18 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
         }
         else
         {
-            Navigation.NavigateTo("/customers");
+            Navigation.NavigateTo($"/{TenantSlug}/trace/customers");
         }
     }
 
     private void ViewDrawing(int drawingId)
     {
-        Navigation.NavigateTo($"/trace-drawings/{drawingId}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{drawingId}");
     }
 
     private void ViewAllDrawings()
     {
-        Navigation.NavigateTo($"/trace-drawings?customerId={Id}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs?customerId={Id}");
     }
 
     private void ViewOnMap(CustomerAddress address)
@@ -444,7 +445,7 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
                 DbContext.Customers.Remove(customer);
                 await DbContext.SaveChangesAsync();
                 hasUnsavedChanges = false; // Clear flag before navigation
-                Navigation.NavigateTo("/customers");
+                Navigation.NavigateTo($"/{TenantSlug}/trace/customers");
             }
             catch (Exception ex)
             {
@@ -559,7 +560,7 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
 
     private void NavigateToContacts()
     {
-        Navigation.NavigateTo($"/contacts?customerId={Id}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/contacts?customerId={Id}");
     }
 
     // ABN Lookup Methods

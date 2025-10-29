@@ -13,9 +13,9 @@ public partial class DrawingManagement : ComponentBase
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private ILogger<DrawingManagement> Logger { get; set; } = default!;
 
-    private List<TraceDrawing> drawings = new();
-    private List<TraceDrawing> filteredDrawings = new();
-    private TraceDrawing? selectedDrawing;
+    private List<Takeoff> drawings = new();
+    private List<Takeoff> filteredDrawings = new();
+    private Takeoff? selectedDrawing;
     private bool isUploading = false;
     private string searchTerm = "";
     private string filterStatus = "all";
@@ -56,7 +56,7 @@ public partial class DrawingManagement : ComponentBase
                     continue;
                 }
 
-                var drawing = new TraceDrawing
+                var drawing = new Takeoff
                 {
                     CompanyId = 1, // TODO: Get from user context
                     ProjectId = 1, // TODO: Get from selected project
@@ -90,12 +90,12 @@ public partial class DrawingManagement : ComponentBase
         }
     }
 
-    private void SelectDrawing(TraceDrawing drawing)
+    private void SelectDrawing(Takeoff drawing)
     {
         selectedDrawing = drawing;
     }
 
-    private async Task DeleteDrawing(TraceDrawing drawing)
+    private async Task DeleteDrawing(Takeoff drawing)
     {
         try
         {
@@ -145,7 +145,7 @@ public partial class DrawingManagement : ComponentBase
         viewMode = mode;
     }
 
-    private void OpenDrawingViewer(TraceDrawing drawing)
+    private void OpenDrawingViewer(Takeoff drawing)
     {
         Navigation.NavigateTo($"/drawing-viewer/{drawing.Id}");
     }
@@ -266,7 +266,7 @@ public partial class DrawingManagement : ComponentBase
         StateHasChanged();
     }
 
-    private void ViewDrawing(TraceDrawing drawing)
+    private void ViewDrawing(Takeoff drawing)
     {
         Navigation.NavigateTo($"/drawing-viewer/{drawing.Id}");
     }
@@ -280,13 +280,13 @@ public partial class DrawingManagement : ComponentBase
         }
     }
 
-    private void ImportDrawing(TraceDrawing drawing)
+    private void ImportDrawing(Takeoff drawing)
     {
         Console.WriteLine($"Import drawing: {drawing.FileName}");
         // Implement import logic
     }
 
-    private void StartTakeoff(TraceDrawing drawing)
+    private void StartTakeoff(Takeoff drawing)
     {
         Navigation.NavigateTo($"/takeoff/{drawing.Id}");
     }
@@ -300,7 +300,7 @@ public partial class DrawingManagement : ComponentBase
         }
     }
 
-    private async Task ProcessWithOcr(TraceDrawing drawing)
+    private async Task ProcessWithOcr(Takeoff drawing)
     {
         try
         {

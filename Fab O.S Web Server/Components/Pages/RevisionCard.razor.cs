@@ -18,7 +18,7 @@ public partial class RevisionCard : ComponentBase, IToolbarActionProvider
     [Inject] private ITakeoffRevisionService RevisionService { get; set; } = default!;
 
     private TakeoffRevision? revision;
-    private TraceDrawing? takeoff;
+    private Takeoff? takeoff;
     private bool isLoading = true;
     private bool isEditMode = false;
     private bool isSaving = false;
@@ -205,7 +205,7 @@ public partial class RevisionCard : ComponentBase, IToolbarActionProvider
 
     private void NavigateToPackage(int packageId)
     {
-        Navigation.NavigateTo($"/packages/{packageId}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/packages/{packageId}");
     }
 
     private bool IsSectionExpanded(string sectionName)

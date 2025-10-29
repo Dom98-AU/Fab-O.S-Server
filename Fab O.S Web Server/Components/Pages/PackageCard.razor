@@ -134,12 +134,12 @@
                     </div> <!-- End of General section content -->
                 </div> <!-- End of General section -->
 
-                <!-- Schedule & Costing Section -->
+                <!-- Scheduling Section -->
                 <div class="package-section">
                     <div class="package-section-header @(IsSectionExpanded("schedule") ? "expanded" : "")" @onclick="@(() => ToggleSection("schedule"))">
                         <div class="section-header-content">
                             <i class="fas fa-calendar-alt section-icon"></i>
-                            <span class="section-title">Schedule & Costing</span>
+                            <span class="section-title">Scheduling</span>
                         </div>
                         <i class="fas @(IsSectionExpanded("schedule") ? "fa-chevron-up" : "fa-chevron-down") toggle-icon"></i>
                     </div>
@@ -148,113 +148,35 @@
                     {
                         <div class="package-section-content">
                             <div class="package-form-grid two-column">
-                        <!-- Start Date -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">Start Date</label>
-                            @if (isEditMode)
-                            {
-                                <input type="date" class="package-form-control" @bind="package.StartDate" />
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">@(package.StartDate?.ToString("MMM dd, yyyy") ?? "Not set")</p>
-                            }
-                        </div>
-
-                        <!-- End Date -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">End Date</label>
-                            @if (isEditMode)
-                            {
-                                <input type="date" class="package-form-control" @bind="package.EndDate" />
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">@(package.EndDate?.ToString("MMM dd, yyyy") ?? "Not set")</p>
-                            }
-                        </div>
-
-                        <!-- Estimated Hours -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">Estimated Hours</label>
-                            @if (isEditMode)
-                            {
-                                <input type="number" class="package-form-control" @bind="package.EstimatedHours" step="0.01" />
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">@package.EstimatedHours.ToString("N2")</p>
-                            }
-                        </div>
-
-                        <!-- Estimated Cost -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">Estimated Cost</label>
-                            @if (isEditMode)
-                            {
-                                <input type="number" class="package-form-control" @bind="package.EstimatedCost" step="0.01" />
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">$@package.EstimatedCost.ToString("N2")</p>
-                            }
-                        </div>
-
-                        <!-- Actual Hours -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">Actual Hours</label>
-                            @if (isEditMode)
-                            {
-                                <input type="number" class="package-form-control" @bind="package.ActualHours" step="0.01" />
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">@package.ActualHours.ToString("N2")</p>
-                            }
-                        </div>
-
-                        <!-- Actual Cost -->
-                        <div class="package-form-group">
-                            <label class="package-form-label">Actual Cost</label>
-                            @if (isEditMode)
-                            {
-                                <input type="number" class="package-form-control" @bind="package.ActualCost" step="0.01" />
-                            }
-                            else
-                            {
-                                <p class="package-form-control-plaintext">$@package.ActualCost.ToString("N2")</p>
-                            }
-                        </div>
-
-                                <!-- Labor Rate per Hour -->
+                                <!-- Start Date -->
                                 <div class="package-form-group">
-                                    <label class="package-form-label">Labor Rate per Hour</label>
+                                    <label class="package-form-label">Start Date</label>
                                     @if (isEditMode)
                                     {
-                                        <input type="number" class="package-form-control" @bind="package.LaborRatePerHour" step="0.01" />
+                                        <input type="date" class="package-form-control" @bind="package.StartDate" />
                                     }
                                     else
                                     {
-                                        <p class="package-form-control-plaintext">$@package.LaborRatePerHour.ToString("N2")</p>
+                                        <p class="package-form-control-plaintext">@(package.StartDate?.ToString("MMM dd, yyyy") ?? "Not set")</p>
                                     }
                                 </div>
 
-                                <!-- Processing Efficiency -->
+                                <!-- End Date -->
                                 <div class="package-form-group">
-                                    <label class="package-form-label">Processing Efficiency (%)</label>
+                                    <label class="package-form-label">End Date</label>
                                     @if (isEditMode)
                                     {
-                                        <input type="number" class="package-form-control" @bind="package.ProcessingEfficiency" step="0.1" min="0" max="200" />
+                                        <input type="date" class="package-form-control" @bind="package.EndDate" />
                                     }
                                     else
                                     {
-                                        <p class="package-form-control-plaintext">@((package.ProcessingEfficiency ?? 100m).ToString("N1"))%</p>
+                                        <p class="package-form-control-plaintext">@(package.EndDate?.ToString("MMM dd, yyyy") ?? "Not set")</p>
                                     }
                                 </div>
                             </div> <!-- End of form-grid -->
-                        </div> <!-- End of Schedule section content -->
+                        </div> <!-- End of Scheduling section content -->
                     }
-                </div> <!-- End of Schedule section -->
+                </div> <!-- End of Scheduling section -->
 
                 <!-- Related Section -->
                 <div class="package-section">

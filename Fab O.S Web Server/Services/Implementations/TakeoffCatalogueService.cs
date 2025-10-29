@@ -251,7 +251,27 @@ namespace FabOS.WebServer.Services.Implementations
                     case "distance":
                     case "perimeter":
                         // For linear measurements, use Mass_kg_m
-                        result.Quantity = measurementValue; // meters
+                        // Convert measurement value to meters based on unit
+                        decimal valueInMeters = measurementValue;
+                        if (unit.Equals("mm", StringComparison.OrdinalIgnoreCase))
+                        {
+                            valueInMeters = measurementValue / 1000m; // mm to m
+                        }
+                        else if (unit.Equals("cm", StringComparison.OrdinalIgnoreCase))
+                        {
+                            valueInMeters = measurementValue / 100m; // cm to m
+                        }
+                        else if (unit.Equals("in", StringComparison.OrdinalIgnoreCase))
+                        {
+                            valueInMeters = measurementValue * 0.0254m; // inches to m
+                        }
+                        else if (unit.Equals("ft", StringComparison.OrdinalIgnoreCase))
+                        {
+                            valueInMeters = measurementValue * 0.3048m; // feet to m
+                        }
+                        // else assume meters
+
+                        result.Quantity = valueInMeters;
                         result.QuantityUnit = "m";
 
                         if (item.Mass_kg_m.HasValue)
@@ -269,7 +289,27 @@ namespace FabOS.WebServer.Services.Implementations
                     case "area":
                     case "polygon":
                         // For area measurements, use Mass_kg_m2
-                        result.Quantity = measurementValue; // square meters
+                        // Convert measurement value to square meters based on unit
+                        decimal valueInSquareMeters = measurementValue;
+                        if (unit.Equals("mm²", StringComparison.OrdinalIgnoreCase) || unit.Equals("mm2", StringComparison.OrdinalIgnoreCase))
+                        {
+                            valueInSquareMeters = measurementValue / 1000000m; // mm² to m²
+                        }
+                        else if (unit.Equals("cm²", StringComparison.OrdinalIgnoreCase) || unit.Equals("cm2", StringComparison.OrdinalIgnoreCase))
+                        {
+                            valueInSquareMeters = measurementValue / 10000m; // cm² to m²
+                        }
+                        else if (unit.Equals("in²", StringComparison.OrdinalIgnoreCase) || unit.Equals("in2", StringComparison.OrdinalIgnoreCase))
+                        {
+                            valueInSquareMeters = measurementValue * 0.00064516m; // in² to m²
+                        }
+                        else if (unit.Equals("ft²", StringComparison.OrdinalIgnoreCase) || unit.Equals("ft2", StringComparison.OrdinalIgnoreCase))
+                        {
+                            valueInSquareMeters = measurementValue * 0.092903m; // ft² to m²
+                        }
+                        // else assume square meters
+
+                        result.Quantity = valueInSquareMeters;
                         result.QuantityUnit = "m²";
 
                         if (item.Mass_kg_m2.HasValue)
@@ -338,11 +378,62 @@ namespace FabOS.WebServer.Services.Implementations
             {
                 _logger.LogInformation("====== CreateMeasurementAsync CALLED ======");
                 _logger.LogInformation("AnnotationId parameter: '{AnnotationId}'", annotationId ?? "NULL");
+                _logger.LogInformation("TraceTakeoffId: {TraceTakeoffId} (from Takeoff Card via hierarchy)", traceTakeoffId);
+
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                // CRITICAL: Ensure TraceTakeoff exists for complete traceability
+                // The traceTakeoffId comes from Takeoff.Id (the Takeoff Card)
+                // We need a matching TraceTakeoff record for the measurements FK constraint
+                var traceTakeoffExists = await context.TraceTakeoffs.AnyAsync(t => t.Id == traceTakeoffId);
+
+                if (!traceTakeoffExists)
+                {
+                    _logger.LogWarning("TraceTakeoff with ID {TraceTakeoffId} does not exist. Auto-creating for complete traceability.", traceTakeoffId);
+
+                    // Get the Takeoff (formerly Takeoff) to link properly
+                    var takeoff = await context.Takeoffs.FindAsync(traceTakeoffId);
+
+                    if (takeoff == null)
+                    {
+                        throw new InvalidOperationException($"Takeoff Card with ID {traceTakeoffId} not found. Cannot create measurement without valid takeoff.");
+                    }
+
+                    // Get default TraceRecordId for this company
+                    var defaultTraceRecord = await context.TraceRecords
+                        .Where(r => r.CompanyId == companyId)
+                        .OrderBy(r => r.Id)
+                        .FirstOrDefaultAsync();
+
+                    if (defaultTraceRecord == null)
+                    {
+                        throw new InvalidOperationException($"Cannot create TraceTakeoff: No TraceRecords found for CompanyId {companyId}. Please create a TraceRecord first.");
+                    }
+
+                    // Auto-create TraceTakeoff linked to the Takeoff Card
+                    var newTraceTakeoff = new TraceTakeoff
+                    {
+                        Id = traceTakeoffId,
+                        TraceRecordId = defaultTraceRecord.Id,
+                        DrawingId = traceTakeoffId, // Link back to Takeoff Card
+                        PdfUrl = takeoff.BlobUrl ?? string.Empty,
+                        CompanyId = companyId,
+                        Status = "Draft",
+                        Scale = takeoff.Scale,
+                        ScaleUnit = takeoff.ScaleUnit,
+                        CalibrationData = takeoff.CalibrationData,
+                        CreatedDate = DateTime.UtcNow
+                    };
+
+                    context.TraceTakeoffs.Add(newTraceTakeoff);
+                    await context.SaveChangesAsync();
+
+                    _logger.LogInformation("✓ Auto-created TraceTakeoff {TraceTakeoffId} linked to Takeoff Card {TakeoffId} and TraceRecord {TraceRecordId}",
+                        traceTakeoffId, traceTakeoffId, defaultTraceRecord.Id);
+                }
 
                 // Calculate weight based on catalogue item
                 var calculation = await CalculateMeasurementAsync(catalogueItemId, measurementType, value, unit, companyId);
-
-                await using var context = await _contextFactory.CreateDbContextAsync();
 
                 var measurement = new TraceTakeoffMeasurement
                 {

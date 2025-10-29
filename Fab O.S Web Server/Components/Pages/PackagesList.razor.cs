@@ -339,11 +339,11 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
         if (TakeoffId.HasValue && TakeoffId.Value > 0)
         {
             // Create new package with takeoffId pre-populated
-            Navigation.NavigateTo($"/packages/0?takeoffId={TakeoffId}");
+            Navigation.NavigateTo($"/{TenantSlug}/trace/packages/0?takeoffId={TakeoffId}");
         }
         else
         {
-            Navigation.NavigateTo("/packages/0");
+            Navigation.NavigateTo($"/{TenantSlug}/trace/packages/0");
         }
     }
 
@@ -352,7 +352,7 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
         var selected = GetSelectedPackages();
         if (selected.Any())
         {
-            Navigation.NavigateTo($"/packages/{selected.First().Id}");
+            Navigation.NavigateTo($"/{TenantSlug}/trace/packages/{selected.First().Id}");
         }
     }
 
@@ -464,7 +464,7 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
                         // Navigate to first selected package's SharePoint files
                         if (selected.Any())
                         {
-                            Navigation.NavigateTo($"/packages/{selected.First().Id}/sharepoint-files");
+                            Navigation.NavigateTo($"/{TenantSlug}/trace/packages/{selected.First().Id}/sharepoint-files");
                         }
                         return Task.CompletedTask;
                     },

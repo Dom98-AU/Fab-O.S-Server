@@ -184,6 +184,14 @@
     background: white;
     transition: all 0.2s ease;
     font-weight: 400;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+textarea.takeoff-form-control {
+    resize: vertical;
+    min-height: 100px;
+    line-height: 1.6;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .takeoff-form-control:focus {
@@ -1268,4 +1276,14 @@
 
 .link-arrow i {
     font-size: 1.2rem;
+}
+/* Highlighted field for auto-generated values */
+.highlight-field {
+    background-color: #fff9e6 !important;
+    border-color: #ffc107 !important;
+}
+
+.highlight-field:focus {
+    background-color: #ffffff !important;
+    border-color: var(--primary-color) !important;
 }

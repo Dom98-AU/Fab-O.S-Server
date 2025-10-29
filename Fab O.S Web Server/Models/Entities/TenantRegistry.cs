@@ -41,6 +41,6 @@ public class Company
 
     // Navigation properties
     public virtual ICollection<User> Users { get; set; } = new List<User>();
-    public virtual ICollection<TraceDrawing> TraceDrawings { get; set; } = new List<TraceDrawing>();
+    public virtual ICollection<Takeoff> TraceDrawings { get; set; } = new List<Takeoff>();
     public virtual ICollection<MachineCenter> MachineCenters { get; set; } = new List<MachineCenter>();
 }

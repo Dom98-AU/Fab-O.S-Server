@@ -185,7 +185,7 @@ public class SharePointSyncService : ISharePointSyncService
     }
 
     // Internal helper to sync a single takeoff entity
-    private async Task<SharePointSyncResult> SyncTakeoffInternalAsync(Models.Entities.TraceDrawing takeoff)
+    private async Task<SharePointSyncResult> SyncTakeoffInternalAsync(Models.Entities.Takeoff takeoff)
     {
         var result = new SharePointSyncResult { Success = true };
 

@@ -12,7 +12,7 @@
 @using static FabOS.WebServer.Components.Shared.EmbeddableListPart<TakeoffFile>
 @using FabOS.WebServer.Components.Shared
 
-<PageTitle>@(Id == 0 ? "New Takeoff" : takeoff?.DrawingNumber ?? "Takeoff Details") - Fab.OS</PageTitle>
+<PageTitle>@(Id == 0 ? "New Takeoff" : takeoff?.TakeoffNumber ?? "Takeoff Details") - Fab.OS</PageTitle>
 
 <!-- Standard Toolbar -->
 <StandardToolbar ActionProvider="@this" PageType="PageType.Card" />
@@ -60,21 +60,21 @@
                 </h3>
                 <div class="takeoff-subsection-body">
                     <div class="takeoff-form-grid two-column">
-                        <!-- Drawing Number -->
+                        <!-- Takeoff Number -->
                         <div class="takeoff-form-group">
-                            <label class="takeoff-form-label">Drawing Number</label>
+                            <label class="takeoff-form-label">Takeoff Number</label>
                             @if (isEditMode && takeoff.Id == 0)
                             {
-                                <input type="text" class="takeoff-form-control" @bind="takeoff.DrawingNumber"
-                                       placeholder="Enter or generate" disabled="@takeoffNumberGenerated" @onfocus="GenerateTakeoffNumber" />
-                            }
-                            else if (isEditMode)
-                            {
-                                <input type="text" class="takeoff-form-control" @bind="takeoff.DrawingNumber" />
+                                <input type="text" class="takeoff-form-control @(string.IsNullOrEmpty(takeoff.TakeoffNumber) ? "highlight-field" : "")"
+                                       @bind="takeoff.TakeoffNumber"
+                                       placeholder="Auto-generated"
+                                       disabled="@takeoffNumberGenerated"
+                                       @onfocus="GenerateTakeoffNumber" />
+                                <small class="takeoff-text-muted">Auto-generated unique identifier</small>
                             }
                             else
                             {
-                                <p class="takeoff-form-control-plaintext">@(takeoff.DrawingNumber ?? "Not set")</p>
+                                <p class="takeoff-form-control-plaintext">@(takeoff.TakeoffNumber ?? "Not set")</p>
                             }
                         </div>
 
@@ -115,6 +115,21 @@
                                 </p>
                             }
                         </div>
+
+                        <!-- Description -->
+                        <div class="takeoff-form-group full-width">
+                            <label class="takeoff-form-label">Description</label>
+                            @if (isEditMode)
+                            {
+                                <textarea class="takeoff-form-control" @bind="takeoff.Description"
+                                          placeholder="Enter takeoff description"
+                                          rows="3"></textarea>
+                            }
+                            else if (!string.IsNullOrEmpty(takeoff.Description))
+                            {
+                                <p class="takeoff-form-control-plaintext">@takeoff.Description</p>
+                            }
+                        </div>
                     </div>
                 </div>
             </div>
@@ -136,6 +151,7 @@
                                                SelectedCustomerId="@takeoff.CustomerId"
                                                SelectedCustomerIdChanged="@OnCustomerIdChanged"
                                                OnCustomerSelected="@OnCustomerSelected"
+                                               TenantSlug="@TenantSlug"
                                                CssClass="takeoff-form-control" />
                             }
                             else
@@ -162,19 +178,27 @@
                             <label class="takeoff-form-label">Contact Person</label>
                             @if (isEditMode)
                             {
-                                <select class="takeoff-form-control" @onchange="OnContactChanged" disabled="@(takeoff.CustomerId == null)">
-                                    <option value="">-- Select Contact --</option>
-                                    @foreach (var contact in customerContacts)
+                                <div class="customer-lookup-controls">
+                                    <select class="takeoff-form-control" @onchange="OnContactChanged" disabled="@(takeoff.CustomerId == null)" style="flex: 1;">
+                                        <option value="">-- Select Contact --</option>
+                                        @foreach (var contact in customerContacts)
+                                        {
+                                            <option value="@contact.Id" selected="@(contact.Id == takeoff.ContactId)">
+                                                @contact.FirstName @contact.LastName
+                                                @if (!string.IsNullOrEmpty(contact.Title))
+                                                {
+                                                    <text> - @contact.Title</text>
+                                                }
+                                            </option>
+                                        }
+                                    </select>
+                                    @if (takeoff.ContactId != null && takeoff.ContactId > 0)
                                     {
-                                        <option value="@contact.Id" selected="@(contact.Id == takeoff.ContactId)">
-                                            @contact.FirstName @contact.LastName
-                                            @if (!string.IsNullOrEmpty(contact.Title))
-                                            {
-                                                <text> - @contact.Title</text>
-                                            }
-                                        </option>
+                                        <button type="button" class="btn btn-sm btn-info" @onclick="ViewContact" title="View Contact Details">
+                                            <i class="fas fa-eye"></i> View
+                                        </button>
                                     }
-                                </select>
+                                </div>
                             }
                             else
                             {
@@ -368,7 +392,7 @@
 
                 <div class="folder-info">
                     <p><strong>Folder will be created at:</strong></p>
-                    <code>/Takeoffs/Takeoff-@takeoff?.DrawingNumber/Rev-A/</code>
+                    <code>/Takeoffs/Takeoff-@takeoff?.TakeoffNumber/Rev-A/</code>
                 </div>
 
                 @if (!string.IsNullOrEmpty(sharePointError))

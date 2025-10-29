@@ -6,7 +6,7 @@ using FabOS.WebServer.Services.Interfaces;
 namespace FabOS.WebServer.Services.Implementations.BreadcrumbBuilders;
 
 /// <summary>
-/// Builds breadcrumb items for Takeoff entities (TraceDrawing)
+/// Builds breadcrumb items for Takeoff entities (Takeoff)
 /// </summary>
 public class TakeoffBreadcrumbBuilder : IBreadcrumbBuilder
 {

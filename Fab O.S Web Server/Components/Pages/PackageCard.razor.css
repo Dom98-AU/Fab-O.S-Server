@@ -118,6 +118,7 @@
 .package-section-header {
     padding: 1.5rem 2rem;
     background: linear-gradient(135deg, var(--modern-primary-light) 0%, var(--modern-primary) 100%);
+    border-bottom: 3px solid #0284c7;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
@@ -165,7 +166,7 @@
 }
 
 .section-title {
-    font-size: 1.125rem;
+    font-size: 2rem;
     font-weight: 600;
     color: var(--modern-text-dark);
     letter-spacing: -0.025em;

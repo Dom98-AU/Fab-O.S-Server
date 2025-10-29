@@ -27,6 +27,7 @@ public partial class PackageSharePointFiles : ComponentBase, IToolbarActionProvi
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private FabOS.WebServer.Services.BreadcrumbService BreadcrumbService { get; set; } = default!;
 
+    [Parameter] public string? TenantSlug { get; set; }
     [Parameter] public int PackageId { get; set; }
 
     private Package? package;
@@ -102,9 +103,9 @@ public partial class PackageSharePointFiles : ComponentBase, IToolbarActionProvi
     private void UpdateBreadcrumb()
     {
         BreadcrumbService.SetBreadcrumbs(
-            new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = "Packages", Url = "/packages", IsActive = false },
-            new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = $"Package #{PackageId}", Url = $"/packages/{PackageId}", IsActive = false },
-            new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = "SharePoint Files", Url = $"/packages/{PackageId}/sharepoint-files", IsActive = true }
+            new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = "Packages", Url = $"/{TenantSlug}/trace/packages", IsActive = false },
+            new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = $"Package #{PackageId}", Url = $"/{TenantSlug}/trace/packages/{PackageId}", IsActive = false },
+            new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = "SharePoint Files", Url = $"/{TenantSlug}/trace/packages/{PackageId}/sharepoint-files", IsActive = true }
         );
     }
 
@@ -349,6 +350,7 @@ public partial class PackageSharePointFiles : ComponentBase, IToolbarActionProvi
             allFiles = contents.Files ?? new List<SharePointFileInfo>();
 
             FilterItems();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -687,7 +689,7 @@ public partial class PackageSharePointFiles : ComponentBase, IToolbarActionProvi
 
     private void NavigateBack()
     {
-        Navigation.NavigateTo($"/packages/{PackageId}");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/packages/{PackageId}");
     }
 
     private void NavigateToSharePointSetup()

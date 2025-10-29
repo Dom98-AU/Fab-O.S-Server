@@ -1,0 +1,569 @@
+@page "/{tenantSlug}/trace/contacts/{id:int}"
+@page "/{tenantSlug}/trace/contacts/new"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+
+<PageTitle>@(Id == 0 ? "New Contact" : contact?.FirstName + " " + contact?.LastName ?? "Contact Details") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" ShowSearch="false" PageType="PageType.Card" />
+
+<!-- Main Content Container -->
+<div class="takeoff-layout">
+    @if (isLoading)
+    {
+        <!-- Loading State -->
+        <div class="takeoff-loading">
+            <div class="takeoff-spinner"></div>
+            <p>Loading contact details...</p>
+        </div>
+    }
+    else if (contact == null && Id != 0)
+    {
+        <!-- Error State -->
+        <div class="takeoff-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Contact Not Found</h3>
+            <p>The requested contact could not be found.</p>
+            <button class="btn btn-primary" @onclick="NavigateBack">
+                <i class="fas fa-arrow-left"></i>
+                Back to Contacts
+            </button>
+        </div>
+    }
+    else
+    {
+        <!-- Container Wrapper -->
+        <div class="takeoff-container">
+            <!-- Collapsible Sections -->
+            <div class="takeoff-sections">
+
+                <!-- General Section (Contact Information) -->
+                <div class="takeoff-section">
+                    <div class="takeoff-section-header @(IsSectionExpanded("general") ? "expanded" : "")" @onclick="@(() => ToggleSection("general"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-info-circle section-icon"></i>
+                            <span class="section-title">Contact Information</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="takeoff-section-content @(IsSectionExpanded("general") ? "expanded" : "collapsed")">
+
+                        <!-- Personal Information Subsection -->
+                        <div class="takeoff-subsection">
+                            <h3 class="takeoff-subsection-title">
+                                <i class="fas fa-user"></i>
+                                Personal Information
+                            </h3>
+                            <div class="takeoff-subsection-body">
+                                <div class="takeoff-form-grid two-column">
+
+                                    <!-- Contact Number -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Contact Number</label>
+                                        @if (isEditMode && Id == 0)
+                                        {
+                                            <input type="text" class="takeoff-form-control @(string.IsNullOrEmpty(contact.ContactNumber) ? "highlight-field" : "")"
+                                                   @bind="contact.ContactNumber"
+                                                   placeholder="Auto-generated"
+                                                   disabled="@contactNumberGenerated"
+                                                   @onfocus="GenerateContactNumber" />
+                                            <small class="takeoff-text-muted">Auto-generated unique identifier</small>
+                                        }
+                                        else
+                                        {
+                                            <p class="takeoff-form-control-plaintext">@(contact.ContactNumber ?? "Not set")</p>
+                                        }
+                                    </div>
+
+                                    <!-- First Name -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">First Name @(isEditMode ? "*" : "")</label>
+                                        @if (isEditMode)
+                                        {
+                                            <input type="text" class="takeoff-form-control" @bind="contact.FirstName"
+                                                   placeholder="Enter first name" />
+                                        }
+                                        else
+                                        {
+                                            <p class="takeoff-form-control-plaintext">@(contact.FirstName ?? "Not set")</p>
+                                        }
+                                    </div>
+
+                                    <!-- Last Name -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Last Name @(isEditMode ? "*" : "")</label>
+                                        @if (isEditMode)
+                                        {
+                                            <input type="text" class="takeoff-form-control" @bind="contact.LastName"
+                                                   placeholder="Enter last name" />
+                                        }
+                                        else
+                                        {
+                                            <p class="takeoff-form-control-plaintext">@(contact.LastName ?? "Not set")</p>
+                                        }
+                                    </div>
+
+                                    <!-- Title -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Title</label>
+                                        @if (isEditMode)
+                                        {
+                                            <input type="text" class="takeoff-form-control" @bind="contact.Title"
+                                                   placeholder="e.g., Project Manager" />
+                                        }
+                                        else if (!string.IsNullOrEmpty(contact.Title))
+                                        {
+                                            <p class="takeoff-form-control-plaintext">@contact.Title</p>
+                                        }
+                                    </div>
+
+                                    <!-- Department -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Department</label>
+                                        @if (isEditMode)
+                                        {
+                                            <input type="text" class="takeoff-form-control" @bind="contact.Department"
+                                                   placeholder="e.g., Engineering" />
+                                        }
+                                        else if (!string.IsNullOrEmpty(contact.Department))
+                                        {
+                                            <p class="takeoff-form-control-plaintext">@contact.Department</p>
+                                        }
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contact Details Subsection -->
+                        <div class="takeoff-subsection">
+                            <h3 class="takeoff-subsection-title">
+                                <i class="fas fa-phone"></i>
+                                Contact Details
+                            </h3>
+                            <div class="takeoff-subsection-body">
+                                <div class="takeoff-form-grid two-column">
+
+                                    <!-- Email -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Email @(isEditMode ? "*" : "")</label>
+                                        @if (isEditMode)
+                                        {
+                                            <input type="email" class="takeoff-form-control" @bind="contact.Email"
+                                                   placeholder="contact@example.com" />
+                                        }
+                                        else
+                                        {
+                                            <p class="takeoff-form-control-plaintext">
+                                                <a href="mailto:@contact.Email" class="takeoff-text-secondary">@contact.Email</a>
+                                            </p>
+                                        }
+                                    </div>
+
+                                    <!-- Phone Number -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Phone Number</label>
+                                        @if (isEditMode)
+                                        {
+                                            <input type="tel" class="takeoff-form-control" @bind="contact.PhoneNumber"
+                                                   placeholder="+61 2 XXXX XXXX" />
+                                        }
+                                        else if (!string.IsNullOrEmpty(contact.PhoneNumber))
+                                        {
+                                            <p class="takeoff-form-control-plaintext">
+                                                <a href="tel:@contact.PhoneNumber" class="takeoff-text-secondary">@contact.PhoneNumber</a>
+                                            </p>
+                                        }
+                                    </div>
+
+                                    <!-- Mobile Number -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Mobile Number</label>
+                                        @if (isEditMode)
+                                        {
+                                            <input type="tel" class="takeoff-form-control" @bind="contact.MobileNumber"
+                                                   placeholder="+61 4XX XXX XXX" />
+                                        }
+                                        else if (!string.IsNullOrEmpty(contact.MobileNumber))
+                                        {
+                                            <p class="takeoff-form-control-plaintext">
+                                                <a href="tel:@contact.MobileNumber" class="takeoff-text-secondary">@contact.MobileNumber</a>
+                                            </p>
+                                        }
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Company Association Subsection -->
+                        <div class="takeoff-subsection">
+                            <h3 class="takeoff-subsection-title">
+                                <i class="fas fa-building"></i>
+                                Company Association
+                            </h3>
+                            <div class="takeoff-subsection-body">
+                                <div class="takeoff-form-grid two-column">
+
+                                    <!-- Customer Selection -->
+                                    <div class="takeoff-form-group full-width">
+                                        <label class="takeoff-form-label">Associated Customer @(isEditMode ? "*" : "")</label>
+                                        @if (isEditMode)
+                                        {
+                                            <div class="customer-selector">
+                                                <select class="takeoff-form-control" value="@contact.CustomerId" @onchange="OnCustomerChanged">
+                                                    <option value="0">Select customer...</option>
+                                                    @foreach (var cust in customers)
+                                                    {
+                                                        <option value="@cust.Id">@cust.Name (@cust.Code)</option>
+                                                    }
+                                                </select>
+                                                <button type="button" class="btn btn-sm btn-secondary" @onclick="NavigateToNewCustomer" title="Add new customer">
+                                                    <i class="fas fa-plus"></i>
+                                                </button>
+                                            </div>
+                                            @if (selectedCustomer != null)
+                                            {
+                                                <div class="customer-info-box">
+                                                    <div class="info-item">
+                                                        <span class="info-label">Industry:</span>
+                                                        <span class="info-value">@(selectedCustomer.Industry ?? "Not specified")</span>
+                                                    </div>
+                                                    @if (!string.IsNullOrEmpty(selectedCustomer.ABN))
+                                                    {
+                                                        <div class="info-item">
+                                                            <span class="info-label">ABN:</span>
+                                                            <span class="info-value">@selectedCustomer.ABN</span>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        }
+                                        else if (customer != null)
+                                        {
+                                            <p class="takeoff-form-control-plaintext">
+                                                <a href="/@TenantSlug/trace/customers/@customer.Id" class="takeoff-text-secondary">
+                                                    @customer.Name @(!string.IsNullOrEmpty(customer.Code) ? $"({customer.Code})" : "")
+                                                </a>
+                                            </p>
+                                        }
+                                    </div>
+
+                                    <!-- Primary Contact Checkbox -->
+                                    <div class="takeoff-form-group">
+                                        @if (isEditMode)
+                                        {
+                                            <label class="takeoff-form-label checkbox-label">
+                                                <input type="checkbox" @bind="contact.IsPrimary" />
+                                                <span>Set as Primary Contact</span>
+                                            </label>
+                                            <small class="takeoff-text-muted">Primary contacts are shown first and used as default</small>
+                                        }
+                                        else if (contact.IsPrimary)
+                                        {
+                                            <label class="takeoff-form-label">Status</label>
+                                            <p class="takeoff-form-control-plaintext">
+                                                <span class="takeoff-badge badge-primary">Primary Contact</span>
+                                            </p>
+                                        }
+                                    </div>
+
+                                    <!-- Active Contact Checkbox -->
+                                    <div class="takeoff-form-group">
+                                        @if (isEditMode)
+                                        {
+                                            <label class="takeoff-form-label checkbox-label">
+                                                <input type="checkbox" @bind="contact.IsActive" />
+                                                <span>Active Contact</span>
+                                            </label>
+                                            <small class="takeoff-text-muted">Inactive contacts won't appear in dropdowns</small>
+                                        }
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Address Subsection -->
+                        <div class="takeoff-subsection">
+                            <h3 class="takeoff-subsection-title">
+                                <i class="fas fa-map-marker-alt"></i>
+                                Address
+                            </h3>
+                            <div class="takeoff-subsection-body">
+
+                                <!-- Inherit Address Checkbox -->
+                                @if (isEditMode)
+                                {
+                                    <div class="takeoff-form-group full-width">
+                                        <label class="takeoff-form-label checkbox-label">
+                                            <input type="checkbox" @bind="contact.InheritCustomerAddress" />
+                                            <span>Inherit Address from Customer</span>
+                                        </label>
+                                        <small class="takeoff-text-muted">When enabled, the contact will use the customer's primary address</small>
+                                    </div>
+                                }
+
+                                @if (!contact.InheritCustomerAddress)
+                                {
+                                    <div class="takeoff-form-grid two-column">
+                                        <!-- Address Line 1 -->
+                                        <div class="takeoff-form-group full-width">
+                                            <label class="takeoff-form-label">Address Line 1</label>
+                                            @if (isEditMode)
+                                            {
+                                                <input type="text" class="takeoff-form-control" @bind="contact.AddressLine1"
+                                                       placeholder="Street address" />
+                                            }
+                                            else if (!string.IsNullOrEmpty(contact.AddressLine1))
+                                            {
+                                                <p class="takeoff-form-control-plaintext">@contact.AddressLine1</p>
+                                            }
+                                        </div>
+
+                                        <!-- Address Line 2 -->
+                                        <div class="takeoff-form-group full-width">
+                                            <label class="takeoff-form-label">Address Line 2</label>
+                                            @if (isEditMode)
+                                            {
+                                                <input type="text" class="takeoff-form-control" @bind="contact.AddressLine2"
+                                                       placeholder="Apartment, suite, unit, etc. (optional)" />
+                                            }
+                                            else if (!string.IsNullOrEmpty(contact.AddressLine2))
+                                            {
+                                                <p class="takeoff-form-control-plaintext">@contact.AddressLine2</p>
+                                            }
+                                        </div>
+
+                                        <!-- City -->
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">City</label>
+                                            @if (isEditMode)
+                                            {
+                                                <input type="text" class="takeoff-form-control" @bind="contact.City"
+                                                       placeholder="City" />
+                                            }
+                                            else if (!string.IsNullOrEmpty(contact.City))
+                                            {
+                                                <p class="takeoff-form-control-plaintext">@contact.City</p>
+                                            }
+                                        </div>
+
+                                        <!-- State -->
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">State / Province</label>
+                                            @if (isEditMode)
+                                            {
+                                                <input type="text" class="takeoff-form-control" @bind="contact.State"
+                                                       placeholder="State / Province" />
+                                            }
+                                            else if (!string.IsNullOrEmpty(contact.State))
+                                            {
+                                                <p class="takeoff-form-control-plaintext">@contact.State</p>
+                                            }
+                                        </div>
+
+                                        <!-- Postal Code -->
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Postal Code</label>
+                                            @if (isEditMode)
+                                            {
+                                                <input type="text" class="takeoff-form-control" @bind="contact.PostalCode"
+                                                       placeholder="Postal code" />
+                                            }
+                                            else if (!string.IsNullOrEmpty(contact.PostalCode))
+                                            {
+                                                <p class="takeoff-form-control-plaintext">@contact.PostalCode</p>
+                                            }
+                                        </div>
+
+                                        <!-- Country -->
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Country</label>
+                                            @if (isEditMode)
+                                            {
+                                                <input type="text" class="takeoff-form-control" @bind="contact.Country"
+                                                       placeholder="Country" />
+                                            }
+                                            else if (!string.IsNullOrEmpty(contact.Country))
+                                            {
+                                                <p class="takeoff-form-control-plaintext">@contact.Country</p>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                else if (contact.InheritCustomerAddress && primaryCustomerAddress != null && !isEditMode)
+                                {
+                                    <div class="takeoff-address">
+                                        <strong>Inherited from Customer:</strong><br/>
+                                        @if (!string.IsNullOrEmpty(primaryCustomerAddress.AddressLine1))
+                                        {
+                                            <text>@primaryCustomerAddress.AddressLine1</text><br/>
+                                        }
+                                        @if (!string.IsNullOrEmpty(primaryCustomerAddress.AddressLine2))
+                                        {
+                                            <text>@primaryCustomerAddress.AddressLine2</text><br/>
+                                        }
+                                        @if (!string.IsNullOrEmpty(primaryCustomerAddress.City) || !string.IsNullOrEmpty(primaryCustomerAddress.State) || !string.IsNullOrEmpty(primaryCustomerAddress.PostalCode))
+                                        {
+                                            <text>@primaryCustomerAddress.City@(!string.IsNullOrEmpty(primaryCustomerAddress.City) && !string.IsNullOrEmpty(primaryCustomerAddress.State) ? ", " : "") @primaryCustomerAddress.State @primaryCustomerAddress.PostalCode</text><br/>
+                                        }
+                                        @if (!string.IsNullOrEmpty(primaryCustomerAddress.Country))
+                                        {
+                                            <text>@primaryCustomerAddress.Country</text>
+                                        }
+                                    </div>
+                                }
+
+                            </div>
+                        </div>
+
+                        <!-- Notes Subsection -->
+                        <div class="takeoff-subsection">
+                            <h3 class="takeoff-subsection-title">
+                                <i class="fas fa-sticky-note"></i>
+                                Notes
+                            </h3>
+                            <div class="takeoff-subsection-body">
+                                @if (isEditMode)
+                                {
+                                    <div class="takeoff-form-group full-width">
+                                        <label class="takeoff-form-label">Additional Notes</label>
+                                        <textarea class="takeoff-form-control" @bind="contact.Notes"
+                                                  placeholder="Additional notes about the contact"
+                                                  rows="4"></textarea>
+                                    </div>
+                                }
+                                else if (!string.IsNullOrEmpty(contact.Notes))
+                                {
+                                    <p class="takeoff-form-control-plaintext">@contact.Notes</p>
+                                }
+                            </div>
+                        </div>
+
+                    </div> <!-- End of General section content -->
+                </div> <!-- End of General section -->
+
+            </div> <!-- End of takeoff-sections -->
+        </div> <!-- End of takeoff-container -->
+    }
+</div>
+
+<style>
+    .badge-primary {
+        background-color: #0D1A80;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-size: 0.875rem;
+    }
+
+    .customer-selector {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+    }
+
+    .customer-selector .takeoff-form-control {
+        flex: 1;
+    }
+
+    .customer-selector .btn-sm {
+        padding: 0.75rem 1rem;
+        height: auto;
+        min-height: 46px;
+        flex-shrink: 0;
+    }
+
+    .customer-info-box {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: var(--modern-bg-secondary, #FAFBFC);
+        border-radius: 8px;
+        border: 1px solid var(--modern-border-light, #E2E8F0);
+    }
+
+    .info-item {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .info-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .info-label {
+        font-weight: 600;
+        color: var(--modern-text-secondary, #718096);
+        min-width: 80px;
+    }
+
+    .info-value {
+        color: var(--modern-text-primary, #2D3748);
+    }
+
+    .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+        width: 1.125rem;
+        height: 1.125rem;
+        cursor: pointer;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s ease;
+        font-size: 0.9375rem;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #0D1A80 0%, #3144CD 100%);
+        color: white;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-sm {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        border-radius: 6px;
+    }
+
+    .highlight-field {
+        background-color: #fffbeb !important;
+        border-color: #fbbf24 !important;
+    }
+
+    .takeoff-address {
+        line-height: 1.6;
+        color: var(--modern-text-primary, #2D3748);
+    }
+
+    .full-width {
+        grid-column: 1 / -1;
+    }
+</style>

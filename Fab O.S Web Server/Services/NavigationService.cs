@@ -1,4 +1,5 @@
 using FabOS.WebServer.Models;
+using FabOS.WebServer.Services.Interfaces;
 
 namespace FabOS.WebServer.Services;
 
@@ -8,6 +9,25 @@ namespace FabOS.WebServer.Services;
 /// </summary>
 public class NavigationService
 {
+    private readonly ITenantService _tenantService;
+    private string? _cachedTenantSlug;
+
+    public NavigationService(ITenantService tenantService)
+    {
+        _tenantService = tenantService;
+    }
+
+    /// <summary>
+    /// Get the current tenant slug (cached for performance)
+    /// </summary>
+    private async Task<string> GetTenantSlugAsync()
+    {
+        if (_cachedTenantSlug == null)
+        {
+            _cachedTenantSlug = await _tenantService.GetCurrentTenantSlugAsync() ?? "default";
+        }
+        return _cachedTenantSlug;
+    }
     private readonly List<ModuleDefinition> _modules = new()
     {
         new() { Name = "Trace", Icon = "ruler", Description = "Drawing Analysis & Takeoff", Type = "app" },
@@ -29,7 +49,7 @@ public class NavigationService
             Title = "New Takeoff",
             Description = "Start a new takeoff",
             Icon = "plus-circle",
-            Url = "/takeoffs",
+            Url = "/trace/takeoffs",
             Category = "QuickAction"
         },
         new() {
@@ -37,7 +57,7 @@ public class NavigationService
             Title = "Upload Drawing",
             Description = "Upload new drawings",
             Icon = "upload",
-            Url = "/takeoffs/drawings",
+            Url = "/trace/takeoffs/drawings",
             Category = "QuickAction"
         },
         new() {
@@ -55,7 +75,7 @@ public class NavigationService
             Title = "Takeoffs",
             Description = "Manage takeoffs",
             Icon = "ruler",
-            Url = "/takeoffs",
+            Url = "/trace/takeoffs",
             Category = "Module",
             Module = "Trace"
         },
@@ -91,7 +111,7 @@ public class NavigationService
             Title = "Takeoff Manager",
             Description = "Manage takeoffs",
             Icon = "clipboard-list",
-            Url = "/takeoffs/drawings",
+            Url = "/trace/takeoffs/drawings",
             Category = "Module",
             Module = "Trace"
         },
@@ -245,7 +265,7 @@ public class NavigationService
             Title = "Recent Takeoffs",
             Description = "View recent takeoffs",
             Icon = "ruler",
-            Url = "/takeoffs",
+            Url = "/trace/takeoffs",
             Category = "Recent"
         },
         new() {
@@ -277,20 +297,93 @@ public class NavigationService
     public IEnumerable<ModuleDefinition> GetSettingsModules() => _settingsModules;
 
     /// <summary>
-    /// Get quick action items
+    /// Get quick action items with tenant-aware URLs
     /// </summary>
+    public async Task<IEnumerable<NavigationItem>> GetQuickActionsAsync()
+    {
+        var tenantSlug = await GetTenantSlugAsync();
+        return _allItems
+            .Where(i => i.Category == "QuickAction")
+            .Select(i => new NavigationItem
+            {
+                Label = i.Label,
+                Title = i.Title,
+                Description = i.Description,
+                Icon = i.Icon,
+                Url = ApplyTenantSlug(i.Url, tenantSlug),
+                Category = i.Category,
+                Module = i.Module
+            });
+    }
+
+    /// <summary>
+    /// Get navigation items for a specific module with tenant-aware URLs
+    /// </summary>
+    public async Task<IEnumerable<NavigationItem>> GetModuleItemsAsync(string module)
+    {
+        var tenantSlug = await GetTenantSlugAsync();
+        return _allItems
+            .Where(i => i.Category == "Module" && i.Module == module)
+            .Select(i => new NavigationItem
+            {
+                Label = i.Label,
+                Title = i.Title,
+                Description = i.Description,
+                Icon = i.Icon,
+                Url = ApplyTenantSlug(i.Url, tenantSlug),
+                Category = i.Category,
+                Module = i.Module
+            });
+    }
+
+    /// <summary>
+    /// Get recent items with tenant-aware URLs
+    /// </summary>
+    public async Task<IEnumerable<NavigationItem>> GetRecentItemsAsync()
+    {
+        var tenantSlug = await GetTenantSlugAsync();
+        return _allItems
+            .Where(i => i.Category == "Recent")
+            .Select(i => new NavigationItem
+            {
+                Label = i.Label,
+                Title = i.Title,
+                Description = i.Description,
+                Icon = i.Icon,
+                Url = ApplyTenantSlug(i.Url, tenantSlug),
+                Category = i.Category,
+                Module = i.Module
+            });
+    }
+
+    /// <summary>
+    /// Apply tenant slug to URLs that need it (skip /database, /test-*, etc.)
+    /// </summary>
+    private string ApplyTenantSlug(string url, string tenantSlug)
+    {
+        // Skip special URLs that don't need tenant slugs
+        if (url.StartsWith("/database") || url.StartsWith("/test-") || url.StartsWith("/drawing-management"))
+        {
+            return url;
+        }
+
+        // If URL already has tenant slug, return as-is
+        if (url.StartsWith($"/{tenantSlug}/"))
+        {
+            return url;
+        }
+
+        // Apply tenant slug
+        return $"/{tenantSlug}{url}";
+    }
+
+    // Legacy synchronous methods for backward compatibility (deprecated)
     public IEnumerable<NavigationItem> GetQuickActions()
         => _allItems.Where(i => i.Category == "QuickAction");
 
-    /// <summary>
-    /// Get navigation items for a specific module
-    /// </summary>
     public IEnumerable<NavigationItem> GetModuleItems(string module)
         => _allItems.Where(i => i.Category == "Module" && i.Module == module);
 
-    /// <summary>
-    /// Get recent items
-    /// </summary>
     public IEnumerable<NavigationItem> GetRecentItems()
         => _allItems.Where(i => i.Category == "Recent");
 

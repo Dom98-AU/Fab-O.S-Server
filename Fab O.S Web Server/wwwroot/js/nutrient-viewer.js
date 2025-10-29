@@ -84,10 +84,11 @@ window.nutrientViewer = {
      * Build PSPDFKit configuration object (shared between loadPdf and reloadInstantJson)
      * @param {string} containerId - Container element ID
      * @param {string} documentUrl - URL to PDF document
+     * @param {boolean} isEditMode - Whether to allow annotation editing
      * @param {object} instantJSON - Optional Instant JSON to load
      * @returns {object} PSPDFKit configuration object
      */
-    buildConfiguration: function(containerId, documentUrl, instantJSON = null) {
+    buildConfiguration: function(containerId, documentUrl, isEditMode = true, instantJSON = null) {
         const baseUrl = `${window.location.protocol}//${window.location.host}/assets/pspdfkit/`;
 
         const configuration = {
@@ -95,6 +96,12 @@ window.nutrientViewer = {
                 document: documentUrl,
                 baseUrl: baseUrl,
                 licenseKey: this.licenseKey,
+
+                // Conditionally disable PDF document security restrictions based on edit mode
+                // When user has edit lock (isEditMode=true): Override PDF restrictions to allow editing
+                // When user is in view-only mode (isEditMode=false): Respect PDF security restrictions
+                // This provides defense in depth: PDF-level security + application-level lock system
+                disableDocumentSecurity: isEditMode,
 
                 // Enable snapping for measurements
                 measurementSnapping: true,
@@ -108,6 +115,20 @@ window.nutrientViewer = {
                     // Hide all tooltips - we don't want any tooltips showing during measurements
                     // This includes "Line Width", measurement values, etc.
                     return [];
+                },
+
+                // Control annotation editing based on edit mode
+                isEditableAnnotation: (annotation) => {
+                    // If edit mode is enabled, all annotations are editable
+                    // If edit mode is disabled (read-only), no annotations are editable
+                    return isEditMode;
+                },
+
+                // Control annotation creation based on edit mode
+                isEditableCreator: (annotation) => {
+                    // If edit mode is enabled, users can create annotations
+                    // If edit mode is disabled (read-only), users cannot create annotations
+                    return isEditMode;
                 },
 
                 // Toolbar configuration with measurement tools
@@ -426,7 +447,7 @@ window.nutrientViewer = {
             }
 
             // Build configuration using shared function
-            const configuration = this.buildConfiguration(containerId, documentUrl);
+            const configuration = this.buildConfiguration(containerId, documentUrl, isEditMode);
 
             console.log('[Nutrient Viewer] Loading PSPDFKit instance...');
             instanceData.instance = await PSPDFKit.load(configuration);
@@ -438,14 +459,11 @@ window.nutrientViewer = {
             // Store edit mode
             instanceData.isEditMode = isEditMode;
 
-            // If view-only mode, configure accordingly
+            // Log the mode for debugging
             if (!isEditMode) {
-                console.log('[Nutrient Viewer] 🔒 Loading in view-only mode');
+                console.log('[Nutrient Viewer] 🔒 Loaded in view-only mode (edit permissions set in configuration)');
 
-                // Disable annotation creation
-                instanceData.instance.setIsEditableAnnotation(() => false);
-
-                // Minimal toolbar for viewers
+                // Set minimal toolbar for viewers
                 instanceData.instance.setToolbarItems([
                     { type: "zoom-in" },
                     { type: "zoom-out" },
@@ -453,6 +471,8 @@ window.nutrientViewer = {
                     { type: "pan" },
                     { type: "search" }
                 ]);
+            } else {
+                console.log('[Nutrient Viewer] ✏️ Loaded in edit mode (edit permissions set in configuration)');
             }
 
             console.log(`[Nutrient Viewer] ✓ PSPDFKit instance loaded successfully! (${instanceData.instance.totalPageCount} pages)`);
@@ -869,13 +889,19 @@ window.nutrientViewer = {
 
         // Extract coordinates based on annotation type
         if (annotation.lines && annotation.lines.size > 0) {
-            // Line/distance measurement
+            // Line/distance measurement (lines is a List of point arrays for ink/freehand annotations)
             data.coordinates = {
                 type: 'lines',
-                data: annotation.lines.toArray().map(line => ({
-                    start: { x: line.start.x, y: line.start.y },
-                    end: { x: line.end.x, y: line.end.y }
-                }))
+                data: annotation.lines.toArray().map(pointArray =>
+                    pointArray.map(point => ({ x: point.x, y: point.y }))
+                )
+            };
+        } else if (annotation.startPoint && annotation.endPoint) {
+            // Simple line annotation (has startPoint and endPoint)
+            data.coordinates = {
+                type: 'line',
+                start: { x: annotation.startPoint.x, y: annotation.startPoint.y },
+                end: { x: annotation.endPoint.x, y: annotation.endPoint.y }
             };
         } else if (annotation.points && annotation.points.size > 0) {
             // Polygon/area measurement
@@ -2274,10 +2300,18 @@ function updateModalAndFooterPositions() {
             if (measurementFooter && measurementFooter.classList.contains('visible')) {
                 const footerHeight = measurementFooter.offsetHeight || 200;
                 modal.style.setProperty('bottom', `${footerHeight}px`, 'important');
-                console.log(`[Nutrient Viewer] Updated modal bottom to ${footerHeight}px for footer`);
+                console.log(`[Nutrient Viewer] ✅ Updated modal bottom to ${footerHeight}px for footer (VISIBLE)`);
+                console.log(`[Nutrient Viewer] 📊 Footer classList:`, measurementFooter.className);
+                console.log(`[Nutrient Viewer] 📏 Footer offsetHeight: ${measurementFooter.offsetHeight}px`);
             } else {
                 modal.style.setProperty('bottom', '0px', 'important');
-                console.log(`[Nutrient Viewer] Reset modal bottom to 0px (no footer)`);
+                console.log(`[Nutrient Viewer] ✅ Reset modal bottom to 0px (NO FOOTER or NOT VISIBLE)`);
+                if (measurementFooter) {
+                    console.log(`[Nutrient Viewer] 📊 Footer exists, classList:`, measurementFooter.className);
+                    console.log(`[Nutrient Viewer] ❌ Footer 'visible' class: ${measurementFooter.classList.contains('visible')}`);
+                } else {
+                    console.log(`[Nutrient Viewer] ❌ Footer element not found in DOM`);
+                }
             }
         }
 
@@ -2322,6 +2356,10 @@ resizeObserver.observe(document.body, {
 console.log('[Nutrient Viewer] Initializing drag-to-resize functionality');
 setupSidebarResize();
 setupFooterResize();
+
+// Expose function globally for Blazor C# to call
+window.updateModalAndFooterPositions = updateModalAndFooterPositions;
+console.log('[Nutrient Viewer] ✅ Exposed updateModalAndFooterPositions globally on window object');
 
 // ========================================
 // PDF EDIT LOCK SYSTEM - VIEW-ONLY MODE

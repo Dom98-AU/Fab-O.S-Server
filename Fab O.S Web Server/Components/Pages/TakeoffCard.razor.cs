@@ -38,7 +38,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
     [Inject] private FabOS.WebServer.Services.BreadcrumbService BreadcrumbService { get; set; } = default!;
     [Inject] private NumberSeriesService NumberSeriesService { get; set; } = default!;
 
-    private TraceDrawing? takeoff = null;
+    private Takeoff? takeoff = null;
     private bool isLoading = true;
     private string errorMessage = "";
 
@@ -85,7 +85,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
     // Missing fields for TakeoffCard.razor
     private DateTime? bidDate;
-    private TraceDrawing? selectedTakeoff;
+    private Takeoff? selectedTakeoff;
 
     protected override async Task OnInitializedAsync()
     {
@@ -134,7 +134,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             if (Id == 0)
             {
                 // Create new takeoff
-                takeoff = new TraceDrawing
+                takeoff = new Takeoff
                 {
                     Id = 0,
                     FileName = "New Takeoff.pdf",
@@ -274,7 +274,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             selectedAddress = await DbContext.CustomerAddresses
                 .FirstOrDefaultAsync(a => a.CustomerId == customer.Id && a.IsPrimary);
 
-            // Address field has been removed from TraceDrawing entity
+            // Address field has been removed from Takeoff entity
             // The address is now handled through the CustomerAddress relationship
         }
 
@@ -301,6 +301,20 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             selectedContact = null;
             selectedContactEmail = "";
             selectedContactPhone = "";
+        }
+        StateHasChanged();
+    }
+
+    private void ViewContact()
+    {
+        if (takeoff?.ContactId != null && takeoff.ContactId > 0)
+        {
+            // Get the current page URL to pass as a return parameter
+            var currentUri = Navigation.Uri;
+            var encodedReturnUrl = System.Net.WebUtility.UrlEncode(currentUri);
+
+            // Navigate to the contact detail card page with return URL
+            Navigation.NavigateTo($"/{TenantSlug}/trace/contacts/{takeoff.ContactId}?returnUrl={encodedReturnUrl}");
         }
     }
 
@@ -649,7 +663,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
         }
     }
 
-    private void ViewDrawing(TraceDrawing drawing)
+    private void ViewDrawing(Takeoff drawing)
     {
         if (drawing != null)
         {
@@ -657,7 +671,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
         }
     }
 
-    private void ManageDrawings(TraceDrawing drawing)
+    private void ManageDrawings(Takeoff drawing)
     {
         if (drawing != null)
         {
@@ -665,7 +679,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
         }
     }
 
-    private void StartMeasuring(TraceDrawing drawing)
+    private void StartMeasuring(Takeoff drawing)
     {
         if (drawing != null)
         {

@@ -210,6 +210,7 @@ builder.Services.AddScoped<IDatabaseService, DatabaseService>();
 builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilder, FabOS.WebServer.Services.Implementations.BreadcrumbBuilders.TakeoffBreadcrumbBuilder>();
 builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilder, FabOS.WebServer.Services.Implementations.BreadcrumbBuilders.PackageBreadcrumbBuilder>();
 builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilder, FabOS.WebServer.Services.Implementations.BreadcrumbBuilders.CustomerBreadcrumbBuilder>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilder, FabOS.WebServer.Services.Implementations.BreadcrumbBuilders.ContactBreadcrumbBuilder>();
 builder.Services.AddScoped<FabOS.WebServer.Services.Implementations.BreadcrumbBuilderService>();
 builder.Services.AddScoped<FabOS.WebServer.Services.BreadcrumbService>();
 
@@ -266,6 +267,7 @@ builder.Services.AddScoped<IPdfCalibrationService, PdfCalibrationService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IPdfAnnotationService, PdfAnnotationService>();
 builder.Services.AddScoped<IPdfLockService, PdfLockService>();
+builder.Services.AddScoped<IMeasurementExportService, MeasurementExportService>();
 
 // Register SignalR Hub for real-time measurement updates (cross-tab/cross-user notifications)
 builder.Services.AddSignalR();

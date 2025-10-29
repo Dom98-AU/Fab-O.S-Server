@@ -12,7 +12,7 @@ public partial class PdfTakeoffViewer : ComponentBase
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
 
-    private TraceDrawing? drawing;
+    private Takeoff? drawing;
     private bool isLoading = true;
     private string? errorMessage;
 

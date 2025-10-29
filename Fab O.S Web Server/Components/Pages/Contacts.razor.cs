@@ -17,7 +17,7 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider, IDisposab
     [Parameter]
     public string TenantSlug { get; set; } = string.Empty;
 
-    [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
+    [Inject] private IDbContextFactory<ApplicationDbContext> DbContextFactory { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private BreadcrumbService BreadcrumbService { get; set; } = default!;
 
@@ -57,7 +57,8 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider, IDisposab
             {
                 filterByCustomerId = customerId;
                 // Load customer details for display
-                filterCustomer = await DbContext.Customers.FindAsync(customerId);
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+                filterCustomer = await dbContext.Customers.FindAsync(customerId);
             }
         }
 
@@ -187,7 +188,8 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider, IDisposab
         try
         {
             isLoading = true;
-            var query = DbContext.CustomerContacts
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            var query = dbContext.CustomerContacts
                 .Include(c => c.Customer)
                 .AsQueryable();
 
@@ -336,7 +338,7 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider, IDisposab
 
     private void EditContact(int contactId)
     {
-        Navigation.NavigateTo($"/{TenantSlug}/trace/contacts/{contactId}/edit");
+        Navigation.NavigateTo($"/{TenantSlug}/trace/contacts/{contactId}");
     }
 
     private async Task DeleteContact(CustomerContact contact)
@@ -344,8 +346,9 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider, IDisposab
         // In a real application, you'd want to show a confirmation dialog
         try
         {
-            DbContext.CustomerContacts.Remove(contact);
-            await DbContext.SaveChangesAsync();
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            dbContext.CustomerContacts.Remove(contact);
+            await dbContext.SaveChangesAsync();
             await LoadContacts();
         }
         catch (Exception ex)
@@ -425,8 +428,9 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider, IDisposab
 
         try
         {
-            DbContext.CustomerContacts.RemoveRange(selected);
-            await DbContext.SaveChangesAsync();
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            dbContext.CustomerContacts.RemoveRange(selected);
+            await dbContext.SaveChangesAsync();
 
             selectedTableItems.Clear();
             selectedListItems.Clear();

@@ -2832,7 +2832,7 @@ namespace FabOS.WebServer.Migrations
                     b.ToTable("TraceDocuments");
                 });
 
-            modelBuilder.Entity("FabOS.WebServer.Models.Entities.TraceDrawing", b =>
+            modelBuilder.Entity("FabOS.WebServer.Models.Entities.Takeoff", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -4854,7 +4854,7 @@ namespace FabOS.WebServer.Migrations
                         .WithMany()
                         .HasForeignKey("CreatedBy");
 
-                    b.HasOne("FabOS.WebServer.Models.Entities.TraceDrawing", "Takeoff")
+                    b.HasOne("FabOS.WebServer.Models.Entities.Takeoff", "Takeoff")
                         .WithMany("Revisions")
                         .HasForeignKey("TakeoffId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -4898,13 +4898,13 @@ namespace FabOS.WebServer.Migrations
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.TraceBeamDetection", b =>
                 {
-                    b.HasOne("FabOS.WebServer.Models.Entities.TraceDrawing", "TraceDrawing")
+                    b.HasOne("FabOS.WebServer.Models.Entities.Takeoff", "Takeoff")
                         .WithMany("TraceBeamDetections")
                         .HasForeignKey("TraceDrawingId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("TraceDrawing");
+                    b.Navigation("Takeoff");
                 });
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.TraceComponent", b =>
@@ -4949,7 +4949,7 @@ namespace FabOS.WebServer.Migrations
                     b.Navigation("VerifiedByUser");
                 });
 
-            modelBuilder.Entity("FabOS.WebServer.Models.Entities.TraceDrawing", b =>
+            modelBuilder.Entity("FabOS.WebServer.Models.Entities.Takeoff", b =>
                 {
                     b.HasOne("FabOS.WebServer.Models.Entities.Company", "Company")
                         .WithMany("TraceDrawings")
@@ -5020,13 +5020,13 @@ namespace FabOS.WebServer.Migrations
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.TraceMeasurement", b =>
                 {
-                    b.HasOne("FabOS.WebServer.Models.Entities.TraceDrawing", "TraceDrawing")
+                    b.HasOne("FabOS.WebServer.Models.Entities.Takeoff", "Takeoff")
                         .WithMany("TraceMeasurements")
                         .HasForeignKey("TraceDrawingId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("TraceDrawing");
+                    b.Navigation("Takeoff");
                 });
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.TraceParameter", b =>
@@ -5098,7 +5098,7 @@ namespace FabOS.WebServer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("FabOS.WebServer.Models.Entities.TraceDrawing", "Drawing")
+                    b.HasOne("FabOS.WebServer.Models.Entities.Takeoff", "Drawing")
                         .WithMany()
                         .HasForeignKey("DrawingId");
 
@@ -5134,13 +5134,13 @@ namespace FabOS.WebServer.Migrations
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.TraceTakeoffItem", b =>
                 {
-                    b.HasOne("FabOS.WebServer.Models.Entities.TraceDrawing", "TraceDrawing")
+                    b.HasOne("FabOS.WebServer.Models.Entities.Takeoff", "Takeoff")
                         .WithMany("TraceTakeoffItems")
                         .HasForeignKey("TraceDrawingId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("TraceDrawing");
+                    b.Navigation("Takeoff");
                 });
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.TraceTakeoffMeasurement", b =>
@@ -5423,7 +5423,7 @@ namespace FabOS.WebServer.Migrations
                     b.Navigation("Components");
                 });
 
-            modelBuilder.Entity("FabOS.WebServer.Models.Entities.TraceDrawing", b =>
+            modelBuilder.Entity("FabOS.WebServer.Models.Entities.Takeoff", b =>
                 {
                     b.Navigation("Revisions");
 

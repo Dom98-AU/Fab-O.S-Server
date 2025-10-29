@@ -10,18 +10,18 @@ namespace FabOS.WebServer.Services.Implementations
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ILogger<TenantService> _logger;
-        private readonly ApplicationDbContext _context;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly IWebHostEnvironment _environment;
 
         public TenantService(
             IHttpContextAccessor httpContextAccessor,
             ILogger<TenantService> logger,
-            ApplicationDbContext context,
+            IDbContextFactory<ApplicationDbContext> contextFactory,
             IWebHostEnvironment environment)
         {
             _httpContextAccessor = httpContextAccessor;
             _logger = logger;
-            _context = context;
+            _contextFactory = contextFactory;
             _environment = environment;
         }
 
@@ -159,7 +159,8 @@ namespace FabOS.WebServer.Services.Implementations
         {
             try
             {
-                var company = await _context.Companies
+                await using var context = await _contextFactory.CreateDbContextAsync();
+                var company = await context.Companies
                     .FirstOrDefaultAsync(c => c.Id == companyId);
 
                 if (company == null)

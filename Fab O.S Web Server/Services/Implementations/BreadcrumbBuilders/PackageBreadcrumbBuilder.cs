@@ -12,19 +12,25 @@ public class PackageBreadcrumbBuilder : IBreadcrumbBuilder
 {
     private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly ILogger<PackageBreadcrumbBuilder> _logger;
+    private readonly ITenantService _tenantService;
 
     public string EntityType => "Package";
 
     public PackageBreadcrumbBuilder(
         IDbContextFactory<ApplicationDbContext> contextFactory,
-        ILogger<PackageBreadcrumbBuilder> logger)
+        ILogger<PackageBreadcrumbBuilder> logger,
+        ITenantService tenantService)
     {
         _contextFactory = contextFactory;
         _logger = logger;
+        _tenantService = tenantService;
     }
 
     public async Task<BreadcrumbItem> BuildBreadcrumbAsync(int entityId, string? url = null)
     {
+        // Get tenant slug for URL generation
+        var tenantSlug = await _tenantService.GetCurrentTenantSlugAsync() ?? "default";
+
         try
         {
             await using var dbContext = await _contextFactory.CreateDbContextAsync();
@@ -40,7 +46,7 @@ public class PackageBreadcrumbBuilder : IBreadcrumbBuilder
                 return new BreadcrumbItem
                 {
                     Label = $"Package #{entityId}",
-                    Url = url ?? $"/packages/{entityId}",
+                    Url = url ?? $"/{tenantSlug}/trace/packages/{entityId}",
                     IsActive = false
                 };
             }
@@ -54,7 +60,7 @@ public class PackageBreadcrumbBuilder : IBreadcrumbBuilder
             return new BreadcrumbItem
             {
                 Label = displayName,
-                Url = url ?? $"/packages/{entityId}",
+                Url = url ?? $"/{tenantSlug}/trace/packages/{entityId}",
                 IsActive = false
             };
         }
@@ -64,7 +70,7 @@ public class PackageBreadcrumbBuilder : IBreadcrumbBuilder
             return new BreadcrumbItem
             {
                 Label = $"Package #{entityId}",
-                Url = url ?? $"/packages/{entityId}",
+                Url = url ?? $"/{tenantSlug}/trace/packages/{entityId}",
                 IsActive = false
             };
         }

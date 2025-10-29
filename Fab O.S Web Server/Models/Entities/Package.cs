@@ -106,7 +106,7 @@ public class Package
     public virtual RoutingTemplate? RoutingTemplate { get; set; }
 
     // NOTE: TraceDrawings removed - use TakeoffRevision.Takeoff instead
-    // public virtual ICollection<TraceDrawing> TraceDrawings { get; set; } = new List<TraceDrawing>();
+    // public virtual ICollection<Takeoff> TraceDrawings { get; set; } = new List<Takeoff>();
     public virtual ICollection<WeldingConnection> WeldingConnections { get; set; } = new List<WeldingConnection>();
 
     // NEW: Work orders collection (production management)

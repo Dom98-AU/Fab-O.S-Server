@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
-    <link rel="stylesheet" href="app.css?v=20251017" />
+    <link rel="stylesheet" href="app.css?v=20251028" />
     <link rel="stylesheet" href="FabOS.WebServer.styles.css?v=20251017" />
     <link rel="stylesheet" href="css/pdf-takeoff-viewer.css" />
     <link rel="stylesheet" href="css/modal-infrastructure.css?v=20251015044500" />
@@ -48,10 +48,16 @@
     <!-- PDF Lock System -->
     <script src="js/progress-indicator.js"></script>
 
+    <!-- Debug script to track all clicks -->
+    <script src="js/debug-click.js"></script>
+
+    <!-- Sidebar JavaScript Interop (MUST load before Blazor starts) -->
+    <script src="js/sidebar-interop.js"></script>
+
     <!-- Nutrient (PSPDFKit) Web SDK -->
     <script src="assets/pspdfkit/pspdfkit.js"></script>
     <script src="js/nutrient-poc.js?v=1"></script>
-    <script src="js/nutrient-viewer.js?v=27"></script>
+    <script src="js/nutrient-viewer.js?v=35"></script>
 
     <!-- Existing PDF.js viewers (keep for backward compatibility) -->
     <script src="js/pdf-takeoff-viewer.js?v=3"></script>

@@ -11,7 +11,7 @@ namespace FabOS.WebServer.Services.Implementations
     /// </summary>
     public class PdfLockService : IPdfLockService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly ILogger<PdfLockService> _logger;
 
         // Constants for timeout configuration
@@ -19,10 +19,10 @@ namespace FabOS.WebServer.Services.Implementations
         private const int INACTIVITY_TIMEOUT_MINUTES = 10;  // Release lock if no activity for 10 minutes
 
         public PdfLockService(
-            ApplicationDbContext context,
+            IDbContextFactory<ApplicationDbContext> contextFactory,
             ILogger<PdfLockService> logger)
         {
-            _context = context;
+            _contextFactory = contextFactory;
             _logger = logger;
         }
 
@@ -34,8 +34,10 @@ namespace FabOS.WebServer.Services.Implementations
             // First, clean up any stale locks
             await ReleaseStaleLocksAsync();
 
+            await using var context = await _contextFactory.CreateDbContextAsync();
+
             // Check if this session already has the lock
-            var existingSessionLock = await _context.PdfEditLocks
+            var existingSessionLock = await context.PdfEditLocks
                 .FirstOrDefaultAsync(l => l.SessionId == sessionId && l.PackageDrawingId == drawingId && l.IsActive);
 
             if (existingSessionLock != null)
@@ -45,7 +47,7 @@ namespace FabOS.WebServer.Services.Implementations
             }
 
             // Check if drawing is locked by another session
-            var existingLock = await _context.PdfEditLocks
+            var existingLock = await context.PdfEditLocks
                 .FirstOrDefaultAsync(l => l.PackageDrawingId == drawingId && l.IsActive);
 
             if (existingLock != null)
@@ -69,8 +71,8 @@ namespace FabOS.WebServer.Services.Implementations
                 IsActive = true
             };
 
-            _context.PdfEditLocks.Add(newLock);
-            await _context.SaveChangesAsync();
+            context.PdfEditLocks.Add(newLock);
+            await context.SaveChangesAsync();
 
             _logger.LogInformation("[PdfLockService] ✓ Lock acquired: LockId={LockId}, DrawingId={DrawingId}, User={UserName}",
                 newLock.Id, drawingId, userName);
@@ -82,13 +84,14 @@ namespace FabOS.WebServer.Services.Implementations
         {
             _logger.LogInformation("[PdfLockService] Releasing lock for SessionId={SessionId}", sessionId);
 
-            var pdfLock = await _context.PdfEditLocks
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var pdfLock = await context.PdfEditLocks
                 .FirstOrDefaultAsync(l => l.SessionId == sessionId && l.IsActive);
 
             if (pdfLock != null)
             {
                 pdfLock.IsActive = false;
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 _logger.LogInformation("[PdfLockService] ✓ Lock released: LockId={LockId}, DrawingId={DrawingId}",
                     pdfLock.Id, pdfLock.PackageDrawingId);
@@ -101,13 +104,14 @@ namespace FabOS.WebServer.Services.Implementations
 
         public async Task UpdateHeartbeatAsync(string sessionId)
         {
-            var pdfLock = await _context.PdfEditLocks
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var pdfLock = await context.PdfEditLocks
                 .FirstOrDefaultAsync(l => l.SessionId == sessionId && l.IsActive);
 
             if (pdfLock != null)
             {
                 pdfLock.LastHeartbeat = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 _logger.LogDebug("[PdfLockService] Heartbeat updated for SessionId={SessionId}, LockId={LockId}",
                     sessionId, pdfLock.Id);
@@ -116,14 +120,15 @@ namespace FabOS.WebServer.Services.Implementations
 
         public async Task UpdateActivityAsync(string sessionId)
         {
-            var pdfLock = await _context.PdfEditLocks
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var pdfLock = await context.PdfEditLocks
                 .FirstOrDefaultAsync(l => l.SessionId == sessionId && l.IsActive);
 
             if (pdfLock != null)
             {
                 pdfLock.LastActivityAt = DateTime.UtcNow;
                 pdfLock.LastHeartbeat = DateTime.UtcNow; // Also update heartbeat
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 _logger.LogDebug("[PdfLockService] Activity updated for SessionId={SessionId}, LockId={LockId}",
                     sessionId, pdfLock.Id);
@@ -132,7 +137,8 @@ namespace FabOS.WebServer.Services.Implementations
 
         public async Task<PdfEditLock?> GetActiveLockAsync(int drawingId)
         {
-            return await _context.PdfEditLocks
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.PdfEditLocks
                 .Include(l => l.User)
                 .Include(l => l.PackageDrawing)
                 .FirstOrDefaultAsync(l => l.PackageDrawingId == drawingId && l.IsActive);
@@ -144,8 +150,10 @@ namespace FabOS.WebServer.Services.Implementations
             var heartbeatCutoff = now.AddSeconds(-HEARTBEAT_TIMEOUT_SECONDS);
             var inactivityCutoff = now.AddMinutes(-INACTIVITY_TIMEOUT_MINUTES);
 
+            await using var context = await _contextFactory.CreateDbContextAsync();
+
             // Find stale locks (either no heartbeat for 30 sec OR no activity for 10 min)
-            var staleLocks = await _context.PdfEditLocks
+            var staleLocks = await context.PdfEditLocks
                 .Where(l => l.IsActive &&
                     (l.LastHeartbeat < heartbeatCutoff || l.LastActivityAt < inactivityCutoff))
                 .ToListAsync();
@@ -166,7 +174,7 @@ namespace FabOS.WebServer.Services.Implementations
                         pdfLock.Id, pdfLock.PackageDrawingId, pdfLock.UserName, reason);
                 }
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
             }
         }
 
@@ -175,13 +183,14 @@ namespace FabOS.WebServer.Services.Implementations
             _logger.LogWarning("[PdfLockService] Force releasing lock: LockId={LockId}, AdminUserId={AdminUserId}",
                 lockId, adminUserId);
 
-            var pdfLock = await _context.PdfEditLocks
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var pdfLock = await context.PdfEditLocks
                 .FirstOrDefaultAsync(l => l.Id == lockId);
 
             if (pdfLock != null)
             {
                 pdfLock.IsActive = false;
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 _logger.LogWarning("[PdfLockService] ✓ Lock force-released: LockId={LockId}, DrawingId={DrawingId}, User={UserName}, AdminUserId={AdminUserId}",
                     pdfLock.Id, pdfLock.PackageDrawingId, pdfLock.UserName, adminUserId);
@@ -196,7 +205,8 @@ namespace FabOS.WebServer.Services.Implementations
 
         public async Task<List<PdfEditLock>> GetAllActiveLocksAsync()
         {
-            return await _context.PdfEditLocks
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.PdfEditLocks
                 .Include(l => l.User)
                 .Include(l => l.PackageDrawing)
                 .Where(l => l.IsActive)
@@ -206,7 +216,8 @@ namespace FabOS.WebServer.Services.Implementations
 
         public async Task<bool> HasActiveLockAsync(string sessionId, int drawingId)
         {
-            return await _context.PdfEditLocks
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.PdfEditLocks
                 .AnyAsync(l => l.SessionId == sessionId &&
                               l.PackageDrawingId == drawingId &&
                               l.IsActive);

@@ -3,7 +3,7 @@
 LIST-TYPE PAGE
 ═══════════════════════════════════════════════════════════════
 Page Type: List
-Entity: TraceDrawing (Takeoff)
+Entity: Takeoff (Takeoff)
 Views: Table, List, Card
 Features: ViewPreferences, ColumnManagement, Search, Selection, Sorting
 Pattern: Standard
@@ -38,7 +38,7 @@ Last Updated: 2025-10-23
     else
     {
         <!-- Table View Toolbar -->
-        <TableViewToolbar TItem="TraceDrawing"
+        <TableViewToolbar TItem="Takeoff"
                          EnableViewPreferences="true"
                          EnableColumnManagement="true"
                          EntityType="Takeoff"
@@ -54,9 +54,9 @@ Last Updated: 2025-10-23
         <!-- Views -->
         @if (filteredTakeoffs.Any())
         {
-            @if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.TraceDrawing>.ViewType.Table)
+            @if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.Takeoff>.ViewType.Table)
             {
-                <GenericTableView TItem="TraceDrawing"
+                <GenericTableView TItem="Takeoff"
                                  Items="@filteredTakeoffs"
                                  Columns="@tableColumns"
                                  AllowSelection="true"
@@ -66,27 +66,27 @@ Last Updated: 2025-10-23
                                  OnRowDoubleClick="@HandleRowDoubleClick"
                                  ActionsTemplate="@TableActionsTemplate" />
             }
-            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.TraceDrawing>.ViewType.Card)
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.Takeoff>.ViewType.Card)
             {
-                <GenericCardView TItem="TraceDrawing"
+                <GenericCardView TItem="Takeoff"
                                 Items="@filteredTakeoffs"
                                 TitleSelector="@(item => item.TakeoffNumber ?? "N/A")"
                                 SubtitleSelector="@(item => item.TraceName ?? "No description")"
                                 StatusSelector="@(item => item.ProcessingStatus)"
                                 AllowSelection="true"
                                 SelectedItems="@selectedCardItems"
-                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<TraceDrawing>>(this, items => selectedCardItems = items))"
-                                OnItemClick="@(EventCallback.Factory.Create<TraceDrawing>(this, (item) => OpenTakeoff(item.Id)))"
-                                OnItemDoubleClick="@(EventCallback.Factory.Create<TraceDrawing>(this, (item) => OpenTakeoff(item.Id)))" />
+                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<Takeoff>>(this, items => selectedCardItems = items))"
+                                OnItemClick="@(EventCallback.Factory.Create<Takeoff>(this, (item) => OpenTakeoff(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<Takeoff>(this, (item) => OpenTakeoff(item.Id)))" />
             }
-            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.TraceDrawing>.ViewType.List)
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.Takeoff>.ViewType.List)
             {
-                <GenericListView TItem="TraceDrawing"
+                <GenericListView TItem="Takeoff"
                                 Items="@filteredTakeoffs"
                                 AllowSelection="true"
-                                OnSelectionChanged="@(EventCallback.Factory.Create<(TraceDrawing item, bool selected)>(this, OnSelectionChanged))"
-                                OnItemClick="@(EventCallback.Factory.Create<TraceDrawing>(this, (item) => OpenTakeoff(item.Id)))"
-                                OnItemDoubleClick="@(EventCallback.Factory.Create<TraceDrawing>(this, (item) => OpenTakeoff(item.Id)))"
+                                OnSelectionChanged="@(EventCallback.Factory.Create<(Takeoff item, bool selected)>(this, OnSelectionChanged))"
+                                OnItemClick="@(EventCallback.Factory.Create<Takeoff>(this, (item) => OpenTakeoff(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<Takeoff>(this, (item) => OpenTakeoff(item.Id)))"
                                 ItemIcon="@ListIconTemplate"
                                 ItemTitle="@ListTitleTemplate"
                                 ItemSubtitle="@ListSubtitleTemplate"

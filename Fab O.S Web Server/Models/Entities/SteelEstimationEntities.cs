@@ -3,8 +3,15 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace FabOS.WebServer.Models.Entities;
 
+/// <summary>
+/// Represents a Takeoff Card - the top-level container for a takeoff project.
+/// Previously named Takeoff for historical reasons. The database table is still "TraceDrawings"
+/// but will be renamed to "Takeoffs" in a future migration.
+///
+/// Hierarchy: Takeoff → TakeoffRevision → Package → PackageDrawing → TraceTakeoffMeasurement
+/// </summary>
 [Table("TraceDrawings")]
-public class TraceDrawing
+public class Takeoff
 {
     [Key]
     public int Id { get; set; }
@@ -108,6 +115,9 @@ public class TraceDrawing
     // Takeoff Enhancement Properties
     [StringLength(50)]
     public string? Status { get; set; } = "Draft";
+
+    [StringLength(1000)]
+    public string? Description { get; set; }
 
     public int? OcrConfidence { get; set; }
 
@@ -228,7 +238,7 @@ public class TraceMeasurement
 
     // Navigation properties
     [ForeignKey("TraceDrawingId")]
-    public virtual TraceDrawing TraceDrawing { get; set; } = null!;
+    public virtual Takeoff Takeoff { get; set; } = null!;
 }
 
 [Table("TraceBeamDetections")]
@@ -260,7 +270,7 @@ public class TraceBeamDetection
 
     // Navigation properties
     [ForeignKey("TraceDrawingId")]
-    public virtual TraceDrawing TraceDrawing { get; set; } = null!;
+    public virtual Takeoff Takeoff { get; set; } = null!;
 }
 
 [Table("TraceTakeoffItems")]
@@ -292,5 +302,5 @@ public class TraceTakeoffItem
 
     // Navigation properties
     [ForeignKey("TraceDrawingId")]
-    public virtual TraceDrawing TraceDrawing { get; set; } = null!;
+    public virtual Takeoff Takeoff { get; set; } = null!;
 }

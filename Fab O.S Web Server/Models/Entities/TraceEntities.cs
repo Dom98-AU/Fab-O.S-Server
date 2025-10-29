@@ -465,7 +465,7 @@ public class TraceTakeoff
 
     // Navigation properties
     public virtual TraceRecord TraceRecord { get; set; } = null!;
-    public virtual TraceDrawing? Drawing { get; set; }
+    public virtual Takeoff? Drawing { get; set; }
     public virtual Company Company { get; set; } = null!;
     public virtual ICollection<TraceTakeoffMeasurement> Measurements { get; set; } = new List<TraceTakeoffMeasurement>();
 }

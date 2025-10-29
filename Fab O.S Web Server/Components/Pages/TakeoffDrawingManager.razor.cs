@@ -17,9 +17,9 @@ public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvid
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
 
-    private List<TraceDrawing> drawings = new();
-    private List<TraceDrawing> filteredDrawings = new();
-    private TraceDrawing? selectedTakeoff;
+    private List<Takeoff> drawings = new();
+    private List<Takeoff> filteredDrawings = new();
+    private Takeoff? selectedTakeoff;
     private string activeTab = "overview";
     private bool isUploading = false;
     private DrawingUploadModel uploadModel = new();
@@ -27,7 +27,7 @@ public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvid
     private EditContext? editContext;
     private ValidationMessageStore? messageStore;
     private bool showEditModal = false;
-    private TraceDrawing? editingDrawing;
+    private Takeoff? editingDrawing;
 
     protected override async Task OnInitializedAsync()
     {
@@ -82,7 +82,7 @@ public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvid
             foreach (var file in e.GetMultipleFiles())
             {
                 // Handle file upload logic
-                var drawing = new TraceDrawing
+                var drawing = new Takeoff
                 {
                     CompanyId = 1, // TODO: Get from user context
                     ProjectId = 1, // TODO: Get from selected project
@@ -231,7 +231,7 @@ public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvid
             editingDrawing.FileType = "application/pdf"; // Use a default or from model
             editingDrawing.Scale = editModel.Scale;
             editingDrawing.ScaleUnit = editModel.ScaleUnit;
-            // Description doesn't exist in TraceDrawing
+            // Description doesn't exist in Takeoff
 
             await DbContext.SaveChangesAsync();
             await LoadDrawings();
@@ -243,7 +243,7 @@ public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvid
         }
     }
 
-    private void OpenEditModal(TraceDrawing drawing)
+    private void OpenEditModal(Takeoff drawing)
     {
         editingDrawing = drawing;
         editModel = new DrawingUploadModel
@@ -410,7 +410,7 @@ public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvid
         StateHasChanged();
     }
 
-    private void EditDrawing(TraceDrawing drawing)
+    private void EditDrawing(Takeoff drawing)
     {
         editingDrawing = drawing;
         editModel = new DrawingUploadModel
@@ -425,7 +425,7 @@ public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvid
         StateHasChanged();
     }
 
-    // Extension properties for TraceDrawing
+    // Extension properties for Takeoff
     public string? DrawingName { get; set; }
     public string? DrawingType { get; set; }
     public string? Description { get; set; }
@@ -435,11 +435,11 @@ public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvid
     public DateTime? CreatedDate { get; set; }
     public DateTime? UpdatedDate { get; set; }
 
-    private async Task DuplicateDrawing(TraceDrawing drawing)
+    private async Task DuplicateDrawing(Takeoff drawing)
     {
         try
         {
-            var duplicate = new TraceDrawing
+            var duplicate = new Takeoff
             {
                 CompanyId = drawing.CompanyId,
                 ProjectId = drawing.ProjectId,
@@ -464,13 +464,13 @@ public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvid
         }
     }
 
-    private void DownloadDrawing(TraceDrawing drawing)
+    private void DownloadDrawing(Takeoff drawing)
     {
         // Implement file download
         Console.WriteLine($"Download: {drawing.FileName}");
     }
 
-    private void StartTakeoff(TraceDrawing drawing)
+    private void StartTakeoff(Takeoff drawing)
     {
         Navigation.NavigateTo($"/takeoff/{drawing.Id}");
     }
@@ -521,7 +521,7 @@ public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvid
         };
     }
 
-    private string GetCardClasses(TraceDrawing drawing)
+    private string GetCardClasses(Takeoff drawing)
     {
         return drawing.ProcessingStatus?.ToLower() == "completed" ? "card-completed" : "";
     }

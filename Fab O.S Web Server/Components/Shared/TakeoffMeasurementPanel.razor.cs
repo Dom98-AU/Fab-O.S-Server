@@ -14,8 +14,9 @@ namespace FabOS.WebServer.Components.Shared
         [Inject] private ILogger<TakeoffMeasurementPanel> Logger { get; set; } = default!;
         [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
         [Inject] private NavigationManager NavigationManager { get; set; } = default!;
-        [Inject] private Data.Contexts.ApplicationDbContext DbContext { get; set; } = default!;
+        [Inject] private IDbContextFactory<Data.Contexts.ApplicationDbContext> DbContextFactory { get; set; } = default!;
         [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
+        [Inject] private ITenantService TenantService { get; set; } = default!;
 
         [Parameter] public int PackageDrawingId { get; set; }
         [Parameter] public string PdfContainerId { get; set; } = "pdf-container";
@@ -64,7 +65,8 @@ namespace FabOS.WebServer.Components.Shared
                 var userIdClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
-                    var user = await DbContext.Users.FindAsync(userId);
+                    await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+                    var user = await dbContext.Users.FindAsync(userId);
                     currentCompanyId = user?.CompanyId ?? 1;
                     Logger.LogInformation("[TakeoffMeasurementPanel] Retrieved CompanyId={CompanyId} for user {UserId}", currentCompanyId, userId);
                 }
@@ -352,8 +354,10 @@ namespace FabOS.WebServer.Components.Shared
             {
                 measurementToAnnotationMap.Clear();
 
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+
                 // Load PDF annotations for this drawing that have associated measurements
-                var annotations = await DbContext.PdfAnnotations
+                var annotations = await dbContext.PdfAnnotations
                     .Where(a => a.PackageDrawingId == PackageDrawingId && a.TraceTakeoffMeasurementId != null)
                     .Select(a => new { a.TraceTakeoffMeasurementId, a.AnnotationId })
                     .ToListAsync();
@@ -575,8 +579,10 @@ namespace FabOS.WebServer.Components.Shared
         {
             try
             {
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+
                 // Get the PackageId from the PackageDrawing
-                var drawing = await DbContext.PackageDrawings
+                var drawing = await dbContext.PackageDrawings
                     .Where(d => d.Id == PackageDrawingId)
                     .Select(d => new { d.PackageId })
                     .FirstOrDefaultAsync();
@@ -587,7 +593,8 @@ namespace FabOS.WebServer.Components.Shared
                     return;
                 }
 
-                var url = $"/packages/{drawing.PackageId}/drawings/{PackageDrawingId}/measurements";
+                var tenantSlug = await TenantService.GetCurrentTenantSlugAsync() ?? "default";
+                var url = $"/{tenantSlug}/trace/packages/{drawing.PackageId}/drawings/{PackageDrawingId}/measurements";
                 Logger.LogInformation("[TakeoffMeasurementPanel] Opening measurements page in new window: {Url}", url);
 
                 // Open in new window/tab using JavaScript

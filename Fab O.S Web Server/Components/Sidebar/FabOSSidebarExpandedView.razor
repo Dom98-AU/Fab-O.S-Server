@@ -4,54 +4,74 @@
 @inject SidebarService SidebarService
 @inject NavigationService NavService
 
-<div class="fabos-expanded-content">
-    <!-- Quick Actions Section -->
-    <div class="fabos-nav-section">
-        <div class="fabos-section-header">
-            <span class="fabos-section-title">
-                <LucideIcon Name="zap" Size="12" /> Quick Actions
-            </span>
-        </div>
-        <div class="fabos-nav-items">
-            @foreach (var item in NavService.GetQuickActions())
-            {
-                <FabOSSidebarMenuItem Item="@item" />
-            }
-        </div>
+@if (_quickActions == null || _moduleItems == null || _recentItems == null)
+{
+    <div class="fabos-expanded-content">
+        <div class="fabos-nav-loading">Loading...</div>
     </div>
+}
+else
+{
+    <div class="fabos-expanded-content">
+        <!-- Quick Actions Section -->
+        <div class="fabos-nav-section">
+            <div class="fabos-section-header">
+                <span class="fabos-section-title">
+                    <LucideIcon Name="zap" Size="12" /> Quick Actions
+                </span>
+            </div>
+            <div class="fabos-nav-items">
+                @foreach (var item in _quickActions)
+                {
+                    <FabOSSidebarMenuItem Item="@item" />
+                }
+            </div>
+        </div>
 
-    <!-- Module Specific Navigation -->
-    <div class="fabos-nav-section">
-        <div class="fabos-section-header">
-            <span class="fabos-section-title">
-                <LucideIcon Name="@GetModuleIcon()" Size="12" /> @SidebarService.CurrentModule Module
-            </span>
+        <!-- Module Specific Navigation -->
+        <div class="fabos-nav-section">
+            <div class="fabos-section-header">
+                <span class="fabos-section-title">
+                    <LucideIcon Name="@GetModuleIcon()" Size="12" /> @SidebarService.CurrentModule Module
+                </span>
+            </div>
+            <div class="fabos-nav-items">
+                @foreach (var item in _moduleItems)
+                {
+                    <FabOSSidebarMenuItem Item="@item" />
+                }
+            </div>
         </div>
-        <div class="fabos-nav-items">
-            @foreach (var item in NavService.GetModuleItems(SidebarService.CurrentModule))
-            {
-                <FabOSSidebarMenuItem Item="@item" />
-            }
-        </div>
-    </div>
 
-    <!-- Recent Items Section -->
-    <div class="fabos-nav-section">
-        <div class="fabos-section-header">
-            <span class="fabos-section-title">
-                <LucideIcon Name="clock" Size="12" /> Recent
-            </span>
-        </div>
-        <div class="fabos-nav-items">
-            @foreach (var item in NavService.GetRecentItems())
-            {
-                <FabOSSidebarMenuItem Item="@item" />
-            }
+        <!-- Recent Items Section -->
+        <div class="fabos-nav-section">
+            <div class="fabos-section-header">
+                <span class="fabos-section-title">
+                    <LucideIcon Name="clock" Size="12" /> Recent
+                </span>
+            </div>
+            <div class="fabos-nav-items">
+                @foreach (var item in _recentItems)
+                {
+                    <FabOSSidebarMenuItem Item="@item" />
+                }
+            </div>
         </div>
     </div>
-</div>
+}
 
 @code {
+    private IEnumerable<FabOS.WebServer.Models.NavigationItem>? _quickActions;
+    private IEnumerable<FabOS.WebServer.Models.NavigationItem>? _moduleItems;
+    private IEnumerable<FabOS.WebServer.Models.NavigationItem>? _recentItems;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _quickActions = await NavService.GetQuickActionsAsync();
+        _moduleItems = await NavService.GetModuleItemsAsync(SidebarService.CurrentModule);
+        _recentItems = await NavService.GetRecentItemsAsync();
+    }
+
     private string GetModuleIcon()
     {
         return SidebarService.CurrentModule switch

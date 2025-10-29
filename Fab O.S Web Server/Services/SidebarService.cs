@@ -52,8 +52,12 @@ public class SidebarService
     /// <summary>
     /// Toggle sidebar collapsed state
     /// </summary>
-    public void ToggleCollapsed()
+    public async Task ToggleCollapsed()
     {
+        Console.WriteLine($"========================================");
+        Console.WriteLine($"[SidebarService] ⚡ ToggleCollapsed called!");
+        Console.WriteLine($"[SidebarService] Current state - IsCollapsed: {IsCollapsed}, IsExpanded: {IsExpanded}");
+
         IsCollapsed = !IsCollapsed;
 
         // If collapsing, exit expanded mode
@@ -61,15 +65,54 @@ public class SidebarService
         {
             IsExpanded = false;
             IsPinMode = false;
+            Console.WriteLine($"[SidebarService] ✅ Sidebar is now COLLAPSED");
         }
+        else
+        {
+            Console.WriteLine($"[SidebarService] ✅ Sidebar is now EXPANDED (normal)");
+        }
+
+        Console.WriteLine($"[SidebarService] New state - IsCollapsed: {IsCollapsed}, IsExpanded: {IsExpanded}");
+        Console.WriteLine($"[SidebarService] 🔄 Calling JavaScript to update body classes...");
+
+        // Update body classes via JavaScript
+        await UpdateSidebarBodyClassAsync();
+
+        Console.WriteLine($"[SidebarService] ✓ JavaScript update completed");
+        Console.WriteLine($"========================================");
 
         OnStateChanged?.Invoke();
     }
 
     /// <summary>
+    /// Update body classes via JavaScript to sync CSS variables
+    /// </summary>
+    private async Task UpdateSidebarBodyClassAsync()
+    {
+        try
+        {
+            Console.WriteLine($"[SidebarService] 📞 UpdateSidebarBodyClassAsync - Preparing to call JavaScript");
+            Console.WriteLine($"[SidebarService] 📊 Parameters: isCollapsed={IsCollapsed}, isExpanded={IsExpanded}");
+            Console.WriteLine($"[SidebarService] 🔧 Calling JSRuntime.InvokeVoidAsync('updateSidebarBodyClass', {IsCollapsed}, {IsExpanded})...");
+
+            await _jsRuntime.InvokeVoidAsync("updateSidebarBodyClass", IsCollapsed, IsExpanded);
+
+            Console.WriteLine($"[SidebarService] ✅ JavaScript call completed successfully");
+            Console.WriteLine($"[SidebarService] 💡 Expected body class: {(IsCollapsed ? "sidebar-collapsed" : IsExpanded ? "sidebar-expanded" : "none")}");
+            Console.WriteLine($"[SidebarService] 💡 Expected --main-sidebar-width: {(IsCollapsed ? "60px" : IsExpanded ? "420px" : "280px")}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SidebarService] ❌ UpdateSidebarBodyClassAsync - ERROR: {ex.Message}");
+            Console.WriteLine($"[SidebarService] Stack trace: {ex.StackTrace}");
+            // Ignore JavaScript errors during component disposal or when JS isn't available
+        }
+    }
+
+    /// <summary>
     /// Toggle sidebar expanded state
     /// </summary>
-    public void ToggleExpanded()
+    public async Task ToggleExpanded()
     {
         IsExpanded = !IsExpanded;
 
@@ -84,6 +127,9 @@ public class SidebarService
         {
             IsPinMode = false;
         }
+
+        // Update body classes via JavaScript
+        await UpdateSidebarBodyClassAsync();
 
         OnStateChanged?.Invoke();
     }

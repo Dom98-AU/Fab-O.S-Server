@@ -22,15 +22,42 @@
     --fabos-gray-700: #374151;
     --fabos-gray-800: #1F2937;
     --fabos-gray-900: #111827;
-    
+
+    /* Dynamic Sidebar Widths - Updated by body classes */
+    --main-sidebar-width: 280px;
+    --main-sidebar-collapsed: 60px;
+    --main-sidebar-expanded: 420px;
+
+    /* Catalogue Sidebar Widths */
+    --catalogue-sidebar-width: 320px;
+    --catalogue-sidebar-expanded: 480px;
+    --catalogue-sidebar-full: calc(100vw - var(--main-sidebar-width) - 40px);
+
+    /* Legacy variable names (kept for backward compatibility) */
     --fabos-sidebar-width: 280px;
     --fabos-sidebar-collapsed-width: 64px;
     --fabos-topbar-height: 64px;
-    
+
+    /* Shadows */
     --fabos-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --fabos-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
     --fabos-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --fabos-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* ==========================================
+   DYNAMIC SIDEBAR STATE MANAGEMENT
+   Body classes update CSS variables for dynamic sidebar positioning
+   ========================================== */
+
+/* Main sidebar collapsed state */
+body.sidebar-collapsed {
+    --main-sidebar-width: 60px;
+}
+
+/* Main sidebar expanded state */
+body.sidebar-expanded {
+    --main-sidebar-width: 420px;
 }
 
 /* Global App Container */
@@ -433,6 +460,8 @@
     justify-content: space-between;
     padding: 0 2rem;
     box-shadow: var(--fabos-shadow-sm);
+    position: relative;
+    z-index: 50; /* Above catalogue sidebar (45) so breadcrumbs are visible */
 }
 
 .fabos-breadcrumb {

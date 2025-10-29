@@ -39,16 +39,25 @@
         else
         {
             <!-- Collapsed View - Icons Only -->
-            <nav class="fabos-standard-nav">
-                @foreach (var item in NavService.GetModuleItems(SidebarService.CurrentModule))
-                {
-                    <a href="@item.Url" class="fabos-nav-item" title="@item.Title">
-                        <span class="fabos-nav-icon">
-                            <LucideIcon Name="@item.Icon" Size="20" />
-                        </span>
-                    </a>
-                }
-            </nav>
+            @if (_collapsedNavItems == null)
+            {
+                <nav class="fabos-standard-nav">
+                    <div class="fabos-nav-loading">...</div>
+                </nav>
+            }
+            else
+            {
+                <nav class="fabos-standard-nav">
+                    @foreach (var item in _collapsedNavItems)
+                    {
+                        <a href="@item.Url" class="fabos-nav-item" title="@item.Title">
+                            <span class="fabos-nav-icon">
+                                <LucideIcon Name="@item.Icon" Size="20" />
+                            </span>
+                        </a>
+                    }
+                </nav>
+            }
         }
     </FabOSSidebarContent>
 
@@ -57,6 +66,14 @@
 </div>
 
 @code {
+    private IEnumerable<FabOS.WebServer.Models.NavigationItem>? _collapsedNavItems;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load navigation items for collapsed view
+        _collapsedNavItems = await NavService.GetModuleItemsAsync(SidebarService.CurrentModule);
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)

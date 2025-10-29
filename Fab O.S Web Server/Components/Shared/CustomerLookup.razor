@@ -145,6 +145,7 @@
     [Parameter] public bool Disabled { get; set; } = false;
     [Parameter] public string CssClass { get; set; } = "";
     [Parameter] public bool LoadOnInit { get; set; } = true;
+    [Parameter] public string? TenantSlug { get; set; }
 
     private List<Customer> customers = new();
     private Customer? selectedCustomer;
@@ -186,7 +187,8 @@
             // Navigate to new customer page with return URL
             var currentUri = NavigationManager.Uri;
             var encodedReturnUrl = System.Net.WebUtility.UrlEncode(currentUri);
-            NavigationManager.NavigateTo($"/customers/0?returnUrl={encodedReturnUrl}");
+            var tenantPrefix = !string.IsNullOrEmpty(TenantSlug) ? $"/{TenantSlug}/trace" : "";
+            NavigationManager.NavigateTo($"{tenantPrefix}/customers/0?returnUrl={encodedReturnUrl}");
         }
         else if (int.TryParse(value, out var customerId))
         {
@@ -218,7 +220,8 @@
             var encodedReturnUrl = System.Net.WebUtility.UrlEncode(currentUri);
 
             // Navigate to the customer card page with return URL
-            NavigationManager.NavigateTo($"/customers/{SelectedCustomerId.Value}?returnUrl={encodedReturnUrl}");
+            var tenantPrefix = !string.IsNullOrEmpty(TenantSlug) ? $"/{TenantSlug}/trace" : "";
+            NavigationManager.NavigateTo($"{tenantPrefix}/customers/{SelectedCustomerId.Value}?returnUrl={encodedReturnUrl}");
         }
     }
 

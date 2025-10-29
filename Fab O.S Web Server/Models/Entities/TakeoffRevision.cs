@@ -59,7 +59,7 @@ public class TakeoffRevision
 
     // Navigation properties
     [ForeignKey("TakeoffId")]
-    public virtual TraceDrawing Takeoff { get; set; } = null!;
+    public virtual Takeoff Takeoff { get; set; } = null!;
 
     [ForeignKey("CopiedFromRevisionId")]
     public virtual TakeoffRevision? CopiedFromRevision { get; set; }

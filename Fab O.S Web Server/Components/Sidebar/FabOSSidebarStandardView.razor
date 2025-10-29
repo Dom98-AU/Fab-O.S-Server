@@ -4,14 +4,33 @@
 @inject SidebarService SidebarService
 @inject NavigationService NavService
 
-<nav class="fabos-standard-nav">
-    @foreach (var item in NavService.GetModuleItems(SidebarService.CurrentModule))
+@if (_navItems == null)
+{
+    <!-- Loading state while nav items are being fetched -->
+    <nav class="fabos-standard-nav">
+        <div class="fabos-nav-loading">Loading...</div>
+    </nav>
+}
+else
+{
+    <nav class="fabos-standard-nav">
+        @foreach (var item in _navItems)
+        {
+            <a href="@item.Url" class="fabos-nav-item" title="@item.Title">
+                <span class="fabos-nav-icon">
+                    <LucideIcon Name="@item.Icon" Size="18" />
+                </span>
+                <span class="fabos-nav-text">@item.Title</span>
+            </a>
+        }
+    </nav>
+}
+
+@code {
+    private IEnumerable<FabOS.WebServer.Models.NavigationItem>? _navItems;
+
+    protected override async Task OnInitializedAsync()
     {
-        <a href="@item.Url" class="fabos-nav-item" title="@item.Title">
-            <span class="fabos-nav-icon">
-                <LucideIcon Name="@item.Icon" Size="18" />
-            </span>
-            <span class="fabos-nav-text">@item.Title</span>
-        </a>
+        _navItems = await NavService.GetModuleItemsAsync(SidebarService.CurrentModule);
     }
-</nav>
+}

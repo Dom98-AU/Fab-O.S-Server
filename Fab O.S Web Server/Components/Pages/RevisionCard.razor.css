@@ -227,6 +227,14 @@
     background: white;
     transition: all 0.2s ease;
     font-weight: 400;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+textarea.revision-form-control {
+    resize: vertical;
+    min-height: 100px;
+    line-height: 1.6;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .revision-form-control:focus {
