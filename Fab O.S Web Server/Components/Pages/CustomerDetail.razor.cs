@@ -18,7 +18,6 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
 
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
-    [Inject] private BreadcrumbService BreadcrumbService { get; set; } = default!;
     [Inject] private IAbnLookupService AbnLookupService { get; set; } = default!;
     [Inject] private NumberSeriesService NumberSeriesService { get; set; } = default!;
 
@@ -106,9 +105,6 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
                 customerCodeGenerated = true;
             }
 
-            // Set breadcrumb for new customer
-            await SetBreadcrumbsForNewCustomerAsync();
-
             // Set loading to false for new customer
             isLoading = false;
 
@@ -121,71 +117,7 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
         else
         {
             await LoadCustomerDetails();
-            await SetBreadcrumbsForExistingCustomerAsync();
         }
-    }
-
-    private async Task SetBreadcrumbsForNewCustomerAsync()
-    {
-        if (!string.IsNullOrEmpty(returnUrl))
-        {
-            if (returnUrl.Contains("/takeoffs/", StringComparison.OrdinalIgnoreCase))
-            {
-                // Extract takeoff ID from URL
-                var match = System.Text.RegularExpressions.Regex.Match(returnUrl, @"/takeoffs/(\d+)");
-                if (match.Success && int.TryParse(match.Groups[1].Value, out int takeoffId))
-                {
-                    // Use the breadcrumb builder to get the actual takeoff number from database
-                    await BreadcrumbService.BuildAndSetBreadcrumbsAsync(
-                        ("Takeoffs", null, "/takeoffs", null),
-                        ("Takeoff", takeoffId, returnUrl, null),
-                        ("Customer", null, null, "New Customer")
-                    );
-                    return;
-                }
-            }
-        }
-
-        // Default breadcrumb for new customer
-        await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
-            "Customers",
-            $"/{TenantSlug}/trace/customers",
-            "Customer",
-            null,
-            "New Customer"
-        );
-    }
-
-    private async Task SetBreadcrumbsForExistingCustomerAsync()
-    {
-        if (customer == null) return;
-
-        if (!string.IsNullOrEmpty(returnUrl))
-        {
-            if (returnUrl.Contains("/takeoffs/", StringComparison.OrdinalIgnoreCase))
-            {
-                // Extract takeoff ID from URL
-                var match = System.Text.RegularExpressions.Regex.Match(returnUrl, @"/takeoffs/(\d+)");
-                if (match.Success && int.TryParse(match.Groups[1].Value, out int takeoffId))
-                {
-                    // Use the breadcrumb builder to get the actual takeoff number from database
-                    await BreadcrumbService.BuildAndSetBreadcrumbsAsync(
-                        ("Takeoffs", null, "/takeoffs", null),
-                        ("Takeoff", takeoffId, returnUrl, null),
-                        ("Customer", Id, null, null)
-                    );
-                    return;
-                }
-            }
-        }
-
-        // Default breadcrumb for existing customer
-        await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
-            "Customers",
-            $"/{TenantSlug}/trace/customers",
-            "Customer",
-            Id
-        );
     }
 
     private async Task LoadCustomerDetails()
@@ -471,88 +403,65 @@ public partial class CustomerDetail : ComponentBase, IToolbarActionProvider, IDi
     // IToolbarActionProvider implementation
     public ToolbarActionGroup GetActions()
     {
-        Console.WriteLine($"[CustomerDetail] GetActions called - isEditMode={isEditMode}, isNewCustomer={isNewCustomer}, customer={customer?.Name}");
-
         var group = new ToolbarActionGroup();
 
-        if (isEditMode)
+        // PRIMARY ACTIONS - [Back] [Edit/Save]
+        group.PrimaryActions = new List<ToolbarAction>
         {
-            Console.WriteLine("[CustomerDetail] Creating Edit mode actions (Save and Cancel)");
-            // Edit mode actions
-            group.PrimaryActions = new List<ToolbarAction>
+            new ToolbarAction
             {
-                new ToolbarAction
-                {
-                    Label = "Save",
-                    Text = "Save",
-                    Icon = "fas fa-save",
-                    Action = EventCallback.Factory.Create(this, SaveCustomer),
-                    IsDisabled = false,
-                    Style = ToolbarActionStyle.Primary
-                },
-                new ToolbarAction
-                {
-                    Label = "Cancel",
-                    Text = "Cancel",
-                    Icon = "fas fa-times",
-                    Action = EventCallback.Factory.Create(this, CancelEdit),
-                    IsDisabled = false,
-                    Style = ToolbarActionStyle.Secondary
-                }
-            };
-            Console.WriteLine($"[CustomerDetail] Created {group.PrimaryActions.Count} primary actions");
-        }
-        else
+                Label = "Back",
+                Text = "Back",
+                Icon = "fas fa-arrow-left",
+                Tooltip = "Return to customers list",
+                Action = EventCallback.Factory.Create(this, NavigateBack),
+                Style = ToolbarActionStyle.Secondary
+            },
+            new ToolbarAction
+            {
+                Label = isEditMode ? "Save" : "Edit",
+                Text = isEditMode ? "Save" : "Edit",
+                Icon = isEditMode ? "fas fa-save" : "fas fa-edit",
+                Tooltip = isEditMode ? "Save changes" : "Edit customer details",
+                Action = isEditMode
+                    ? EventCallback.Factory.Create(this, SaveCustomer)
+                    : EventCallback.Factory.Create(this, EditCustomer),
+                IsDisabled = customer == null,
+                Style = ToolbarActionStyle.Primary
+            }
+        };
+
+        // MENU ACTIONS - [Delete] (only for existing customers)
+        if (!isNewCustomer && customer != null)
         {
-            // View mode actions
-            group.PrimaryActions = new List<ToolbarAction>
-            {
-                new ToolbarAction
-                {
-                    Label = "Edit",
-                    Text = "Edit Customer",
-                    Icon = "fas fa-edit",
-                    Action = EventCallback.Factory.Create(this, EditCustomer),
-                    IsDisabled = customer == null,
-                    Style = ToolbarActionStyle.Primary
-                }
-            };
             group.MenuActions = new List<ToolbarAction>
             {
                 new ToolbarAction
                 {
                     Label = "Delete",
-                    Text = "Delete Customer",
+                    Text = "Delete",
                     Icon = "fas fa-trash",
+                    Tooltip = "Delete this customer",
                     Action = EventCallback.Factory.Create(this, async () => await DeleteCustomer()),
-                    IsDisabled = customer == null,
                     Style = ToolbarActionStyle.Danger
-                },
-                new ToolbarAction
-                {
-                    Label = "Back",
-                    Text = "Back to List",
-                    Icon = "fas fa-arrow-left",
-                    Action = EventCallback.Factory.Create(this, NavigateBack),
-                    IsDisabled = false
                 }
             };
+        }
 
-            // Add Related section (only in view mode for existing customers)
-            if (!isEditMode && !isNewCustomer)
+        // RELATED ACTIONS - [Contacts] (only for existing customers)
+        if (!isNewCustomer && customer != null)
+        {
+            group.RelatedActions = new List<ToolbarAction>
             {
-                group.RelatedActions = new List<ToolbarAction>
+                new ToolbarAction
                 {
-                    new ToolbarAction
-                    {
-                        Label = "Contacts",
-                        Text = "View Contacts",
-                        Icon = "fas fa-address-book",
-                        Action = EventCallback.Factory.Create(this, NavigateToContacts),
-                        IsDisabled = false
-                    }
-                };
-            }
+                    Label = "Contacts",
+                    Text = "Contacts",
+                    Icon = "fas fa-address-book",
+                    Tooltip = "View customer contacts",
+                    Action = EventCallback.Factory.Create(this, NavigateToContacts)
+                }
+            };
         }
 
         return group;

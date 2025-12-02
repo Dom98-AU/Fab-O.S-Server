@@ -85,7 +85,7 @@ public partial class TakeoffDrawingManager : ComponentBase, IToolbarActionProvid
                 var drawing = new Takeoff
                 {
                     CompanyId = 1, // TODO: Get from user context
-                    ProjectId = 1, // TODO: Get from selected project
+                    ProjectId = null, // Projects are optional - no longer using Project entity
                     DrawingNumber = uploadModel.DrawingNumber,
                     FileName = file.Name,
                     FileType = file.ContentType,

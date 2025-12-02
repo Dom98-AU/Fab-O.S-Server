@@ -93,6 +93,45 @@ public class TenantProvisioningService : ITenantProvisioningService
             _logger.LogInformation("Admin user created with ID: {UserId} for company {CompanyId}",
                 user.Id, company.Id);
 
+            // Create default module licenses
+            var defaultLicenses = new[]
+            {
+                new ProductLicense
+                {
+                    CompanyId = company.Id,
+                    ProductName = "Trace",
+                    LicenseType = "Standard",
+                    IsActive = true,
+                    ValidFrom = DateTime.UtcNow,
+                    ValidUntil = DateTime.UtcNow.AddYears(10),
+                    MaxConcurrentUsers = 10,
+                    Features = "[\"basic-tracking\",\"takeoffs\",\"measurements\"]",
+                    CreatedDate = DateTime.UtcNow,
+                    LastModified = DateTime.UtcNow,
+                    CreatedBy = user.Id
+                },
+                new ProductLicense
+                {
+                    CompanyId = company.Id,
+                    ProductName = "FabMate",
+                    LicenseType = "Standard",
+                    IsActive = true,
+                    ValidFrom = DateTime.UtcNow,
+                    ValidUntil = DateTime.UtcNow.AddYears(10),
+                    MaxConcurrentUsers = 10,
+                    Features = "[\"work-orders\",\"inventory\",\"purchase-orders\"]",
+                    CreatedDate = DateTime.UtcNow,
+                    LastModified = DateTime.UtcNow,
+                    CreatedBy = user.Id
+                }
+            };
+
+            _context.ProductLicenses.AddRange(defaultLicenses);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Default module licenses created for company {CompanyId}: Trace, FabMate",
+                company.Id);
+
             // Commit transaction
             await transaction.CommitAsync();
 

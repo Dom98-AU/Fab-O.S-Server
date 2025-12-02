@@ -205,14 +205,10 @@ builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 
 // Add custom services
 builder.Services.AddScoped<IDatabaseService, DatabaseService>();
+builder.Services.AddScoped<IModuleFeatureService, ModuleFeatureService>();
 
-// Register Breadcrumb Builder Services
-builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilder, FabOS.WebServer.Services.Implementations.BreadcrumbBuilders.TakeoffBreadcrumbBuilder>();
-builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilder, FabOS.WebServer.Services.Implementations.BreadcrumbBuilders.PackageBreadcrumbBuilder>();
-builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilder, FabOS.WebServer.Services.Implementations.BreadcrumbBuilders.CustomerBreadcrumbBuilder>();
-builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IBreadcrumbBuilder, FabOS.WebServer.Services.Implementations.BreadcrumbBuilders.ContactBreadcrumbBuilder>();
-builder.Services.AddScoped<FabOS.WebServer.Services.Implementations.BreadcrumbBuilderService>();
-builder.Services.AddScoped<FabOS.WebServer.Services.BreadcrumbService>();
+// Register Modern Breadcrumb Navigation Service (URL-based, hierarchical)
+builder.Services.AddScoped<FabOS.WebServer.Services.BreadcrumbNavigationService>();
 
 // Register Sidebar and Navigation Services
 builder.Services.AddScoped<FabOS.WebServer.Services.SidebarService>();
@@ -237,9 +233,17 @@ builder.Services.AddHttpClient<AzureOcrService>();
 builder.Services.AddScoped<IAzureOcrService, AzureOcrService>();
 builder.Services.AddHttpContextAccessor(); // For multi-tenant context
 
+// Register Nutrient DWS (Document Web Service) session service for cloud-hosted PDF viewing
+builder.Services.AddHttpClient(); // Ensure HttpClientFactory is available
+builder.Services.AddScoped<INutrientDwsSessionService, NutrientDwsSessionService>();
+
 // Register ABN Lookup service
 builder.Services.AddHttpClient<IAbnLookupService, AbnLookupService>();
 builder.Services.AddHttpClient<IGooglePlacesService, GooglePlacesService>();
+
+// Register QDocs CAD Parser services
+builder.Services.AddScoped<ISmlxParserService, SmlxParserService>();
+builder.Services.AddScoped<IIfcParserService, IfcParserService>();
 
 // Register SharePoint services
 builder.Services.Configure<FabOS.WebServer.Models.Configuration.SharePointSettings>(
@@ -263,11 +267,13 @@ builder.Services.AddScoped<ITakeoffRevisionService, TakeoffRevisionService>();
 builder.Services.AddScoped<IPackageDrawingService, PackageDrawingService>();
 builder.Services.AddScoped<IScaleCalibrationService, ScaleCalibrationService>();
 builder.Services.AddScoped<ITakeoffCatalogueService, TakeoffCatalogueService>();
+builder.Services.AddScoped<ICatalogueService, CatalogueService>();
 builder.Services.AddScoped<IPdfCalibrationService, PdfCalibrationService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IPdfAnnotationService, PdfAnnotationService>();
 builder.Services.AddScoped<IPdfLockService, PdfLockService>();
 builder.Services.AddScoped<IMeasurementExportService, MeasurementExportService>();
+builder.Services.AddScoped<ISurfaceCoatingService, SurfaceCoatingService>();
 
 // Register SignalR Hub for real-time measurement updates (cross-tab/cross-user notifications)
 builder.Services.AddSignalR();
@@ -275,6 +281,19 @@ builder.Services.AddScoped<FabOS.WebServer.Hubs.IMeasurementHubService, FabOS.We
 
 // Register background services
 builder.Services.AddHostedService<FabOS.WebServer.Services.BackgroundServices.PdfLockCleanupService>();
+
+// Register Asset Module Services
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IEquipmentService, FabOS.WebServer.Services.Implementations.Assets.EquipmentService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IMaintenanceService, FabOS.WebServer.Services.Implementations.Assets.MaintenanceService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IEquipmentCategoryService, FabOS.WebServer.Services.Implementations.Assets.EquipmentCategoryService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IQRCodeService, FabOS.WebServer.Services.Implementations.Assets.QRCodeService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.ILabelPrintingService, FabOS.WebServer.Services.Implementations.Assets.LabelPrintingService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.ICertificationService, FabOS.WebServer.Services.Implementations.Assets.CertificationService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IEquipmentManualService, FabOS.WebServer.Services.Implementations.Assets.EquipmentManualService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IKitTemplateService, FabOS.WebServer.Services.Implementations.Assets.KitTemplateService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IEquipmentKitService, FabOS.WebServer.Services.Implementations.Assets.EquipmentKitService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IKitCheckoutService, FabOS.WebServer.Services.Implementations.Assets.KitCheckoutService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.ILocationService, FabOS.WebServer.Services.Implementations.Assets.LocationService>();
 
 // Add MVC services (includes controllers, views, and all necessary services)
 builder.Services.AddMvc();

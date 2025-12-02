@@ -1,33 +1,42 @@
 @namespace FabOS.WebServer.Components.Shared
-@using FabOS.WebServer.Models
+
+@*
+═══════════════════════════════════════════════════════════════
+BREADCRUMB NAVIGATION COMPONENT
+═══════════════════════════════════════════════════════════════
+Modern hierarchical breadcrumb navigation
+Design: Minimal with slash separators (2024/2025 standard)
+Accessibility: WCAG 2.0 compliant
+Dark Mode: Supported
+Last Updated: 2025-11-04
+═══════════════════════════════════════════════════════════════
+*@
 
 @if (Items != null && Items.Any())
 {
-    <nav aria-label="breadcrumb" class="fabos-breadcrumb-container">
-        <ol class="fabos-breadcrumb">
-            @foreach (var item in Items)
+    <nav aria-label="breadcrumb" class="breadcrumb-container">
+        <ol class="breadcrumb-list">
+            @for (int i = 0; i < Items.Count; i++)
             {
-                @if (item.IsActive)
-                {
-                    <li class="fabos-breadcrumb-item active" aria-current="page">
-                        @if (!string.IsNullOrEmpty(item.Icon))
-                        {
-                            <i class="@item.Icon"></i>
-                        }
-                        <span>@item.Label</span>
-                    </li>
-                }
-                else
-                {
-                    <li class="fabos-breadcrumb-item">
-                        <a href="@item.Url">
-                            @if (!string.IsNullOrEmpty(item.Icon))
-                            {
-                                <i class="@item.Icon"></i>
-                            }
-                            <span>@item.Label</span>
+                var item = Items[i];
+                var isLast = i == Items.Count - 1;
+
+                <li class="breadcrumb-item">
+                    @if (!isLast && !string.IsNullOrEmpty(item.Url))
+                    {
+                        <a href="@item.Url" class="breadcrumb-link">
+                            @item.Label
                         </a>
-                    </li>
+                    }
+                    else
+                    {
+                        <span class="breadcrumb-active">@item.Label</span>
+                    }
+                </li>
+
+                @if (!isLast)
+                {
+                    <li class="breadcrumb-separator" aria-hidden="true">/</li>
                 }
             }
         </ol>

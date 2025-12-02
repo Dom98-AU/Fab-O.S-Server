@@ -300,8 +300,38 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
     }
 
     // IToolbarActionProvider implementation
+    private List<Takeoff> GetSelectedTakeoffs()
+    {
+        return currentView switch
+        {
+            GenericViewSwitcher<Takeoff>.ViewType.Table => selectedTableItems,
+            GenericViewSwitcher<Takeoff>.ViewType.List => selectedListItems,
+            GenericViewSwitcher<Takeoff>.ViewType.Card => selectedCardItems,
+            _ => new List<Takeoff>()
+        };
+    }
+
+    private async Task DeleteSelectedTakeoffs()
+    {
+        var selected = GetSelectedTakeoffs();
+        if (!selected.Any()) return;
+
+        // TODO: Add confirmation dialog
+        foreach (var takeoff in selected)
+        {
+            takeoff.IsDeleted = true;
+            takeoff.LastModified = DateTime.UtcNow;
+        }
+
+        await DbContext.SaveChangesAsync();
+        await LoadTakeoffs();
+    }
+
     public ToolbarActionGroup GetActions()
     {
+        var selected = GetSelectedTakeoffs();
+        var hasSelection = selected.Any();
+
         var group = new ToolbarActionGroup();
         group.PrimaryActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
         {
@@ -311,8 +341,18 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
                 Text = "New",
                 Icon = "fas fa-plus",
                 Action = EventCallback.Factory.Create(this, () => CreateNewTakeoff()),
-                IsDisabled = false,
-                Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Primary
+                Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Primary,
+                Tooltip = "Create new takeoff"
+            },
+            new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+            {
+                Label = "Delete",
+                Text = "Delete",
+                Icon = "fas fa-trash",
+                ActionFunc = DeleteSelectedTakeoffs,
+                IsDisabled = !hasSelection,
+                Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Danger,
+                Tooltip = hasSelection ? "Delete selected takeoffs" : "Select takeoffs to delete"
             }
         };
         group.MenuActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
@@ -323,7 +363,16 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
                 Text = "Import",
                 Icon = "fas fa-file-import",
                 Action = EventCallback.Factory.Create(this, () => Console.WriteLine("Import clicked")),
-                IsDisabled = false
+                Tooltip = "Import takeoffs from file"
+            },
+            new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+            {
+                Label = "Export",
+                Text = "Export",
+                Icon = "fas fa-file-export",
+                Action = EventCallback.Factory.Create(this, () => Console.WriteLine("Export clicked")),
+                IsDisabled = !hasSelection,
+                Tooltip = "Export selected takeoffs"
             }
         };
         return group;

@@ -151,10 +151,12 @@ public class WorkCenter
 
     [Required]
     [StringLength(50)]
+    [Column("Code")]
     public string WorkCenterCode { get; set; } = string.Empty;
 
     [Required]
     [StringLength(200)]
+    [Column("Name")]
     public string WorkCenterName { get; set; } = string.Empty;
 
     [StringLength(500)]
@@ -163,17 +165,92 @@ public class WorkCenter
     [Required]
     public int CompanyId { get; set; }
 
+    [Required]
+    [StringLength(50)]
+    public string WorkCenterType { get; set; } = "Production";
+
+    [Required]
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal DailyCapacityHours { get; set; } = 8.0m;
+
+    [Required]
+    public int SimultaneousOperations { get; set; } = 1;
+
+    [Required]
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal HourlyRate { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal OverheadRate { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal EfficiencyPercentage { get; set; } = 100m;
+
     [StringLength(100)]
     public string? Department { get; set; }
+
+    [StringLength(100)]
+    public string? Building { get; set; }
+
+    [StringLength(50)]
+    public string? Floor { get; set; }
 
     [Required]
     public bool IsActive { get; set; } = true;
 
     [Required]
+    public bool IsDeleted { get; set; } = false;
+
+    [Required]
+    public int MaintenanceIntervalDays { get; set; } = 30;
+
+    [Required]
     public DateTime CreatedDate { get; set; }
+
+    public int? CreatedByUserId { get; set; }
 
     [Required]
     public DateTime LastModified { get; set; }
+
+    public int? LastModifiedByUserId { get; set; }
+
+    public DateTime? LastMaintenanceDate { get; set; }
+
+    public DateTime? NextMaintenanceDate { get; set; }
+
+    [Required]
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal DirectLaborRate { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal IndirectLaborRate { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal OverheadPercentage { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal OtherCostsRate { get; set; } = 0m;
+
+    [Required]
+    [StringLength(50)]
+    public string ProfitCalculationType { get; set; } = "Percentage";
+
+    [Required]
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal ProfitValue { get; set; } = 0m;
+
+    [Required]
+    [StringLength(50)]
+    public string CostingMethod { get; set; } = "StandardCosting";
+
+    [Required]
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal DependencyFactor { get; set; } = 1.0m;
 
     // Navigation properties
     [ForeignKey("CompanyId")]

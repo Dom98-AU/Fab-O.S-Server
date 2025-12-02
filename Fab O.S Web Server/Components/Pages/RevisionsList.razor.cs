@@ -262,16 +262,39 @@ public partial class RevisionsList : ComponentBase, IToolbarActionProvider
         Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}/revisions/new");
     }
 
-    private async Task DeleteSelectedRevisions()
+    // IToolbarActionProvider implementation
+    private List<TakeoffRevision> GetSelectedRevisions()
     {
-        // This would be implemented if we add multi-select capability
-        await Task.CompletedTask;
+        return currentView switch
+        {
+            GenericViewSwitcher<TakeoffRevision>.ViewType.Table => selectedTableItems,
+            GenericViewSwitcher<TakeoffRevision>.ViewType.List => selectedListItems,
+            GenericViewSwitcher<TakeoffRevision>.ViewType.Card => selectedCardItems,
+            _ => new List<TakeoffRevision>()
+        };
     }
 
-    // IToolbarActionProvider implementation
+    private async Task DeleteSelectedRevisions()
+    {
+        var selected = GetSelectedRevisions();
+        if (!selected.Any()) return;
+
+        // TODO: Add confirmation dialog
+        foreach (var revision in selected)
+        {
+            revision.IsDeleted = true;
+            revision.LastModified = DateTime.UtcNow;
+        }
+
+        await DbContext.SaveChangesAsync();
+        await LoadRevisions();
+    }
+
     public ToolbarActionGroup GetActions()
     {
         Console.WriteLine("[RevisionsList] GetActions called");
+        var selected = GetSelectedRevisions();
+        var hasSelection = selected.Any();
         var actionGroup = new ToolbarActionGroup();
 
         // Primary Actions
@@ -282,18 +305,30 @@ public partial class RevisionsList : ComponentBase, IToolbarActionProvider
             Icon = "fas fa-plus",
             ActionFunc = () => { CreateRevision(); return Task.CompletedTask; },
             Style = ToolbarActionStyle.Primary,
-            Tooltip = "Create a new revision",
-            IsDisabled = false
+            Tooltip = "Create a new revision"
         };
         Console.WriteLine($"[RevisionsList] Creating New action - Label='{newAction.Label}', IsDisabled={newAction.IsDisabled}");
         actionGroup.PrimaryActions.Add(newAction);
+
+        actionGroup.PrimaryActions.Add(new ToolbarAction
+        {
+            Text = "Delete",
+            Label = "Delete",
+            Icon = "fas fa-trash",
+            ActionFunc = DeleteSelectedRevisions,
+            IsDisabled = !hasSelection,
+            Style = ToolbarActionStyle.Danger,
+            Tooltip = hasSelection ? "Delete selected revisions" : "Select revisions to delete"
+        });
 
         // Related Actions
         actionGroup.RelatedActions.Add(new ToolbarAction
         {
             Text = "View Takeoff",
+            Label = "View Takeoff",
             Icon = "fas fa-file-alt",
-            ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}"); return Task.CompletedTask; }
+            ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}"); return Task.CompletedTask; },
+            Tooltip = "Go back to takeoff"
         });
 
         if (allRevisions.Any())
@@ -304,6 +339,7 @@ public partial class RevisionsList : ComponentBase, IToolbarActionProvider
                 actionGroup.RelatedActions.Add(new ToolbarAction
                 {
                     Text = "Active Revision Packages",
+                    Label = "Active Revision Packages",
                     Icon = "fas fa-box",
                     ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{TakeoffId}/packages"); return Task.CompletedTask; },
                     Tooltip = "View packages in the active revision"

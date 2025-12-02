@@ -470,6 +470,41 @@ public class TraceTakeoff
     public virtual ICollection<TraceTakeoffMeasurement> Measurements { get; set; } = new List<TraceTakeoffMeasurement>();
 }
 
+// Surface coatings lookup table for measurements
+[Table("SurfaceCoatings")]
+public class SurfaceCoating
+{
+    [Key]
+    public int Id { get; set; }
+
+    [Required]
+    public int CompanyId { get; set; }
+
+    [Required]
+    [StringLength(50)]
+    public string CoatingCode { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(200)]
+    public string CoatingName { get; set; } = string.Empty;
+
+    [StringLength(500)]
+    public string? Description { get; set; }
+
+    [Required]
+    public bool IsActive { get; set; } = true;
+
+    public int DisplayOrder { get; set; } = 0;
+
+    [Required]
+    public DateTime CreatedDate { get; set; }
+
+    public DateTime? ModifiedDate { get; set; }
+
+    // Navigation properties
+    public virtual Company Company { get; set; } = null!;
+}
+
 // Individual measurements within a takeoff
 [Table("TraceTakeoffMeasurements")]
 public class TraceTakeoffMeasurement
@@ -513,13 +548,31 @@ public class TraceTakeoffMeasurement
     [Column(TypeName = "decimal(18,4)")]
     public decimal? CalculatedWeight { get; set; }
 
+    // NEW: Surface coating and status fields for measurement detail card
+    public int? SurfaceCoatingId { get; set; }
+
+    [StringLength(50)]
+    public string? Status { get; set; } // Draft, Approved, Rejected, etc.
+
+    [StringLength(2000)]
+    public string? Notes { get; set; }
+
     [Required]
     public DateTime CreatedDate { get; set; }
+
+    public DateTime? ModifiedDate { get; set; }
+
+    public int? CreatedBy { get; set; }
+
+    public int? ModifiedBy { get; set; }
 
     // Navigation properties
     public virtual TraceTakeoff TraceTakeoff { get; set; } = null!;
     public virtual CatalogueItem? CatalogueItem { get; set; }
     public virtual PackageDrawing? PackageDrawing { get; set; }
+    public virtual SurfaceCoating? SurfaceCoating { get; set; }
+    public virtual User? CreatedByUser { get; set; }
+    public virtual User? ModifiedByUser { get; set; }
 }
 
 // Links trace materials directly to catalogue items

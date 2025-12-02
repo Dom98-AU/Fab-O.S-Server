@@ -132,16 +132,17 @@ namespace FabOS.WebServer.Services.Implementations
 
         public async Task<TraceProcess> RecordProcessStartAsync(int traceRecordId, int operationId, int? operatorId)
         {
-            // Get operation details if available
-            var operation = await _context.WorkOrderOperations.FindAsync(operationId);
+            // TODO: This shop floor tracking code should be moved to FabMate module
+            // Trace module is for PDF takeoffs, not manufacturing process tracking
+            // For now, create process record without operation details
 
             var process = new TraceProcess
             {
                 TraceRecordId = traceRecordId,
                 WorkOrderOperationId = operationId,
                 OperatorId = operatorId,
-                OperationCode = operation?.OperationCode ?? $"OP-{operationId}",
-                OperationDescription = operation?.Description ?? "Manual Process",
+                OperationCode = $"OP-{operationId}",
+                OperationDescription = "Manual Process",
                 StartTime = DateTime.UtcNow,
                 CreatedDate = DateTime.UtcNow
             };

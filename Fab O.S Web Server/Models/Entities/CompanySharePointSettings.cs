@@ -47,18 +47,64 @@ public class CompanySharePointSettings
     public string SiteUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// Document library name (default: "Takeoff Files")
+    /// Document library name for Trace module (user must create in SharePoint first, case-sensitive)
     /// </summary>
-    [Required]
     [StringLength(200)]
-    public string DocumentLibrary { get; set; } = "Takeoff Files";
+    public string? TraceDocumentLibrary { get; set; }
 
     /// <summary>
-    /// Root folder for takeoffs within the document library (default: "Takeoffs")
+    /// Document library name for Estimate module (user must create in SharePoint first, case-sensitive)
     /// </summary>
-    [Required]
     [StringLength(200)]
-    public string TakeoffsRootFolder { get; set; } = "Takeoffs";
+    public string? EstimateDocumentLibrary { get; set; }
+
+    /// <summary>
+    /// Document library name for FabMate module (user must create in SharePoint first, case-sensitive)
+    /// </summary>
+    [StringLength(200)]
+    public string? FabMateDocumentLibrary { get; set; }
+
+    /// <summary>
+    /// Document library name for QDocs module (user must create in SharePoint first, case-sensitive)
+    /// </summary>
+    [StringLength(200)]
+    public string? QDocsDocumentLibrary { get; set; }
+
+    /// <summary>
+    /// Document library name for Assets module (user must create in SharePoint first, case-sensitive)
+    /// </summary>
+    [StringLength(200)]
+    public string? AssetsDocumentLibrary { get; set; }
+
+    /// <summary>
+    /// Root folder for Trace module within the document library (optional)
+    /// </summary>
+    [StringLength(200)]
+    public string? TraceRootFolder { get; set; }
+
+    /// <summary>
+    /// Root folder for Estimate module within the document library (optional)
+    /// </summary>
+    [StringLength(200)]
+    public string? EstimateRootFolder { get; set; }
+
+    /// <summary>
+    /// Root folder for FabMate module within the document library (optional)
+    /// </summary>
+    [StringLength(200)]
+    public string? FabMateRootFolder { get; set; }
+
+    /// <summary>
+    /// Root folder for QDocs module within the document library (optional)
+    /// </summary>
+    [StringLength(200)]
+    public string? QDocsRootFolder { get; set; }
+
+    /// <summary>
+    /// Root folder for Assets module within the document library (optional)
+    /// </summary>
+    [StringLength(200)]
+    public string? AssetsRootFolder { get; set; }
 
     /// <summary>
     /// Whether SharePoint integration is enabled for this company
@@ -104,4 +150,46 @@ public class CompanySharePointSettings
 
     [ForeignKey("LastModifiedByUserId")]
     public virtual User? LastModifiedByUser { get; set; }
+
+    /// <summary>
+    /// Gets the document library name for a specific module
+    /// Throws exception if library is not configured for the module
+    /// </summary>
+    public string GetDocumentLibraryForModule(string moduleName)
+    {
+        var library = moduleName?.ToLower() switch
+        {
+            "trace" => TraceDocumentLibrary,
+            "estimate" => EstimateDocumentLibrary,
+            "fabmate" => FabMateDocumentLibrary,
+            "qdocs" => QDocsDocumentLibrary,
+            "assets" => AssetsDocumentLibrary,
+            _ => throw new ArgumentException($"Unknown module: {moduleName}", nameof(moduleName))
+        };
+
+        if (string.IsNullOrWhiteSpace(library))
+        {
+            throw new InvalidOperationException(
+                $"SharePoint document library not configured for {moduleName} module. " +
+                $"Please create the library in SharePoint first, then configure it in Settings.");
+        }
+
+        return library;
+    }
+
+    /// <summary>
+    /// Gets the root folder for a specific module (empty string if not configured)
+    /// </summary>
+    public string GetRootFolderForModule(string moduleName)
+    {
+        return moduleName?.ToLower() switch
+        {
+            "trace" => TraceRootFolder ?? "",
+            "estimate" => EstimateRootFolder ?? "",
+            "fabmate" => FabMateRootFolder ?? "",
+            "qdocs" => QDocsRootFolder ?? "",
+            "assets" => AssetsRootFolder ?? "",
+            _ => ""
+        };
+    }
 }

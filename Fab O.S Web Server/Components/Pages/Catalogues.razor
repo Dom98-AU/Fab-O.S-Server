@@ -1,0 +1,449 @@
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: Catalogue
+Views: Table, List, Card
+Features: ViewPreferences, ColumnManagement, Search, Selection
+Pattern: Standard GenericViewSwitcher
+Modern UI: Yes
+Last Updated: 2025-11-06
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/trace/catalogues"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models
+@using FabOS.WebServer.Models.ViewState
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Catalogues - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search catalogues..." />
+
+<!-- Content -->
+<div class="catalogues-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading catalogues...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Table View Toolbar -->
+        <TableViewToolbar TItem="Catalogue"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="Catalogue"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
+
+        <!-- Views -->
+        @if (filteredCatalogues.Any())
+        {
+            @if (currentView == GenericViewSwitcher<Catalogue>.ViewType.Table)
+            {
+                <GenericTableView TItem="Catalogue"
+                                 Items="@filteredCatalogues"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleRowClick"
+                                 OnRowDoubleClick="@HandleRowDoubleClick"
+                                 ActionsTemplate="@TableActionsTemplate" />
+            }
+            else if (currentView == GenericViewSwitcher<Catalogue>.ViewType.Card)
+            {
+                <GenericCardView TItem="Catalogue"
+                                Items="@filteredCatalogues"
+                                TitleSelector="@(item => item.Name)"
+                                SubtitleSelector="@(item => item.Description ?? "")"
+                                StatusSelector="@(item => item.IsSystemCatalogue ? "System" : "Custom")"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<Catalogue>>(this, items => selectedCardItems = items))"
+                                OnItemClick="@(EventCallback.Factory.Create<Catalogue>(this, (item) => NavigateToCatalogue(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<Catalogue>(this, (item) => NavigateToCatalogue(item.Id)))"
+                                CustomCardContent="@CardTemplate" />
+            }
+            else if (currentView == GenericViewSwitcher<Catalogue>.ViewType.List)
+            {
+                <GenericListView TItem="Catalogue"
+                                Items="@filteredCatalogues"
+                                AllowSelection="true"
+                                OnSelectionChanged="@(EventCallback.Factory.Create<(Catalogue item, bool selected)>(this, OnSelectionChanged))"
+                                OnItemClick="@(EventCallback.Factory.Create<Catalogue>(this, (item) => NavigateToCatalogue(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<Catalogue>(this, (item) => NavigateToCatalogue(item.Id)))"
+                                ItemIcon="@ListIconTemplate"
+                                ItemTitle="@ListTitleTemplate"
+                                ItemSubtitle="@ListSubtitleTemplate"
+                                ItemStatus="@ListStatusTemplate"
+                                ItemDetails="@ListDetailsTemplate" />
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-icon">📦</div>
+                <h3>No Catalogues Found</h3>
+                <p>@(string.IsNullOrWhiteSpace(searchTerm) ? "Get started by creating your first catalogue." : "Try adjusting your search criteria.")</p>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    // Custom Card Template
+    private RenderFragment<Catalogue>? CardTemplate => catalogue => @<div class="catalogue-custom-card @(catalogue.IsSystemCatalogue ? "system-catalogue" : "custom-catalogue")">
+        <!-- Header -->
+        <div class="catalogue-card-header">
+            <div class="catalogue-icon">
+                @if (catalogue.IsSystemCatalogue)
+                {
+                    <span class="icon">🗄️</span>
+                }
+                else
+                {
+                    <span class="icon">📦</span>
+                }
+            </div>
+            <div class="catalogue-title-section">
+                <h3 class="catalogue-name">@catalogue.Name</h3>
+                @if (catalogue.IsSystemCatalogue)
+                {
+                    <span class="badge badge-system">System</span>
+                }
+            </div>
+        </div>
+
+        <!-- Description -->
+        @if (!string.IsNullOrEmpty(catalogue.Description))
+        {
+            <p class="catalogue-description">@catalogue.Description</p>
+        }
+
+        <!-- Stats -->
+        <div class="catalogue-stats">
+            <div class="stat-item">
+                <span class="stat-label">Items:</span>
+                <span class="stat-value">@GetItemCount(catalogue.Id)</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Last Modified:</span>
+                <span class="stat-value">
+                    @(catalogue.ModifiedDate?.ToString("MMM dd, yyyy") ?? catalogue.CreatedDate.ToString("MMM dd, yyyy"))
+                </span>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="catalogue-actions">
+            @if (!catalogue.IsSystemCatalogue)
+            {
+                <button class="btn-icon" @onclick:stopPropagation="true" @onclick="() => EditCatalogue(catalogue.Id)" title="Edit">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn-icon" @onclick:stopPropagation="true" @onclick="() => DeleteCatalogue(catalogue.Id)" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            }
+            <button class="btn-primary" @onclick:stopPropagation="true" @onclick="() => NavigateToCatalogue(catalogue.Id)">
+                View Items <i class="fas fa-arrow-right"></i>
+            </button>
+        </div>
+    </div>;
+
+    // List Templates
+    private RenderFragment<Catalogue>? ListIconTemplate => catalogue => @<text>
+        @if (catalogue.IsSystemCatalogue)
+        {
+            <span style="font-size: 24px;">🗄️</span>
+        }
+        else
+        {
+            <span style="font-size: 24px;">📦</span>
+        }
+    </text>;
+
+    private RenderFragment<Catalogue>? ListTitleTemplate => catalogue => @<text>@catalogue.Name</text>;
+
+    private RenderFragment<Catalogue>? ListSubtitleTemplate => catalogue => @<text>@(catalogue.Description ?? "")</text>;
+
+    private RenderFragment<Catalogue>? ListStatusTemplate => catalogue => @<text>
+        @if (catalogue.IsSystemCatalogue)
+        {
+            <span class="badge badge-system">System</span>
+        }
+        else
+        {
+            <span class="badge badge-custom">Custom</span>
+        }
+    </text>;
+
+    private RenderFragment<Catalogue>? ListDetailsTemplate => catalogue => @<div class="list-details">
+        <div class="detail-item">
+            <i class="fas fa-box"></i>
+            <span>@GetItemCount(catalogue.Id) items</span>
+        </div>
+        <div class="detail-item">
+            <i class="fas fa-calendar"></i>
+            <span>@(catalogue.ModifiedDate?.ToString("MMM dd, yyyy") ?? catalogue.CreatedDate.ToString("MMM dd, yyyy"))</span>
+        </div>
+    </div>;
+
+    // Table Actions Template
+    private RenderFragment<Catalogue>? TableActionsTemplate => catalogue => @<div class="table-actions">
+        <button class="btn-icon-sm" @onclick="() => NavigateToCatalogue(catalogue.Id)" title="View Items">
+            <i class="fas fa-eye"></i>
+        </button>
+        @if (!catalogue.IsSystemCatalogue)
+        {
+            <button class="btn-icon-sm" @onclick="() => EditCatalogue(catalogue.Id)" title="Edit">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn-icon-sm" @onclick="() => DeleteCatalogue(catalogue.Id)" title="Delete">
+                <i class="fas fa-trash"></i>
+            </button>
+        }
+    </div>;
+}
+
+<style>
+    .catalogues-container {
+        padding: 20px;
+    }
+
+    /* Custom Card Styles */
+    .catalogue-custom-card {
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        height: 100%;
+    }
+
+    .catalogue-custom-card.system-catalogue {
+        border-left: 4px solid #2196F3;
+    }
+
+    .catalogue-custom-card.custom-catalogue {
+        border-left: 4px solid #4CAF50;
+    }
+
+    .catalogue-card-header {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+    }
+
+    .catalogue-icon .icon {
+        font-size: 32px;
+    }
+
+    .catalogue-title-section {
+        flex: 1;
+    }
+
+    .catalogue-name {
+        margin: 0 0 8px 0;
+        font-size: 20px;
+        font-weight: 600;
+        color: #212121;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .badge-system {
+        background: #E3F2FD;
+        color: #1976D2;
+    }
+
+    .badge-custom {
+        background: #E8F5E9;
+        color: #388E3C;
+    }
+
+    .catalogue-description {
+        color: #666;
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    .catalogue-stats {
+        display: flex;
+        gap: 24px;
+        padding-top: 12px;
+        border-top: 1px solid #f0f0f0;
+    }
+
+    .stat-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: #212121;
+    }
+
+    .catalogue-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        padding-top: 12px;
+        border-top: 1px solid #f0f0f0;
+    }
+
+    .btn-icon {
+        background: none;
+        border: none;
+        color: #666;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+
+    .btn-icon:hover {
+        background: #f5f5f5;
+        color: #2196F3;
+    }
+
+    .btn-primary {
+        background: #2196F3;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary:hover {
+        background: #1976D2;
+    }
+
+    /* List View Details */
+    .list-details {
+        display: flex;
+        gap: 16px;
+        font-size: 14px;
+        color: #666;
+    }
+
+    .detail-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .detail-item i {
+        font-size: 12px;
+        color: #999;
+    }
+
+    /* Table Actions */
+    .table-actions {
+        display: flex;
+        gap: 4px;
+        justify-content: flex-end;
+    }
+
+    .btn-icon-sm {
+        background: none;
+        border: none;
+        color: #666;
+        cursor: pointer;
+        padding: 6px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        font-size: 14px;
+    }
+
+    .btn-icon-sm:hover {
+        background: #f5f5f5;
+        color: #2196F3;
+    }
+
+    /* Loading State */
+    .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+    }
+
+    .loading-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #2196F3;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #999;
+    }
+
+    .empty-icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+    }
+
+    .empty-state h3 {
+        margin: 0 0 8px 0;
+        color: #666;
+        font-size: 20px;
+    }
+
+    .empty-state p {
+        margin: 0;
+        color: #999;
+    }
+</style>

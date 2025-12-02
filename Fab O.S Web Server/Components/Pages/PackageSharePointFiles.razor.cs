@@ -25,7 +25,6 @@ public partial class PackageSharePointFiles : ComponentBase, IToolbarActionProvi
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private ILogger<PackageSharePointFiles> Logger { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
-    [Inject] private FabOS.WebServer.Services.BreadcrumbService BreadcrumbService { get; set; } = default!;
 
     [Parameter] public string? TenantSlug { get; set; }
     [Parameter] public int PackageId { get; set; }
@@ -86,7 +85,6 @@ public partial class PackageSharePointFiles : ComponentBase, IToolbarActionProvi
             }
         }
 
-        UpdateBreadcrumb();
         InitializeColumnDefinitions();
         await InitializeTableColumns();
         await LoadPackage();
@@ -100,14 +98,6 @@ public partial class PackageSharePointFiles : ComponentBase, IToolbarActionProvi
         }
     }
 
-    private void UpdateBreadcrumb()
-    {
-        BreadcrumbService.SetBreadcrumbs(
-            new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = "Packages", Url = $"/{TenantSlug}/trace/packages", IsActive = false },
-            new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = $"Package #{PackageId}", Url = $"/{TenantSlug}/trace/packages/{PackageId}", IsActive = false },
-            new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = "SharePoint Files", Url = $"/{TenantSlug}/trace/packages/{PackageId}/sharepoint-files", IsActive = true }
-        );
-    }
 
     private void InitializeColumnDefinitions()
     {
@@ -778,6 +768,6 @@ public partial class PackageSharePointFiles : ComponentBase, IToolbarActionProvi
 
     public void Dispose()
     {
-        BreadcrumbService.OnBreadcrumbChanged -= StateHasChanged;
+        // Cleanup if needed
     }
 }

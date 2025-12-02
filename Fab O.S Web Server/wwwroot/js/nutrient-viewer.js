@@ -83,20 +83,33 @@ window.nutrientViewer = {
     /**
      * Build PSPDFKit configuration object (shared between loadPdf and reloadInstantJson)
      * @param {string} containerId - Container element ID
-     * @param {string} documentUrl - URL to PDF document
+     * @param {string} documentUrl - URL to PDF document (for self-hosted) or sessionToken (for DWS)
      * @param {boolean} isEditMode - Whether to allow annotation editing
      * @param {object} instantJSON - Optional Instant JSON to load
+     * @param {string} sessionToken - Optional DWS session token (if provided, DWS mode is used)
      * @returns {object} PSPDFKit configuration object
      */
-    buildConfiguration: function(containerId, documentUrl, isEditMode = true, instantJSON = null) {
-        const baseUrl = `${window.location.protocol}//${window.location.host}/assets/pspdfkit/`;
-
+    buildConfiguration: function(containerId, documentUrl, isEditMode = true, instantJSON = null, sessionToken = null) {
         const configuration = {
-                container: '#' + containerId,
-                document: documentUrl,
-                baseUrl: baseUrl,
-                licenseKey: this.licenseKey,
+                container: '#' + containerId
+        };
 
+        // DWS MODE: Cloud-hosted Nutrient SDK (session token provided)
+        if (sessionToken) {
+            console.log('[Nutrient Viewer] Using DWS mode with session token');
+            configuration.session = sessionToken; // DWS uses session token instead of document URL
+        }
+        // SELF-HOSTED MODE: Local Nutrient SDK (legacy mode)
+        else {
+            console.log('[Nutrient Viewer] Using self-hosted mode with local SDK');
+            const baseUrl = `${window.location.protocol}//${window.location.host}/assets/pspdfkit/`;
+            configuration.document = documentUrl;
+            configuration.baseUrl = baseUrl;
+            configuration.licenseKey = this.licenseKey;
+        }
+
+        // Common configuration (works identically for both DWS and self-hosted)
+        Object.assign(configuration, {
                 // Conditionally disable PDF document security restrictions based on edit mode
                 // When user has edit lock (isEditMode=true): Override PDF restrictions to allow editing
                 // When user is in view-only mode (isEditMode=false): Respect PDF security restrictions
@@ -421,18 +434,20 @@ window.nutrientViewer = {
 
                 // Add Instant JSON if provided (for reload scenarios)
                 ...(instantJSON && { instantJSON: instantJSON })
-            };
+        });
 
-            return configuration;
-        },
+        return configuration;
+    },
 
     /**
-     * Load PDF document from URL
+     * Load PDF document from URL or DWS session token
      * @param {string} containerId - Container element ID
-     * @param {string} documentUrl - URL to PDF document (can be API endpoint)
+     * @param {string} documentUrl - URL to PDF document (for self-hosted mode)
+     * @param {boolean} isEditMode - Whether to allow annotation editing
+     * @param {string} sessionToken - Optional DWS session token (if provided, DWS mode is used)
      */
-    loadPdf: async function(containerId, documentUrl, isEditMode = true) {
-        console.log(`[Nutrient Viewer] Loading PDF in ${containerId} from: ${documentUrl}, editMode: ${isEditMode}`);
+    loadPdf: async function(containerId, documentUrl, isEditMode = true, sessionToken = null) {
+        console.log(`[Nutrient Viewer] Loading PDF in ${containerId}, editMode: ${isEditMode}, DWS: ${!!sessionToken}`);
 
         try {
             const instanceData = this.instances[containerId];
@@ -446,8 +461,8 @@ window.nutrientViewer = {
                 instanceData.instance = null;
             }
 
-            // Build configuration using shared function
-            const configuration = this.buildConfiguration(containerId, documentUrl, isEditMode);
+            // Build configuration using shared function (supports both DWS and self-hosted)
+            const configuration = this.buildConfiguration(containerId, documentUrl, isEditMode, null, sessionToken);
 
             console.log('[Nutrient Viewer] Loading PSPDFKit instance...');
             instanceData.instance = await PSPDFKit.load(configuration);
@@ -855,6 +870,19 @@ window.nutrientViewer = {
                                 console.warn('[Nutrient Viewer] Could not notify Blazor of annotation selection:', error);
                             });
                     }
+                }
+            } else if (viewState.selectedAnnotations && viewState.selectedAnnotations.size === 0) {
+                // Annotation deselected - notify Blazor to clear highlight
+                console.log('[Nutrient Viewer] 🖱️ Annotation deselected - clearing highlight');
+
+                if (instanceData.dotNetRef) {
+                    instanceData.dotNetRef.invokeMethodAsync('OnAnnotationDeselected')
+                        .then(() => {
+                            console.log('[Nutrient Viewer] ✓ Notified Blazor of annotation deselection');
+                        })
+                        .catch(error => {
+                            console.warn('[Nutrient Viewer] Could not notify Blazor of annotation deselection:', error);
+                        });
                 }
             }
         });
@@ -1382,6 +1410,55 @@ window.nutrientViewer = {
             }
         } catch (error) {
             console.error(`[Nutrient Viewer] Error deleting annotation ${annotationId}:`, error);
+        }
+    },
+
+    /**
+     * Highlight/select an annotation by ID and scroll to it
+     * @param {string} containerId - Container element ID
+     * @param {string} annotationId - PSPDFKit annotation ID
+     */
+    highlightAnnotationById: async function(containerId, annotationId) {
+        const instanceData = this.instances[containerId];
+        if (!instanceData?.instance) {
+            console.warn('[Nutrient Viewer] Cannot highlight annotation - no instance');
+            return;
+        }
+
+        try {
+            console.log(`[Nutrient Viewer] Highlighting annotation ${annotationId}...`);
+
+            // Get total page count
+            const totalPages = instanceData.instance.totalPageCount;
+
+            // Search all pages for the annotation
+            let annotationToHighlight = null;
+            let annotationPageIndex = 0;
+            for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+                const annotations = await instanceData.instance.getAnnotations(pageIndex);
+                annotationToHighlight = annotations.find(a => a.id === annotationId);
+                if (annotationToHighlight) {
+                    annotationPageIndex = pageIndex;
+                    console.log(`[Nutrient Viewer] Found annotation on page ${pageIndex}`);
+                    break;
+                }
+            }
+
+            if (annotationToHighlight) {
+                // Jump to the page containing the annotation
+                await instanceData.instance.setViewState(viewState =>
+                    viewState.set('currentPageIndex', annotationPageIndex)
+                );
+
+                // Select the annotation (this will highlight it in the UI)
+                await instanceData.instance.setSelectedAnnotation(annotationToHighlight.id);
+
+                console.log(`[Nutrient Viewer] ✓ Highlighted annotation ${annotationId} on page ${annotationPageIndex}`);
+            } else {
+                console.warn(`[Nutrient Viewer] Annotation ${annotationId} not found in PDF viewer`);
+            }
+        } catch (error) {
+            console.error(`[Nutrient Viewer] Error highlighting annotation ${annotationId}:`, error);
         }
     },
 

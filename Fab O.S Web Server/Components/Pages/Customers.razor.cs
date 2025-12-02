@@ -18,7 +18,6 @@ public partial class Customers : ComponentBase, IToolbarActionProvider, IDisposa
 
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
-    [Inject] private BreadcrumbService BreadcrumbService { get; set; } = default!;
 
     private List<Customer> customers = new();
     private List<Customer> allCustomers = new();
@@ -43,18 +42,10 @@ public partial class Customers : ComponentBase, IToolbarActionProvider, IDisposa
 
     protected override async Task OnInitializedAsync()
     {
-        UpdateBreadcrumb();
         InitializeColumns();
         await LoadCustomers();
     }
 
-    private void UpdateBreadcrumb()
-    {
-        BreadcrumbService.SetBreadcrumbs(
-            new Breadcrumb.BreadcrumbItem { Label = "Home", Url = "/" },
-            new Breadcrumb.BreadcrumbItem { Label = "Customers", Url = "/customers", IsActive = true }
-        );
-    }
 
     private void InitializeColumns()
     {

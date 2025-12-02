@@ -90,22 +90,47 @@ Last Updated: 2025-10-23
                                 SelectedItemsChanged="@HandleListSelectionChanged">
                     <CustomListItemContent Context="measurement">
                         <div class="measurement-list-item @(IsMeasurementHighlighted(measurement) ? "highlighted" : "")">
-                            <div class="measurement-header">
-                                <h3 class="measurement-title">@measurement.CatalogueItem?.ItemCode</h3>
-                                <span class="badge badge-type">@measurement.MeasurementType</span>
+                            <!-- Left Section: Item Info -->
+                            <div class="list-item-left">
+                                <div class="item-icon">
+                                    <i class="fas fa-ruler-combined"></i>
+                                </div>
+                                <div class="item-details">
+                                    <div class="item-code-row">
+                                        <h3 class="item-code">@measurement.CatalogueItem?.ItemCode</h3>
+                                        <span class="badge badge-category">@(measurement.CatalogueItem?.Category ?? "Uncategorized")</span>
+                                    </div>
+                                    <p class="item-description">@(measurement.CatalogueItem?.Description ?? "No description")</p>
+                                </div>
                             </div>
-                            <p class="measurement-description">@(measurement.CatalogueItem?.Description ?? "No description")</p>
-                            <div class="measurement-meta">
-                                <span class="badge badge-category">@(measurement.CatalogueItem?.Category ?? "Uncategorized")</span>
-                                <span class="measurement-value">@measurement.Value.ToString("F2") @measurement.Unit</span>
+
+                            <!-- Right Section: Measurement Data -->
+                            <div class="list-item-right">
+                                <div class="measurement-stat">
+                                    <span class="stat-label">Type</span>
+                                    <span class="badge badge-type">@measurement.MeasurementType</span>
+                                </div>
+                                <div class="measurement-stat">
+                                    <span class="stat-label">Value</span>
+                                    <span class="stat-value">@measurement.Value.ToString("F2") @measurement.Unit</span>
+                                </div>
                                 @if (measurement.CalculatedWeight.HasValue)
                                 {
-                                    <span class="measurement-weight">
-                                        <i class="fas fa-weight-hanging"></i>
-                                        @measurement.CalculatedWeight.Value.ToString("F2") kg
-                                    </span>
+                                    <div class="measurement-stat highlight">
+                                        <span class="stat-label">Weight</span>
+                                        <span class="stat-value weight">
+                                            <i class="fas fa-weight-hanging"></i>
+                                            @measurement.CalculatedWeight.Value.ToString("F2") kg
+                                        </span>
+                                    </div>
                                 }
-                                <span class="measurement-date">@measurement.CreatedDate.ToLocalTime().ToString("g")</span>
+                                <div class="measurement-stat">
+                                    <span class="stat-label">Created</span>
+                                    <span class="stat-value date">
+                                        <i class="fas fa-clock"></i>
+                                        @measurement.CreatedDate.ToLocalTime().ToString("g")
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </CustomListItemContent>

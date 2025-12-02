@@ -1,0 +1,521 @@
+@*
+═══════════════════════════════════════════════════════════════
+CARD-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: Card
+Entity: Catalogue
+Features: Details, Related Items, Actions
+Pattern: Standard
+Modern UI: Yes
+Last Updated: 2025-11-03
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/trace/catalogues/{catalogueId:int}"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Models.Entities
+
+<PageTitle>@catalogue?.Name - Fab.OS</PageTitle>
+
+@if (isLoading)
+{
+    <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <p>Loading catalogue...</p>
+    </div>
+}
+else if (catalogue == null)
+{
+    <div class="error-container">
+        <h2>Catalogue Not Found</h2>
+        <p>The catalogue you're looking for doesn't exist.</p>
+        <button class="btn-primary" @onclick="GoBack">← Go Back</button>
+    </div>
+}
+else
+{
+    <!-- Card Header -->
+    <div class="card-header">
+        <div class="header-left">
+            <button class="btn-back" @onclick="GoBack">
+                <span>←</span>
+            </button>
+            <div>
+                <div class="title-row">
+                    <h1>@catalogue.Name</h1>
+                    @if (catalogue.IsSystemCatalogue)
+                    {
+                        <span class="badge badge-system">System Catalogue</span>
+                    }
+                </div>
+                @if (!string.IsNullOrEmpty(catalogue.Description))
+                {
+                    <p class="subtitle">@catalogue.Description</p>
+                }
+            </div>
+        </div>
+        <div class="header-actions">
+            @if (!catalogue.IsSystemCatalogue)
+            {
+                <button class="btn-secondary" @onclick="EditCatalogue">
+                    <span>✏️</span> Edit
+                </button>
+                <button class="btn-danger" @onclick="DeleteCatalogue">
+                    <span>🗑️</span> Delete
+                </button>
+            }
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-container">
+        <div class="tabs">
+            <button class="tab @(activeTab == "details" ? "active" : "")" @onclick='() => activeTab = "details"'>
+                Details
+            </button>
+            <button class="tab @(activeTab == "items" ? "active" : "")" @onclick='() => activeTab = "items"'>
+                Items (@itemCount)
+            </button>
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="tab-content">
+        @if (activeTab == "details")
+        {
+            <!-- Details Tab -->
+            <div class="details-grid">
+                <div class="detail-item">
+                    <label>Catalogue ID</label>
+                    <span>@catalogue.Id</span>
+                </div>
+                <div class="detail-item">
+                    <label>Name</label>
+                    <span>@catalogue.Name</span>
+                </div>
+                <div class="detail-item">
+                    <label>Type</label>
+                    <span>@(catalogue.IsSystemCatalogue ? "System Catalogue" : "Custom Catalogue")</span>
+                </div>
+                <div class="detail-item">
+                    <label>Total Items</label>
+                    <span>@itemCount</span>
+                </div>
+                <div class="detail-item">
+                    <label>Status</label>
+                    <span class="@(catalogue.IsActive ? "status-active" : "status-inactive")">
+                        @(catalogue.IsActive ? "Active" : "Inactive")
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <label>Created Date</label>
+                    <span>@catalogue.CreatedDate.ToString("MMMM dd, yyyy")</span>
+                </div>
+                @if (catalogue.ModifiedDate.HasValue)
+                {
+                    <div class="detail-item">
+                        <label>Last Modified</label>
+                        <span>@catalogue.ModifiedDate.Value.ToString("MMMM dd, yyyy")</span>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(catalogue.Description))
+                {
+                    <div class="detail-item full-width">
+                        <label>Description</label>
+                        <span>@catalogue.Description</span>
+                    </div>
+                }
+            </div>
+
+            @if (catalogue.IsSystemCatalogue)
+            {
+                <div class="info-box">
+                    <span class="info-icon">ℹ️</span>
+                    <div>
+                        <strong>System Catalogue</strong>
+                        <p>This is the default catalogue containing AU/NZ steel profiles and materials. It cannot be edited or deleted.</p>
+                    </div>
+                </div>
+            }
+        }
+        else if (activeTab == "items")
+        {
+            <!-- Items Tab -->
+            <div class="items-actions">
+                <input type="text"
+                       class="search-input"
+                       placeholder="Search items..."
+                       @bind="itemSearchTerm"
+                       @bind:event="oninput"
+                       @onkeyup="FilterItems" />
+                <button class="btn-primary" @onclick="ViewAllItems">
+                    View All Items →
+                </button>
+            </div>
+
+            <div class="items-preview">
+                @if (filteredItems.Any())
+                {
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th>Category</th>
+                                <th>Material</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in filteredItems.Take(10))
+                            {
+                                <tr @onclick="() => ViewItem(item.Id)" class="clickable-row">
+                                    <td><strong>@item.ItemCode</strong></td>
+                                    <td>@item.Description</td>
+                                    <td>@item.Category</td>
+                                    <td>@item.Material</td>
+                                    <td>
+                                        <button class="btn-sm" @onclick:stopPropagation="true" @onclick="() => ViewItem(item.Id)">
+                                            View →
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    @if (filteredItems.Count > 10)
+                    {
+                        <div class="more-items-notice">
+                            Showing 10 of @filteredItems.Count items. <a @onclick="ViewAllItems">View all →</a>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="empty-state">
+                        <p>@(string.IsNullOrWhiteSpace(itemSearchTerm) ? "No items in this catalogue." : "No items found matching your search.")</p>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .card-header {
+        background: white;
+        padding: 24px;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+
+    .header-left {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex: 1;
+    }
+
+    .btn-back {
+        background: #f5f5f5;
+        border: none;
+        border-radius: 8px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-back:hover {
+        background: #e0e0e0;
+    }
+
+    .title-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 600;
+        color: #212121;
+    }
+
+    .subtitle {
+        margin: 0;
+        color: #666;
+        font-size: 14px;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .badge-system {
+        background: #E3F2FD;
+        color: #1976D2;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn-secondary, .btn-danger, .btn-primary {
+        border: none;
+        padding: 10px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    .btn-secondary {
+        background: #f5f5f5;
+        color: #212121;
+    }
+
+    .btn-secondary:hover {
+        background: #e0e0e0;
+    }
+
+    .btn-danger {
+        background: #ffebee;
+        color: #c62828;
+    }
+
+    .btn-danger:hover {
+        background: #ffcdd2;
+    }
+
+    .btn-primary {
+        background: #2196F3;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #1976D2;
+    }
+
+    .tabs-container {
+        background: white;
+        border-bottom: 1px solid #e0e0e0;
+        padding: 0 24px;
+    }
+
+    .tabs {
+        display: flex;
+        gap: 24px;
+    }
+
+    .tab {
+        background: none;
+        border: none;
+        border-bottom: 3px solid transparent;
+        padding: 16px 0;
+        cursor: pointer;
+        font-weight: 500;
+        color: #666;
+        transition: all 0.2s;
+    }
+
+    .tab.active {
+        color: #2196F3;
+        border-bottom-color: #2196F3;
+    }
+
+    .tab:hover {
+        color: #2196F3;
+    }
+
+    .tab-content {
+        background: white;
+        padding: 24px;
+    }
+
+    .details-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 24px;
+    }
+
+    .detail-item {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .detail-item.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .detail-item label {
+        font-size: 12px;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 500;
+    }
+
+    .detail-item span {
+        font-size: 16px;
+        color: #212121;
+    }
+
+    .status-active {
+        color: #4CAF50;
+        font-weight: 600;
+    }
+
+    .status-inactive {
+        color: #999;
+        font-weight: 600;
+    }
+
+    .info-box {
+        margin-top: 24px;
+        padding: 16px;
+        background: #E3F2FD;
+        border-left: 4px solid #2196F3;
+        border-radius: 4px;
+        display: flex;
+        gap: 12px;
+    }
+
+    .info-icon {
+        font-size: 24px;
+    }
+
+    .info-box strong {
+        display: block;
+        margin-bottom: 4px;
+        color: #1976D2;
+    }
+
+    .info-box p {
+        margin: 0;
+        color: #424242;
+        font-size: 14px;
+    }
+
+    .items-actions {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .search-input {
+        flex: 1;
+        padding: 10px 16px;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    .items-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .items-table thead {
+        background: #f5f5f5;
+    }
+
+    .items-table th {
+        text-align: left;
+        padding: 12px;
+        font-weight: 600;
+        color: #666;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .items-table td {
+        padding: 12px;
+        border-top: 1px solid #f0f0f0;
+    }
+
+    .clickable-row {
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .clickable-row:hover {
+        background: #fafafa;
+    }
+
+    .btn-sm {
+        background: #2196F3;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+
+    .btn-sm:hover {
+        background: #1976D2;
+    }
+
+    .more-items-notice {
+        margin-top: 16px;
+        text-align: center;
+        color: #666;
+        font-size: 14px;
+    }
+
+    .more-items-notice a {
+        color: #2196F3;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .more-items-notice a:hover {
+        text-decoration: underline;
+    }
+
+    .loading-container, .error-container, .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+    }
+
+    .loading-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #2196F3;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+        color: #999;
+    }
+</style>

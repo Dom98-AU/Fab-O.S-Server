@@ -40,7 +40,8 @@ public class SharePointService : ISharePointService
     /// <summary>
     /// Gets or loads the current tenant's SharePoint settings
     /// </summary>
-    private async Task<SharePointSettings?> GetCurrentTenantSettingsAsync()
+    /// <param name="moduleName">Module name (trace, estimate, fabmate, qdocs, assets)</param>
+    private async Task<SharePointSettings?> GetCurrentTenantSettingsAsync(string moduleName = "trace")
     {
         var companyId = _tenantService.GetCurrentCompanyId();
 
@@ -62,6 +63,24 @@ public class SharePointService : ISharePointService
             return null;
         }
 
+        // Get module-specific library and folder
+        string documentLibrary;
+        string rootFolder;
+
+        try
+        {
+            documentLibrary = tenantSettings.GetDocumentLibraryForModule(moduleName);
+            rootFolder = tenantSettings.GetRootFolderForModule(moduleName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "SharePoint library not configured for module {ModuleName} in company {CompanyId}",
+                moduleName, companyId);
+            _currentTenantSettings = null;
+            _lastLoadedCompanyId = companyId;
+            return null;
+        }
+
         // Convert to SharePointSettings object
         _currentTenantSettings = new SharePointSettings
         {
@@ -69,8 +88,8 @@ public class SharePointService : ISharePointService
             ClientId = tenantSettings.ClientId,
             ClientSecret = tenantSettings.ClientSecret,
             SiteUrl = tenantSettings.SiteUrl,
-            DocumentLibrary = tenantSettings.DocumentLibrary,
-            TakeoffsRootFolder = tenantSettings.TakeoffsRootFolder,
+            DocumentLibrary = documentLibrary,
+            TakeoffsRootFolder = rootFolder,
             IsEnabled = tenantSettings.IsEnabled,
             UseMockData = tenantSettings.UseMockData,
             MaxFileSizeMB = tenantSettings.MaxFileSizeMB
@@ -79,8 +98,8 @@ public class SharePointService : ISharePointService
         _lastLoadedCompanyId = companyId;
         _graphClient = null; // Reset graph client when tenant changes
 
-        _logger.LogInformation("SharePoint settings loaded for company {CompanyId}. IsEnabled: {IsEnabled}, UseMockData: {UseMockData}",
-            companyId, tenantSettings.IsEnabled, tenantSettings.UseMockData);
+        _logger.LogInformation("SharePoint settings loaded for company {CompanyId}, module {ModuleName}. IsEnabled: {IsEnabled}, UseMockData: {UseMockData}",
+            companyId, moduleName, tenantSettings.IsEnabled, tenantSettings.UseMockData);
 
         return _currentTenantSettings;
     }
@@ -215,7 +234,8 @@ public class SharePointService : ISharePointService
             }
             else
             {
-                // Create new settings
+                // Create new settings with no document libraries configured initially
+                // Users must configure document libraries per module in the UI
                 var newSettings = new CompanySharePointSettings
                 {
                     CompanyId = companyId,
@@ -223,8 +243,18 @@ public class SharePointService : ISharePointService
                     ClientId = clientId,
                     ClientSecret = clientSecret,
                     SiteUrl = siteUrl,
-                    DocumentLibrary = "Takeoff Files",
-                    TakeoffsRootFolder = "Takeoffs",
+                    // Document libraries are NULL by default - users configure per module
+                    TraceDocumentLibrary = null,
+                    EstimateDocumentLibrary = null,
+                    FabMateDocumentLibrary = null,
+                    QDocsDocumentLibrary = null,
+                    AssetsDocumentLibrary = null,
+                    // Root folders are NULL by default - users configure per module
+                    TraceRootFolder = null,
+                    EstimateRootFolder = null,
+                    FabMateRootFolder = null,
+                    QDocsRootFolder = null,
+                    AssetsRootFolder = null,
                     IsEnabled = true,
                     UseMockData = false,
                     MaxFileSizeMB = 250,

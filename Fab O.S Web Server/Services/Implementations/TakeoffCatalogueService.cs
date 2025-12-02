@@ -1,6 +1,7 @@
 using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Services.Interfaces;
+using FabOS.WebServer.Hubs;
 using Microsoft.EntityFrameworkCore;
 
 namespace FabOS.WebServer.Services.Implementations
@@ -12,13 +13,16 @@ namespace FabOS.WebServer.Services.Implementations
     {
         private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly ILogger<TakeoffCatalogueService> _logger;
+        private readonly IMeasurementHubService _measurementHub;
 
         public TakeoffCatalogueService(
             IDbContextFactory<ApplicationDbContext> contextFactory,
-            ILogger<TakeoffCatalogueService> logger)
+            ILogger<TakeoffCatalogueService> logger,
+            IMeasurementHubService measurementHub)
         {
             _contextFactory = contextFactory;
             _logger = logger;
+            _measurementHub = measurementHub;
         }
 
         public async Task<List<string>> GetMaterialsAsync(int companyId)
@@ -372,6 +376,7 @@ namespace FabOS.WebServer.Services.Implementations
             string unit,
             string? coordinates,
             int companyId,
+            int? userId = null,
             string? annotationId = null)
         {
             try
@@ -445,7 +450,8 @@ namespace FabOS.WebServer.Services.Implementations
                     Unit = unit,
                     Coordinates = coordinates,
                     CalculatedWeight = calculation.Weight,
-                    CreatedDate = DateTime.UtcNow
+                    CreatedDate = DateTime.UtcNow,
+                    CreatedBy = userId // Set CreatedBy from authenticated user
                 };
 
                 context.TraceTakeoffMeasurements.Add(measurement);
@@ -481,6 +487,10 @@ namespace FabOS.WebServer.Services.Implementations
 
                 _logger.LogInformation("Created measurement {Id} for drawing {DrawingId} with catalogue item {CatalogueItemId}",
                     measurement.Id, packageDrawingId, catalogueItemId);
+
+                // Broadcast SignalR event for real-time updates across all connected clients
+                await _measurementHub.NotifyMeasurementCreatedAsync(packageDrawingId, measurement.Id);
+                _logger.LogInformation("✓ Broadcasted MeasurementCreated event via SignalR for measurement {MeasurementId}", measurement.Id);
 
                 return measurement;
             }
@@ -520,7 +530,8 @@ namespace FabOS.WebServer.Services.Implementations
             int measurementId,
             decimal value,
             string? coordinates,
-            int companyId)
+            int companyId,
+            int? userId = null)
         {
             try
             {
@@ -539,6 +550,13 @@ namespace FabOS.WebServer.Services.Implementations
 
                 measurement.Value = value;
                 measurement.Coordinates = coordinates;
+                measurement.ModifiedDate = DateTime.UtcNow;
+
+                // Set ModifiedBy if userId provided
+                if (userId.HasValue)
+                {
+                    measurement.ModifiedBy = userId.Value;
+                }
 
                 // Recalculate weight
                 if (measurement.CatalogueItemId.HasValue)
@@ -566,7 +584,7 @@ namespace FabOS.WebServer.Services.Implementations
             }
         }
 
-        public async Task<List<string>> DeleteMeasurementAsync(int measurementId, int companyId)
+        public async Task<List<string>> DeleteMeasurementAsync(int measurementId, int companyId, int? userId = null)
         {
             try
             {
@@ -602,7 +620,7 @@ namespace FabOS.WebServer.Services.Implementations
                 context.TraceTakeoffMeasurements.Remove(measurement);
                 await context.SaveChangesAsync();
 
-                _logger.LogInformation("Deleted measurement {Id}", measurementId);
+                _logger.LogInformation("Deleted measurement {Id} by user {UserId}", measurementId, userId ?? 0);
 
                 return annotationIds;
             }
@@ -702,6 +720,110 @@ namespace FabOS.WebServer.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting TraceTakeoffId for PackageDrawing {DrawingId}", packageDrawingId);
+                throw;
+            }
+        }
+
+        public async Task<TraceTakeoffMeasurement?> GetMeasurementByIdAsync(int measurementId, int companyId)
+        {
+            try
+            {
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var measurement = await context.TraceTakeoffMeasurements
+                    .Include(m => m.CatalogueItem)
+                    .Include(m => m.SurfaceCoating)
+                    .Include(m => m.PackageDrawing)
+                        .ThenInclude(pd => pd!.Package)
+                    .Include(m => m.CreatedByUser)
+                    .Include(m => m.ModifiedByUser)
+                    .FirstOrDefaultAsync(m => m.Id == measurementId);
+
+                if (measurement == null)
+                {
+                    _logger.LogWarning("Measurement {MeasurementId} not found", measurementId);
+                    return null;
+                }
+
+                // Verify company access
+                if (measurement.CatalogueItem != null && measurement.CatalogueItem.CompanyId != companyId)
+                {
+                    _logger.LogWarning("Measurement {MeasurementId} does not belong to company {CompanyId}", measurementId, companyId);
+                    return null;
+                }
+
+                _logger.LogInformation("Retrieved measurement {MeasurementId} for company {CompanyId}", measurementId, companyId);
+                return measurement;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving measurement {MeasurementId}", measurementId);
+                throw;
+            }
+        }
+
+        public async Task<TraceTakeoffMeasurement?> UpdateMeasurementDetailsAsync(
+            int measurementId,
+            int? surfaceCoatingId,
+            string? status,
+            string? notes,
+            string? label,
+            string? description,
+            string? color,
+            int? userId,
+            int companyId)
+        {
+            try
+            {
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
+                var measurement = await context.TraceTakeoffMeasurements
+                    .Include(m => m.CatalogueItem)
+                    .Include(m => m.SurfaceCoating)
+                    .FirstOrDefaultAsync(m => m.Id == measurementId);
+
+                if (measurement == null)
+                {
+                    _logger.LogWarning("Measurement {MeasurementId} not found for update", measurementId);
+                    return null;
+                }
+
+                // Verify company access
+                if (measurement.CatalogueItem != null && measurement.CatalogueItem.CompanyId != companyId)
+                {
+                    _logger.LogWarning("Measurement {MeasurementId} does not belong to company {CompanyId}", measurementId, companyId);
+                    return null;
+                }
+
+                // Update editable fields
+                measurement.SurfaceCoatingId = surfaceCoatingId;
+                measurement.Status = status;
+                measurement.Notes = notes;
+                measurement.Label = label;
+                measurement.Description = description;
+                measurement.Color = color;
+                measurement.ModifiedDate = DateTime.UtcNow;
+
+                // Only set ModifiedBy if a valid userId is provided
+                if (userId.HasValue)
+                {
+                    measurement.ModifiedBy = userId.Value;
+                }
+
+                await context.SaveChangesAsync();
+
+                _logger.LogInformation("Updated measurement details for {MeasurementId} by user {UserId}", measurementId, userId);
+
+                // Reload with all navigation properties
+                await context.Entry(measurement)
+                    .Reference(m => m.SurfaceCoating)
+                    .LoadAsync();
+
+                return measurement;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating measurement details for {MeasurementId}", measurementId);
                 throw;
             }
         }

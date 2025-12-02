@@ -4,7 +4,7 @@
 @using FabOS.WebServer.Components.Shared
 @using FabOS.WebServer.Services
 @using System.Linq
-@inject BreadcrumbService BreadcrumbService
+@inject BreadcrumbNavigationService BreadcrumbNav
 @implements IDisposable
 
 <div class="fabos-app">
@@ -18,23 +18,12 @@
     <div class="fabos-main-content">
         <!-- Top Bar -->
         <div class="fabos-top-bar">
-            <div class="fabos-breadcrumb">
-                @if (BreadcrumbService.BreadcrumbItems.Any())
-                {
-                    <Breadcrumb Items="@BreadcrumbService.BreadcrumbItems" />
-                }
-                else if (!string.IsNullOrEmpty(BreadcrumbService.CurrentBreadcrumb))
-                {
-                    <i class="fas fa-home"></i>
-                    <span>Home</span>
-                    <i class="fas fa-chevron-right"></i>
-                    <span>@BreadcrumbService.CurrentBreadcrumb</span>
-                }
-                else
-                {
-                    <span class="fabos-current-module">Current Module</span>
-                }
-            </div>
+            <!-- Breadcrumb Navigation (Automatic - based on URL) -->
+            @if (breadcrumbs.Any())
+            {
+                <Breadcrumb Items="@breadcrumbs" />
+            }
+
             <div class="fabos-user-section">
                 <div class="fabos-user-info">
                     <span class="fabos-user-name">Admin User</span>
@@ -58,13 +47,30 @@
 </div>
 
 @code {
-    protected override void OnInitialized()
+    private List<Breadcrumb.BreadcrumbItem> breadcrumbs = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        BreadcrumbService.OnBreadcrumbChanged += StateHasChanged;
+        // Subscribe to breadcrumb changes
+        BreadcrumbNav.OnBreadcrumbsChanged += OnBreadcrumbsChanged;
+
+        // Load initial breadcrumbs
+        await UpdateBreadcrumbsAsync();
+    }
+
+    private void OnBreadcrumbsChanged()
+    {
+        _ = UpdateBreadcrumbsAsync();
+    }
+
+    private async Task UpdateBreadcrumbsAsync()
+    {
+        breadcrumbs = await BreadcrumbNav.GetBreadcrumbsAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
-        BreadcrumbService.OnBreadcrumbChanged -= StateHasChanged;
+        BreadcrumbNav.OnBreadcrumbsChanged -= OnBreadcrumbsChanged;
     }
 }

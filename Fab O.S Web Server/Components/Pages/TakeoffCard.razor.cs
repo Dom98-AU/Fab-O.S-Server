@@ -35,7 +35,6 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private ISharePointService? SharePointService { get; set; }
     [Inject] private ILogger<TakeoffCard> Logger { get; set; } = default!;
-    [Inject] private FabOS.WebServer.Services.BreadcrumbService BreadcrumbService { get; set; } = default!;
     [Inject] private NumberSeriesService NumberSeriesService { get; set; } = default!;
 
     private Takeoff? takeoff = null;
@@ -65,7 +64,6 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
     // File list data
     private List<TakeoffFile> takeoffFiles = new();
     private IToolbarActionProvider fileActionProvider = null!;
-    private FileActionProvider fileActions = new();
     private bool showFilesModal = false;
 
     // SharePoint state
@@ -89,35 +87,8 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
     protected override async Task OnInitializedAsync()
     {
-        fileActionProvider = fileActions;
         await LoadData();
         LoadSampleFiles();
-        await UpdateBreadcrumbAsync();
-    }
-
-    private async Task UpdateBreadcrumbAsync()
-    {
-        if (Id == 0)
-        {
-            // For new takeoffs, use custom label
-            await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
-                "Takeoffs",
-                $"/{TenantSlug}/trace/takeoffs",
-                "Takeoff",
-                null,
-                takeoff?.TakeoffNumber ?? "New Takeoff"
-            );
-        }
-        else
-        {
-            // For existing takeoffs, use the breadcrumb builder to load the actual takeoff number
-            await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
-                "Takeoffs",
-                $"/{TenantSlug}/trace/takeoffs",
-                "Takeoff",
-                Id
-            );
-        }
     }
 
     private async Task LoadData()
@@ -154,7 +125,6 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
                 // Auto-generate takeoff number immediately for new takeoffs
                 await GenerateTakeoffNumber();
-                await UpdateBreadcrumbAsync();
 
                 isEditMode = true;
             }
@@ -218,7 +188,6 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                 isEditMode = true;
 
                 // Update breadcrumb with loaded takeoff number
-                await UpdateBreadcrumbAsync();
             }
         }
         catch (Exception ex)
@@ -439,139 +408,98 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
     {
         var actionGroup = new FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionGroup();
 
+        // PRIMARY ACTIONS - [Back] [Edit/Save]
+        actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+        {
+            Text = "Back",
+            Label = "Back",
+            Icon = "fas fa-arrow-left",
+            Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs")),
+            Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Secondary,
+            Tooltip = "Back to takeoffs list"
+        });
+
+        actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+        {
+            Text = isEditMode ? "Save" : "Edit",
+            Label = isEditMode ? "Save" : "Edit",
+            Icon = isEditMode ? "fas fa-save" : "fas fa-edit",
+            Action = isEditMode ? EventCallback.Factory.Create(this, SaveTakeoff) : EventCallback.Factory.Create(this, StartEdit),
+            Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Primary,
+            Tooltip = isEditMode ? "Save changes" : "Edit takeoff"
+        });
+
+        // MENU ACTIONS - [Delete] [Drawings] [Measuring]
+        if (takeoff != null && Id != 0)
+        {
+            actionGroup.MenuActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+            {
+                Text = "Delete",
+                Label = "Delete",
+                Icon = "fas fa-trash",
+                Action = EventCallback.Factory.Create(this, DeleteTakeoff),
+                Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Danger,
+                Tooltip = "Delete takeoff"
+            });
+
+            actionGroup.MenuActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+            {
+                Text = "View Drawing",
+                Label = "View Drawing",
+                Icon = "fas fa-eye",
+                Action = EventCallback.Factory.Create(this, () => ViewDrawing(takeoff)),
+                Tooltip = "View takeoff drawing"
+            });
+
+            actionGroup.MenuActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+            {
+                Text = "Manage Drawings",
+                Label = "Manage Drawings",
+                Icon = "fas fa-images",
+                Action = EventCallback.Factory.Create(this, () => ManageDrawings(takeoff)),
+                Tooltip = "Manage all drawings"
+            });
+
+            actionGroup.MenuActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+            {
+                Text = "Start Measuring",
+                Label = "Start Measuring",
+                Icon = "fas fa-ruler",
+                Action = EventCallback.Factory.Create(this, () => StartMeasuring(takeoff)),
+                Tooltip = "Start measuring on drawing"
+            });
+        }
+
+        // RELATED ACTIONS - [Files] [Revisions] [Packages] [Customer] [Project]
         if (takeoff != null)
         {
-            // Primary Actions (New, Edit/Save, Delete, Cancel)
-            if (Id == 0)
-            {
-                // New takeoff - show Save as primary
-                actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
-                    Label = "Save",
-                    Text = "Save",
-                    Icon = "fas fa-save",
-                    Action = EventCallback.Factory.Create(this, SaveTakeoff),
-                    Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Primary
-                });
-
-                actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
-                    Text = "Cancel",
-                    Icon = "fas fa-times",
-                    Action = EventCallback.Factory.Create(this, CancelEdit)
-                });
-            }
-            else if (!isEditMode)
-            {
-                // View mode - show Edit button
-                // New button - always creates a new takeoff
-                actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
-                    Text = "New",
-                    Label = "New",
-                    Icon = "fas fa-plus",
-                    Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/0"))
-                });
-
-                actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
-                    Text = "Edit",
-                    Icon = "fas fa-edit",
-                    Action = EventCallback.Factory.Create(this, StartEdit)
-                });
-
-                actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
-                    Text = "Delete",
-                    Icon = "fas fa-trash",
-                    Action = EventCallback.Factory.Create(this, DeleteTakeoff),
-                    Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Danger
-                });
-            }
-            else
-            {
-                // Edit mode - show Save and Cancel
-                actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
-                    Label = "Save",
-                    Text = "Save",
-                    Icon = "fas fa-save",
-                    Action = EventCallback.Factory.Create(this, SaveTakeoff),
-                    Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Primary
-                });
-
-                actionGroup.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
-                    Text = "Cancel",
-                    Icon = "fas fa-times",
-                    Action = EventCallback.Factory.Create(this, CancelEdit)
-                });
-            }
-
-            // Menu Actions (Actions dropdown)
-            if (Id != 0)
-            {
-                actionGroup.MenuActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
-                    Text = "View Drawing",
-                    Icon = "fas fa-eye",
-                    Action = EventCallback.Factory.Create(this, () => ViewDrawing(takeoff))
-                });
-
-                actionGroup.MenuActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
-                    Text = "Manage Drawings",
-                    Icon = "fas fa-images",
-                    Action = EventCallback.Factory.Create(this, () => ManageDrawings(takeoff))
-                });
-
-                actionGroup.MenuActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
-                    Text = "Start Measuring",
-                    Icon = "fas fa-ruler",
-                    Action = EventCallback.Factory.Create(this, () => StartMeasuring(takeoff))
-                });
-
-            }
-
-            // Related Actions (Related dropdown)
             actionGroup.RelatedActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
             {
                 Text = "Takeoff Files",
+                Label = "Takeoff Files",
                 Icon = "fas fa-folder-open",
-                Action = EventCallback.Factory.Create(this, OpenFilesModal)
+                Action = EventCallback.Factory.Create(this, OpenFilesModal),
+                Tooltip = "View related files"
             });
 
-            actionGroup.RelatedActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-            {
-                Text = "View All Takeoffs",
-                Icon = "fas fa-list",
-                Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs"))
-            });
-
-            actionGroup.RelatedActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-            {
-                Text = "Revisions",
-                Icon = "fas fa-code-branch",
-                Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{Id}/revisions")),
-                Tooltip = "View and manage revisions"
-            });
-
-            actionGroup.RelatedActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-            {
-                Text = "Packages",
-                Icon = "fas fa-box",
-                Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{Id}/packages")),
-                Tooltip = "View packages for this takeoff"
-            });
-
-            if (takeoff.ProjectId != null)
+            if (Id != 0)
             {
                 actionGroup.RelatedActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
-                    Text = "View Project",
-                    Icon = "fas fa-project-diagram",
-                    Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/projects/{takeoff.ProjectId}"))
+                    Text = "Revisions",
+                    Label = "Revisions",
+                    Icon = "fas fa-code-branch",
+                    Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{Id}/revisions")),
+                    Tooltip = "View and manage revisions"
+                });
+
+                actionGroup.RelatedActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+                {
+                    Text = "Packages",
+                    Label = "Packages",
+                    Icon = "fas fa-box",
+                    Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs/{Id}/packages")),
+                    Tooltip = "View packages for this takeoff"
                 });
             }
 
@@ -580,8 +508,22 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                 actionGroup.RelatedActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = "View Customer",
-                    Icon = "fas fa-user",
-                    Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/customers/{takeoff.CustomerId}"))
+                    Label = "View Customer",
+                    Icon = "fas fa-building",
+                    Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/trace/customers/{takeoff.CustomerId}")),
+                    Tooltip = "View customer details"
+                });
+            }
+
+            if (takeoff.ProjectId != null)
+            {
+                actionGroup.RelatedActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+                {
+                    Text = "View Project",
+                    Label = "View Project",
+                    Icon = "fas fa-project-diagram",
+                    Action = EventCallback.Factory.Create(this, () => Navigation.NavigateTo($"/{TenantSlug}/estimate/projects/{takeoff.ProjectId}")),
+                    Tooltip = "View related project"
                 });
             }
         }
@@ -641,7 +583,6 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             }
 
             // Update breadcrumb after save
-            await UpdateBreadcrumbAsync();
             StateHasChanged();
         }
         catch (Exception ex)
@@ -1085,38 +1026,6 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
         }
     }
 
-    // File Action Provider inner class
-    private class FileActionProvider : IToolbarActionProvider
-    {
-        public ToolbarActionGroup GetActions()
-        {
-            var group = new ToolbarActionGroup();
-
-            group.PrimaryActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-            {
-                Text = "Upload",
-                Icon = "fas fa-upload",
-                Action = EventCallback.Factory.Create(this, () => Console.WriteLine("Upload file")),
-                Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Primary
-            });
-
-            group.MenuActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-            {
-                Text = "Download All",
-                Icon = "fas fa-download",
-                Action = EventCallback.Factory.Create(this, () => Console.WriteLine("Download all files"))
-            });
-
-            group.MenuActions.Add(new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-            {
-                Text = "Export List",
-                Icon = "fas fa-file-export",
-                Action = EventCallback.Factory.Create(this, () => Console.WriteLine("Export file list"))
-            });
-
-            return group;
-        }
-    }
 
     public void Dispose()
     {

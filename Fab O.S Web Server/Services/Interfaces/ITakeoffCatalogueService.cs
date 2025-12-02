@@ -64,6 +64,7 @@ namespace FabOS.WebServer.Services.Interfaces
             string unit,
             string? coordinates,
             int companyId,
+            int? userId = null,
             string? annotationId = null);
 
         /// <summary>
@@ -78,13 +79,14 @@ namespace FabOS.WebServer.Services.Interfaces
             int measurementId,
             decimal value,
             string? coordinates,
-            int companyId);
+            int companyId,
+            int? userId = null);
 
         /// <summary>
         /// Delete a measurement
         /// Returns list of annotation IDs that were deleted (so they can be removed from PDF viewer)
         /// </summary>
-        Task<List<string>> DeleteMeasurementAsync(int measurementId, int companyId);
+        Task<List<string>> DeleteMeasurementAsync(int measurementId, int companyId, int? userId = null);
 
         /// <summary>
         /// Get summary statistics for all measurements on a drawing
@@ -95,6 +97,25 @@ namespace FabOS.WebServer.Services.Interfaces
         /// Get the TraceTakeoffId by following the hierarchy: PackageDrawing → Package → Revision → Takeoff
         /// </summary>
         Task<int?> GetTraceTakeoffIdFromPackageDrawingAsync(int packageDrawingId);
+
+        /// <summary>
+        /// Get a single measurement by ID with all related data (CatalogueItem, SurfaceCoating, etc.)
+        /// </summary>
+        Task<TraceTakeoffMeasurement?> GetMeasurementByIdAsync(int measurementId, int companyId);
+
+        /// <summary>
+        /// Update measurement details (surface coating, status, notes, label, description, color)
+        /// </summary>
+        Task<TraceTakeoffMeasurement?> UpdateMeasurementDetailsAsync(
+            int measurementId,
+            int? surfaceCoatingId,
+            string? status,
+            string? notes,
+            string? label,
+            string? description,
+            string? color,
+            int? userId,
+            int companyId);
     }
 
     /// <summary>

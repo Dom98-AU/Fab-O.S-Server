@@ -19,7 +19,6 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
 
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
-    [Inject] private FabOS.WebServer.Services.BreadcrumbService BreadcrumbService { get; set; } = default!;
     [Inject] private ILogger<PackageCard> Logger { get; set; } = default!;
     [Inject] private NumberSeriesService NumberSeriesService { get; set; } = default!;
     [Inject] private FabOS.WebServer.Services.Interfaces.ITakeoffRevisionService RevisionService { get; set; } = default!;
@@ -44,32 +43,6 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
     protected override async Task OnInitializedAsync()
     {
         await LoadPackage();
-        await UpdateBreadcrumbAsync();
-    }
-
-    private async Task UpdateBreadcrumbAsync()
-    {
-        if (Id == 0)
-        {
-            // For new packages, use custom label
-            await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
-                "Packages",
-                "/packages",
-                "Package",
-                null,
-                package?.PackageNumber ?? "New Package"
-            );
-        }
-        else
-        {
-            // For existing packages, use the breadcrumb builder to load the actual package number
-            await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
-                "Packages",
-                "/packages",
-                "Package",
-                Id
-            );
-        }
     }
 
     private async Task LoadPackage()
@@ -119,7 +92,6 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
 
                 // Auto-generate package number immediately for new packages
                 await GeneratePackageNumber();
-                await UpdateBreadcrumbAsync();
 
                 isEditMode = true;
             }
@@ -286,12 +258,12 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
             {
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
-                    Text = "New",
-                    Label = "New",
-                    Icon = "fas fa-plus",
-                    ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/packages/0"); return Task.CompletedTask; },
-                    IsDisabled = false,
-                    Tooltip = "Create new package"
+                    Text = "Back",
+                    Label = "Back",
+                    Icon = "fas fa-arrow-left",
+                    ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/trace/packages"); return Task.CompletedTask; },
+                    Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Secondary,
+                    Tooltip = "Back to packages list"
                 },
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
@@ -300,8 +272,12 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                     Icon = isEditMode ? "fas fa-save" : "fas fa-edit",
                     ActionFunc = () => { if (isEditMode) return SavePackage(); else { EditPackage(); return Task.CompletedTask; } },
                     IsDisabled = package == null,
+                    Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Primary,
                     Tooltip = isEditMode ? "Save changes" : "Edit package"
-                },
+                }
+            },
+            MenuActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
+            {
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = "Delete",
@@ -309,23 +285,13 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                     Icon = "fas fa-trash",
                     ActionFunc = () => DeletePackage(),
                     IsDisabled = package == null || package.Id == 0,
+                    Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Danger,
                     Tooltip = "Delete package"
                 },
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
-                    Text = "Cancel",
-                    Label = "Cancel",
-                    Icon = "fas fa-times",
-                    ActionFunc = () => CancelEdit(),
-                    IsDisabled = !isEditMode,
-                    Tooltip = "Cancel changes"
-                }
-            },
-            MenuActions = new List<FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction>
-            {
-                new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
                     Text = "Duplicate",
+                    Label = "Duplicate",
                     Icon = "fas fa-copy",
                     ActionFunc = () => Task.CompletedTask,
                     IsDisabled = package == null || package.Id == 0,
@@ -334,6 +300,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = "Export",
+                    Label = "Export",
                     Icon = "fas fa-file-export",
                     ActionFunc = () => Task.CompletedTask,
                     IsDisabled = package == null,
@@ -395,6 +362,6 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
 
     public void Dispose()
     {
-        BreadcrumbService.OnBreadcrumbChanged -= StateHasChanged;
+        // Cleanup if needed
     }
 }

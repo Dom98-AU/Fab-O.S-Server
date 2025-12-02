@@ -32,6 +32,30 @@ namespace FabOS.WebServer.Controllers.Api
         }
 
         /// <summary>
+        /// Extract authenticated user context (userId and companyId) from claims
+        /// Throws UnauthorizedAccessException if claims are missing
+        /// </summary>
+        private (int userId, int companyId) GetUserContext()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var companyIdClaim = User.FindFirst("CompanyId")?.Value;
+
+            if (userIdClaim == null || !int.TryParse(userIdClaim, out int userId))
+            {
+                _logger.LogWarning("User ID claim not found or invalid in request");
+                throw new UnauthorizedAccessException("User ID not found in authentication claims");
+            }
+
+            if (companyIdClaim == null || !int.TryParse(companyIdClaim, out int companyId))
+            {
+                _logger.LogWarning("Company ID claim not found or invalid for user {UserId}", userId);
+                throw new UnauthorizedAccessException("Company ID not found in authentication claims");
+            }
+
+            return (userId, companyId);
+        }
+
+        /// <summary>
         /// Get all catalogue categories
         /// GET /api/takeoff/catalogue/categories
         /// </summary>
@@ -40,10 +64,14 @@ namespace FabOS.WebServer.Controllers.Api
         {
             try
             {
-                // Use CompanyId = 1 for consistency across all endpoints
-                int companyId = 1;
+                var (userId, companyId) = GetUserContext();
                 var categories = await _catalogueService.GetCategoriesAsync(companyId);
                 return Ok(categories);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to GetCategories");
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -66,10 +94,14 @@ namespace FabOS.WebServer.Controllers.Api
                     return BadRequest(new { error = "Category parameter is required" });
                 }
 
-                // Use CompanyId = 1 for consistency across all endpoints
-                int companyId = 1;
+                var (userId, companyId) = GetUserContext();
                 var items = await _catalogueService.GetItemsByCategoryAsync(category, companyId);
                 return Ok(items);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to GetItemsByCategory");
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -87,8 +119,7 @@ namespace FabOS.WebServer.Controllers.Api
         {
             try
             {
-                // Use CompanyId = 1 for consistency across all endpoints
-                int companyId = 1;
+                var (userId, companyId) = GetUserContext();
                 var item = await _catalogueService.GetItemByIdAsync(id, companyId);
 
                 if (item == null)
@@ -97,6 +128,11 @@ namespace FabOS.WebServer.Controllers.Api
                 }
 
                 return Ok(item);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to GetItemById");
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -119,10 +155,14 @@ namespace FabOS.WebServer.Controllers.Api
                     return BadRequest(new { error = "Search query 'q' parameter is required" });
                 }
 
-                // Use CompanyId = 1 for consistency across all endpoints
-                int companyId = 1;
+                var (userId, companyId) = GetUserContext();
                 var items = await _catalogueService.SearchItemsAsync(q, companyId, maxResults);
                 return Ok(items);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to SearchItems");
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -146,9 +186,7 @@ namespace FabOS.WebServer.Controllers.Api
                     return BadRequest(new { error = "Request body is required" });
                 }
 
-                // Use CompanyId = 1 (consistent with SaveAnnotation and DeleteAnnotation)
-                // TODO: In production, get companyId from user claims or drawing's package
-                int companyId = 1;
+                var (userId, companyId) = GetUserContext();
 
                 // Log diagnostic information
                 _logger.LogInformation("Calculate measurement request: CatalogueItemId={CatalogueItemId}, CompanyId={CompanyId}, MeasurementType={MeasurementType}, Value={Value}, Unit={Unit}, AnnotationId={AnnotationId}",
@@ -166,10 +204,15 @@ namespace FabOS.WebServer.Controllers.Api
 
                 return Ok(result);
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to CalculateMeasurement");
+                return Unauthorized(new { error = ex.Message });
+            }
             catch (ArgumentException ex)
             {
-                _logger.LogWarning(ex, "Invalid calculation request for CatalogueItemId={CatalogueItemId}, CompanyId={CompanyId}",
-                    request?.CatalogueItemId, 1);
+                _logger.LogWarning(ex, "Invalid calculation request for CatalogueItemId={CatalogueItemId}",
+                    request?.CatalogueItemId);
                 return BadRequest(new { error = ex.Message });
             }
             catch (Exception ex)
@@ -194,9 +237,7 @@ namespace FabOS.WebServer.Controllers.Api
                     return BadRequest(new { error = "Request body is required" });
                 }
 
-                // Use CompanyId = 1 (consistent with SaveAnnotation and DeleteAnnotation)
-                // TODO: In production, get companyId from user claims or drawing's package
-                int companyId = 1;
+                var (userId, companyId) = GetUserContext();
                 var measurement = await _catalogueService.CreateMeasurementAsync(
                     request.TraceTakeoffId,
                     request.PackageDrawingId,
@@ -205,12 +246,18 @@ namespace FabOS.WebServer.Controllers.Api
                     request.Value,
                     request.Unit,
                     request.Coordinates,
-                    companyId);
+                    companyId,
+                    userId); // Pass userId for CreatedBy tracking
 
                 return CreatedAtAction(
                     nameof(GetMeasurementsByDrawing),
                     new { drawingId = request.PackageDrawingId },
                     measurement);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to CreateMeasurement");
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -228,16 +275,50 @@ namespace FabOS.WebServer.Controllers.Api
         {
             try
             {
-                // Use CompanyId = 1 (consistent with SaveAnnotation and DeleteAnnotation)
-                // TODO: In production, get companyId from user claims or drawing's package
-                int companyId = 1;
+                var (userId, companyId) = GetUserContext();
                 var measurements = await _catalogueService.GetMeasurementsByDrawingAsync(drawingId, companyId);
                 return Ok(measurements);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to GetMeasurementsByDrawing");
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error retrieving measurements for drawing {DrawingId}", drawingId);
                 return StatusCode(500, new { error = "Failed to retrieve measurements" });
+            }
+        }
+
+        /// <summary>
+        /// Get a single measurement by ID with all related data
+        /// GET /api/takeoff/measurements/456
+        /// </summary>
+        [HttpGet("measurements/{id}")]
+        public async Task<ActionResult<TraceTakeoffMeasurement>> GetMeasurementById(int id)
+        {
+            try
+            {
+                var (userId, companyId) = GetUserContext();
+                var measurement = await _catalogueService.GetMeasurementByIdAsync(id, companyId);
+
+                if (measurement == null)
+                {
+                    return NotFound(new { error = $"Measurement {id} not found" });
+                }
+
+                return Ok(measurement);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to GetMeasurementById");
+                return Unauthorized(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving measurement {Id}", id);
+                return StatusCode(500, new { error = "Failed to retrieve measurement" });
             }
         }
 
@@ -257,12 +338,60 @@ namespace FabOS.WebServer.Controllers.Api
                     return BadRequest(new { error = "Request body is required" });
                 }
 
-                // Use CompanyId = 1 for consistency across all endpoints
-                int companyId = 1;
+                var (userId, companyId) = GetUserContext();
                 var measurement = await _catalogueService.UpdateMeasurementAsync(
                     id,
                     request.Value,
                     request.Coordinates,
+                    companyId,
+                    userId); // Pass userId for ModifiedBy tracking
+
+                if (measurement == null)
+                {
+                    return NotFound(new { error = $"Measurement {id} not found" });
+                }
+
+                return Ok(measurement);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to UpdateMeasurement");
+                return Unauthorized(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating measurement {Id}", id);
+                return StatusCode(500, new { error = "Failed to update measurement" });
+            }
+        }
+
+        /// <summary>
+        /// Update measurement details (surface coating, status, notes, etc.)
+        /// PATCH /api/takeoff/measurements/456/details
+        /// </summary>
+        [HttpPatch("measurements/{id}/details")]
+        public async Task<ActionResult<TraceTakeoffMeasurement>> UpdateMeasurementDetails(
+            int id,
+            [FromBody] UpdateMeasurementDetailsRequest request)
+        {
+            try
+            {
+                if (request == null)
+                {
+                    return BadRequest(new { error = "Request body is required" });
+                }
+
+                var (userId, companyId) = GetUserContext();
+
+                var measurement = await _catalogueService.UpdateMeasurementDetailsAsync(
+                    id,
+                    request.SurfaceCoatingId,
+                    request.Status,
+                    request.Notes,
+                    request.Label,
+                    request.Description,
+                    request.Color,
+                    userId,
                     companyId);
 
                 if (measurement == null)
@@ -272,10 +401,15 @@ namespace FabOS.WebServer.Controllers.Api
 
                 return Ok(measurement);
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to UpdateMeasurementDetails");
+                return Unauthorized(new { error = ex.Message });
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating measurement {Id}", id);
-                return StatusCode(500, new { error = "Failed to update measurement" });
+                _logger.LogError(ex, "Error updating measurement details for {Id}", id);
+                return StatusCode(500, new { error = "Failed to update measurement details" });
             }
         }
 
@@ -288,9 +422,8 @@ namespace FabOS.WebServer.Controllers.Api
         {
             try
             {
-                // Use CompanyId = 1 for consistency across all endpoints
-                int companyId = 1;
-                var deletedAnnotationIds = await _catalogueService.DeleteMeasurementAsync(id, companyId);
+                var (userId, companyId) = GetUserContext();
+                var deletedAnnotationIds = await _catalogueService.DeleteMeasurementAsync(id, companyId, userId);
 
                 if (deletedAnnotationIds == null || deletedAnnotationIds.Count == 0)
                 {
@@ -302,6 +435,11 @@ namespace FabOS.WebServer.Controllers.Api
 
                 // Return the list of annotation IDs that were deleted (for PDF viewer cleanup)
                 return Ok(new { deletedAnnotationIds });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to DeleteMeasurement");
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -319,10 +457,14 @@ namespace FabOS.WebServer.Controllers.Api
         {
             try
             {
-                // Use CompanyId = 1 for consistency across all endpoints
-                int companyId = 1;
+                var (userId, companyId) = GetUserContext();
                 var summary = await _catalogueService.GetDrawingSummaryAsync(drawingId, companyId);
                 return Ok(summary);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to GetDrawingSummary");
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -343,9 +485,7 @@ namespace FabOS.WebServer.Controllers.Api
                 _logger.LogInformation("[API] SaveAnnotation called for annotation {AnnotationId}, drawing {DrawingId}",
                     request.AnnotationId, request.PackageDrawingId);
 
-                // Use CompanyId = 1 (confirmed to exist in database as "Steel Estimation Platform")
-                // TODO: In production, get companyId from user claims or drawing's package
-                int companyId = 1;
+                var (userId, companyId) = GetUserContext();
 
                 // Save the annotation using the service
                 // Foreign key constraints will validate that PackageDrawingId exists
@@ -358,12 +498,17 @@ namespace FabOS.WebServer.Controllers.Api
                     isMeasurement: request.IsMeasurement,
                     isCalibration: false,
                     traceTakeoffMeasurementId: null,
-                    userId: null,
+                    userId: userId,
                     companyId: companyId
                 );
 
                 _logger.LogInformation("[API] ✓ Successfully saved annotation {AnnotationId}", request.AnnotationId);
                 return Ok(new { success = true, message = "Annotation saved successfully" });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to SaveAnnotation");
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -383,9 +528,7 @@ namespace FabOS.WebServer.Controllers.Api
             {
                 _logger.LogInformation("[API] DeleteAnnotation called for annotation {AnnotationId}", annotationId);
 
-                // Use CompanyId = 1 (same as SaveAnnotation to ensure consistency)
-                // TODO: In production, get companyId from user claims or drawing's package
-                int companyId = 1;
+                var (userId, companyId) = GetUserContext();
                 var result = await _calibrationService.DeleteAnnotationAsync(annotationId, companyId);
 
                 if (!result)
@@ -396,6 +539,11 @@ namespace FabOS.WebServer.Controllers.Api
 
                 _logger.LogInformation("[API] ✓ Successfully deleted annotation {AnnotationId} and linked measurement", annotationId);
                 return Ok(new { success = true, message = "Annotation and linked measurement deleted successfully" });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to DeleteAnnotation");
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -430,6 +578,16 @@ namespace FabOS.WebServer.Controllers.Api
     {
         public decimal Value { get; set; }
         public string? Coordinates { get; set; }
+    }
+
+    public class UpdateMeasurementDetailsRequest
+    {
+        public int? SurfaceCoatingId { get; set; }
+        public string? Status { get; set; }
+        public string? Notes { get; set; }
+        public string? Label { get; set; }
+        public string? Description { get; set; }
+        public string? Color { get; set; }
     }
 
     public class SaveAnnotationRequest

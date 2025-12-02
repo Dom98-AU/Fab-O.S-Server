@@ -69,8 +69,10 @@ namespace FabOS.WebServer.Services
             var prefix = entityType switch
             {
                 "Takeoff" => "TO-",
-                "Quote" => "QT-",
-                "Order" => "OR-",
+                "Quote" => "QTE-",
+                "Estimation" => "EST-",
+                "Order" => "ORD-",
+                "WorkPackage" => "WP-",
                 "WorkOrder" => "WO-",
                 "Customer" => "CUS-",
                 _ => $"{entityType.Substring(0, Math.Min(3, entityType.Length)).ToUpper()}-"

@@ -19,7 +19,6 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider, IDisposab
 
     [Inject] private IDbContextFactory<ApplicationDbContext> DbContextFactory { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
-    [Inject] private BreadcrumbService BreadcrumbService { get; set; } = default!;
 
     private List<CustomerContact> contacts = new();
     private List<CustomerContact> allContacts = new();
@@ -46,7 +45,6 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider, IDisposab
 
     protected override async Task OnInitializedAsync()
     {
-        UpdateBreadcrumb();
         InitializeColumns();
 
         // Check for customerId query parameter
@@ -63,14 +61,6 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider, IDisposab
         }
 
         await LoadContacts();
-    }
-
-    private void UpdateBreadcrumb()
-    {
-        BreadcrumbService.SetBreadcrumbs(
-            new Breadcrumb.BreadcrumbItem { Label = "Home", Url = "/" },
-            new Breadcrumb.BreadcrumbItem { Label = "Contacts", Url = "/contacts", IsActive = true }
-        );
     }
 
     private void InitializeColumns()

@@ -18,14 +18,14 @@ public class WorkOrder
     public string WorkOrderNumber { get; set; } = string.Empty; // WO-2025-0001
 
     [Required]
-    public int PackageId { get; set; }
+    public int PackageId { get; set; } // Foreign key to WorkPackage
 
     // Work order details
     [Required]
-    [StringLength(20)]
-    public string WorkOrderType { get; set; } = "Mixed"; // PartsProcessing, AssemblyBuilding, Mixed, Finishing, QualityControl
+    [StringLength(50)]
+    public string WorkOrderType { get; set; } = "PartsProcessing"; // PartsProcessing, AssemblyBuilding, Mixed, Finishing, QualityControl
 
-    [StringLength(1000)]
+    [StringLength(2000)]
     public string? Description { get; set; }
 
     // Assignment options
@@ -35,7 +35,7 @@ public class WorkOrder
 
     // Priority and scheduling
     [Required]
-    [StringLength(10)]
+    [StringLength(20)]
     public string Priority { get; set; } = "Normal"; // Low, Normal, High, Urgent
 
     public DateTime? ScheduledStartDate { get; set; }
@@ -46,19 +46,31 @@ public class WorkOrder
 
     public DateTime? ActualEndDate { get; set; }
 
-    // Time tracking
+    // Time tracking and costing
     [Required]
-    [Column(TypeName = "decimal(10,2)")]
+    [Column(TypeName = "decimal(18,2)")]
     public decimal EstimatedHours { get; set; }
 
     [Required]
-    [Column(TypeName = "decimal(10,2)")]
+    [Column(TypeName = "decimal(18,2)")]
     public decimal ActualHours { get; set; }
 
-    // Status
+    [Required]
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal EstimatedCost { get; set; }
+
+    [Required]
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal ActualCost { get; set; }
+
+    // Progress tracking
     [Required]
     [StringLength(20)]
-    public string Status { get; set; } = "Created"; // Created, Scheduled, Released, InProgress, OnHold, Complete, Cancelled
+    public string Status { get; set; } = "NotStarted"; // NotStarted, InProgress, OnHold, Complete, Cancelled
+
+    [Required]
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal PercentComplete { get; set; } = 0;
 
     [StringLength(100)]
     public string? Barcode { get; set; } // For shop floor scanning
@@ -70,22 +82,33 @@ public class WorkOrder
     [Required]
     public bool RequiresInspection { get; set; }
 
+    [StringLength(20)]
+    public string? InspectionStatus { get; set; } // Pending, Passed, Failed, Waived
+
+    // Shop floor
+    [Column(TypeName = "nvarchar(max)")]
+    public string? WorkInstructions { get; set; }
+
     // Audit fields
     [Required]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
 
     [Required]
-    public int CreatedBy { get; set; }
-
-    [Required]
     public DateTime LastModified { get; set; } = DateTime.UtcNow;
 
+    public DateTime? CompletedDate { get; set; }
+
+    // Multi-tenant
     [Required]
-    public int LastModifiedBy { get; set; }
+    public int CompanyId { get; set; }
 
     // Navigation properties
-    [ForeignKey("PackageId")]
-    public virtual Package Package { get; set; } = null!;
+    // NOTE: ForeignKey attribute removed - relationship explicitly configured in ApplicationDbContext
+    // to avoid PackageId1 shadow property conflict with InspectionTestPlan.PackageId
+    public virtual WorkPackage WorkPackage { get; set; } = null!;
+
+    [ForeignKey("CompanyId")]
+    public virtual Company Company { get; set; } = null!;
 
     [ForeignKey("WorkCenterId")]
     public virtual WorkCenter? WorkCenter { get; set; }
@@ -93,21 +116,15 @@ public class WorkOrder
     [ForeignKey("PrimaryResourceId")]
     public virtual Resource? PrimaryResource { get; set; }
 
-    [ForeignKey("CreatedBy")]
-    public virtual User CreatedByUser { get; set; } = null!;
+    // What we're working on (Journal entries)
+    public virtual ICollection<WorkOrderMaterialEntry> MaterialEntries { get; set; } = new List<WorkOrderMaterialEntry>();
+    public virtual ICollection<WorkOrderAssemblyEntry> AssemblyEntries { get; set; } = new List<WorkOrderAssemblyEntry>();
 
-    [ForeignKey("LastModifiedBy")]
-    public virtual User LastModifiedByUser { get; set; } = null!;
+    // How we're working on them (Business Central style Routing)
+    public virtual WorkOrderRouting? Routing { get; set; } // WorkOrder has ONE routing with multiple lines
 
-    // What we're working on
-    public virtual ICollection<WorkOrderInventoryItem> InventoryItems { get; set; } = new List<WorkOrderInventoryItem>();
-    public virtual ICollection<WorkOrderAssembly> Assemblies { get; set; } = new List<WorkOrderAssembly>();
-
-    // How we're working on them
-    public virtual ICollection<WorkOrderOperation> Operations { get; set; } = new List<WorkOrderOperation>();
-
-    // Resources assigned
-    public virtual ICollection<WorkOrderResource> AssignedResources { get; set; } = new List<WorkOrderResource>();
+    // Resources assigned (Journal entries)
+    public virtual ICollection<WorkOrderResourceEntry> ResourceEntries { get; set; } = new List<WorkOrderResourceEntry>();
 }
 
 [Table("WorkOrderOperations")]
@@ -191,8 +208,8 @@ public class WorkOrderOperation
     public virtual User? CompletedByUser { get; set; }
 }
 
-[Table("WorkOrderInventoryItem")]
-public class WorkOrderInventoryItem
+[Table("WorkOrderMaterialEntries")]
+public class WorkOrderMaterialEntry
 {
     [Key]
     public int Id { get; set; }
@@ -246,8 +263,8 @@ public class WorkOrderInventoryItem
     // Note: PackageItem and CatalogueItem foreign keys will be added when those systems are implemented
 }
 
-[Table("WorkOrderAssembly")]
-public class WorkOrderAssembly
+[Table("WorkOrderAssemblyEntries")]
+public class WorkOrderAssemblyEntry
 {
     [Key]
     public int Id { get; set; }
@@ -307,6 +324,9 @@ public class Resource
     [StringLength(200)]
     public string JobTitle { get; set; } = string.Empty;
 
+    [StringLength(255)]
+    public string? Email { get; set; }
+
     [NotMapped]
     public string FullName => $"{FirstName} {LastName}";
 
@@ -324,6 +344,9 @@ public class Resource
     [StringLength(50)]
     public string? CertificationLevel { get; set; }
 
+    [StringLength(100)]
+    public string? ResourceGroup { get; set; } // e.g., "Welders", "Fabricators", "Assembly Team A"
+
     // Availability
     [Required]
     [Column(TypeName = "decimal(4,2)")]
@@ -335,6 +358,22 @@ public class Resource
 
     [Required]
     public bool IsActive { get; set; } = true;
+
+    // Costing fields
+    [Required]
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal DirectUnitCost { get; set; } = 0; // Direct cost per hour
+
+    [Required]
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal IndirectCostPercentage { get; set; } = 0; // e.g., 15.00 for 15%
+
+    [NotMapped]
+    public decimal UnitCost => DirectUnitCost * (1 + (IndirectCostPercentage / 100)); // Calculated: Direct + Indirect
+
+    [Required]
+    [StringLength(50)]
+    public string PriceCalculation { get; set; } = "NoRelationship"; // "Profit", "Price", "NoRelationship"
 
     // Assignment
     public int? PrimaryWorkCenterId { get; set; }
@@ -353,11 +392,11 @@ public class Resource
     [ForeignKey("PrimaryWorkCenterId")]
     public virtual WorkCenter? PrimaryWorkCenter { get; set; }
 
-    public virtual ICollection<WorkOrderResource> WorkOrderAssignments { get; set; } = new List<WorkOrderResource>();
+    public virtual ICollection<WorkOrderResourceEntry> WorkOrderAssignments { get; set; } = new List<WorkOrderResourceEntry>();
 }
 
-[Table("WorkOrderResources")]
-public class WorkOrderResource
+[Table("WorkOrderResourceEntries")]
+public class WorkOrderResourceEntry
 {
     [Key]
     public int Id { get; set; }
@@ -388,6 +427,24 @@ public class WorkOrderResource
     public DateTime? StartedDate { get; set; }
 
     public DateTime? CompletedDate { get; set; }
+
+    // Cost tracking
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal HourlyRate { get; set; }
+
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal TotalCost { get; set; }
+
+    // Status and notes
+    [StringLength(50)]
+    public string Status { get; set; } = "Assigned";
+
+    [StringLength(1000)]
+    public string? Notes { get; set; }
+
+    // Multi-tenancy
+    [Required]
+    public int CompanyId { get; set; }
 
     // Navigation properties
     [ForeignKey("WorkOrderId")]

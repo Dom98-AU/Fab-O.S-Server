@@ -1,0 +1,415 @@
+@page "/{tenantSlug}/trace/measurements/{id:int}"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using Microsoft.AspNetCore.Components.Forms
+
+<PageTitle>@(measurement?.CatalogueItem?.ItemCode ?? "Measurement") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" PageType="PageType.Card" />
+
+<!-- Main Content Container -->
+<div class="measurement-layout">
+    @if (isLoading)
+    {
+        <!-- Loading State -->
+        <div class="measurement-loading">
+            <div class="measurement-spinner"></div>
+            <p>Loading measurement details...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <!-- Error State -->
+        <div class="measurement-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>@errorMessage</div>
+        </div>
+    }
+    else if (measurement != null)
+    {
+        <!-- Container Wrapper -->
+        <div class="measurement-container">
+            <!-- Collapsible Sections -->
+            <div class="measurement-sections">
+
+                <!-- General Section (Read-Only Basic Info) -->
+                <div class="measurement-section">
+                    <div class="measurement-section-header @(IsSectionExpanded("general") ? "expanded" : "")" @onclick="@(() => ToggleSection("general"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-ruler-combined section-icon"></i>
+                            <span class="section-title">General</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="measurement-section-content @(IsSectionExpanded("general") ? "expanded" : "collapsed")">
+                        <div class="measurement-subsection">
+                            <div class="measurement-form-grid two-column">
+                                <!-- Measurement Type -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Type</label>
+                                    <p class="measurement-form-control-plaintext">
+                                        <span class="measurement-badge measurement-badge-type">@measurement.MeasurementType</span>
+                                    </p>
+                                </div>
+
+                                <!-- Value -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Value</label>
+                                    <p class="measurement-form-control-plaintext">@measurement.Value.ToString("N4") @measurement.Unit</p>
+                                </div>
+
+                                <!-- Weight -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Calculated Weight</label>
+                                    <p class="measurement-form-control-plaintext">
+                                        @if (measurement.CalculatedWeight.HasValue)
+                                        {
+                                            <span class="measurement-weight">@measurement.CalculatedWeight.Value.ToString("N2") kg</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Not calculated</span>
+                                        }
+                                    </p>
+                                </div>
+
+                                <!-- Created Date -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Created</label>
+                                    <p class="measurement-form-control-plaintext">@measurement.CreatedDate.ToString("g")</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item Details Section (Read-Only) -->
+                <div class="measurement-section">
+                    <div class="measurement-section-header @(IsSectionExpanded("item") ? "expanded" : "")" @onclick="@(() => ToggleSection("item"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-box section-icon"></i>
+                            <span class="section-title">Item Details</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="measurement-section-content @(IsSectionExpanded("item") ? "expanded" : "collapsed")">
+                        <div class="measurement-subsection">
+                            @if (measurement.CatalogueItem != null)
+                            {
+                                <div class="measurement-form-grid two-column">
+                                    <!-- Item Code -->
+                                    <div class="measurement-form-group">
+                                        <label class="measurement-form-label">Item Code</label>
+                                        <p class="measurement-form-control-plaintext">@measurement.CatalogueItem.ItemCode</p>
+                                    </div>
+
+                                    <!-- Category -->
+                                    <div class="measurement-form-group">
+                                        <label class="measurement-form-label">Category</label>
+                                        <p class="measurement-form-control-plaintext">
+                                            <span class="measurement-badge measurement-badge-category">@measurement.CatalogueItem.Category</span>
+                                        </p>
+                                    </div>
+
+                                    <!-- Material -->
+                                    <div class="measurement-form-group">
+                                        <label class="measurement-form-label">Material</label>
+                                        <p class="measurement-form-control-plaintext">@(measurement.CatalogueItem.Material ?? "N/A")</p>
+                                    </div>
+
+                                    <!-- Grade -->
+                                    <div class="measurement-form-group">
+                                        <label class="measurement-form-label">Grade</label>
+                                        <p class="measurement-form-control-plaintext">@(measurement.CatalogueItem.Grade ?? "N/A")</p>
+                                    </div>
+
+                                    <!-- Description -->
+                                    <div class="measurement-form-group full-width">
+                                        <label class="measurement-form-label">Description</label>
+                                        <p class="measurement-form-control-plaintext">@(measurement.CatalogueItem.Description ?? "N/A")</p>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="text-muted">No catalogue item linked</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Properties Section (EDITABLE) -->
+                <div class="measurement-section">
+                    <div class="measurement-section-header @(IsSectionExpanded("properties") ? "expanded" : "")" @onclick="@(() => ToggleSection("properties"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-cog section-icon"></i>
+                            <span class="section-title">Properties</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="measurement-section-content @(IsSectionExpanded("properties") ? "expanded" : "collapsed")">
+                        <div class="measurement-subsection">
+                            <div class="measurement-form-grid two-column">
+                                <!-- Surface Coating (EDITABLE) -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Surface Coating</label>
+                                    @if (isEditMode)
+                                    {
+                                        <select class="measurement-form-control" @bind="editModel.SurfaceCoatingId">
+                                            <option value="">-- None --</option>
+                                            @foreach (var coating in surfaceCoatings)
+                                            {
+                                                <option value="@coating.Id">@coating.CoatingName</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <p class="measurement-form-control-plaintext">
+                                            @(measurement.SurfaceCoating?.CoatingName ?? "None")
+                                        </p>
+                                    }
+                                </div>
+
+                                <!-- Status (EDITABLE) -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Status</label>
+                                    @if (isEditMode)
+                                    {
+                                        <select class="measurement-form-control" @bind="editModel.Status">
+                                            <option value="">-- Not Set --</option>
+                                            <option value="Draft">Draft</option>
+                                            <option value="Approved">Approved</option>
+                                            <option value="Rejected">Rejected</option>
+                                            <option value="Review">Review</option>
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <p class="measurement-form-control-plaintext">
+                                            @if (!string.IsNullOrEmpty(measurement.Status))
+                                            {
+                                                <span class="measurement-badge measurement-badge-status">@measurement.Status</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">Not set</span>
+                                            }
+                                        </p>
+                                    }
+                                </div>
+
+                                <!-- Label (EDITABLE) -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Label</label>
+                                    @if (isEditMode)
+                                    {
+                                        <input type="text" class="measurement-form-control" @bind="editModel.Label" placeholder="Enter label" />
+                                    }
+                                    else
+                                    {
+                                        <p class="measurement-form-control-plaintext">@(measurement.Label ?? "Not set")</p>
+                                    }
+                                </div>
+
+                                <!-- Description (EDITABLE) -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Description</label>
+                                    @if (isEditMode)
+                                    {
+                                        <input type="text" class="measurement-form-control" @bind="editModel.Description" placeholder="Enter description" />
+                                    }
+                                    else
+                                    {
+                                        <p class="measurement-form-control-plaintext">@(measurement.Description ?? "Not set")</p>
+                                    }
+                                </div>
+
+                                <!-- Color (EDITABLE) -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Color</label>
+                                    @if (isEditMode)
+                                    {
+                                        <input type="color" class="measurement-form-control measurement-color-picker" @bind="editModel.Color" />
+                                    }
+                                    else
+                                    {
+                                        @if (!string.IsNullOrEmpty(measurement.Color))
+                                        {
+                                            <p class="measurement-form-control-plaintext">
+                                                <span class="measurement-color-swatch" style="background-color: @measurement.Color;"></span>
+                                                @measurement.Color
+                                            </p>
+                                        }
+                                        else
+                                        {
+                                            <p class="measurement-form-control-plaintext text-muted">Not set</p>
+                                        }
+                                    }
+                                </div>
+
+                                <!-- Notes (EDITABLE) -->
+                                <div class="measurement-form-group full-width">
+                                    <label class="measurement-form-label">Notes</label>
+                                    @if (isEditMode)
+                                    {
+                                        <textarea class="measurement-form-control" @bind="editModel.Notes" placeholder="Enter notes" rows="4"></textarea>
+                                    }
+                                    else
+                                    {
+                                        @if (!string.IsNullOrEmpty(measurement.Notes))
+                                        {
+                                            <p class="measurement-form-control-plaintext">@measurement.Notes</p>
+                                        }
+                                        else
+                                        {
+                                            <p class="measurement-form-control-plaintext text-muted">No notes</p>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Location Section (Read-Only + Links) -->
+                <div class="measurement-section">
+                    <div class="measurement-section-header @(IsSectionExpanded("location") ? "expanded" : "")" @onclick="@(() => ToggleSection("location"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-map-marker-alt section-icon"></i>
+                            <span class="section-title">Location</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="measurement-section-content @(IsSectionExpanded("location") ? "expanded" : "collapsed")">
+                        <div class="measurement-subsection">
+                            <div class="measurement-form-grid two-column">
+                                <!-- Drawing -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Drawing</label>
+                                    @if (measurement.PackageDrawing != null)
+                                    {
+                                        <p class="measurement-form-control-plaintext">
+                                            <a href="/@TenantSlug/trace/drawings/@measurement.PackageDrawingId" class="measurement-link">
+                                                @measurement.PackageDrawing.DrawingNumber
+                                            </a>
+                                        </p>
+                                    }
+                                    else
+                                    {
+                                        <p class="measurement-form-control-plaintext text-muted">N/A</p>
+                                    }
+                                </div>
+
+                                <!-- Page Number -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Page Number</label>
+                                    <p class="measurement-form-control-plaintext">
+                                        @(measurement.PageNumber?.ToString() ?? "N/A")
+                                    </p>
+                                </div>
+
+                                <!-- Coordinates -->
+                                @if (!string.IsNullOrEmpty(measurement.Coordinates))
+                                {
+                                    <div class="measurement-form-group full-width">
+                                        <label class="measurement-form-label">Coordinates</label>
+                                        <p class="measurement-form-control-plaintext">
+                                            <code class="measurement-code">@measurement.Coordinates</code>
+                                        </p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audit Trail Section (Read-Only) -->
+                <div class="measurement-section">
+                    <div class="measurement-section-header @(IsSectionExpanded("audit") ? "expanded" : "")" @onclick="@(() => ToggleSection("audit"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-history section-icon"></i>
+                            <span class="section-title">Audit Trail</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="measurement-section-content @(IsSectionExpanded("audit") ? "expanded" : "collapsed")">
+                        <div class="measurement-subsection">
+                            <div class="measurement-form-grid two-column">
+                                <!-- Created By -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Created By</label>
+                                    <p class="measurement-form-control-plaintext">
+                                        @(measurement.CreatedByUser?.Username ?? "System")
+                                    </p>
+                                </div>
+
+                                <!-- Created Date -->
+                                <div class="measurement-form-group">
+                                    <label class="measurement-form-label">Created Date</label>
+                                    <p class="measurement-form-control-plaintext">
+                                        @measurement.CreatedDate.ToString("f")
+                                    </p>
+                                </div>
+
+                                <!-- Modified By -->
+                                @if (measurement.ModifiedBy.HasValue)
+                                {
+                                    <div class="measurement-form-group">
+                                        <label class="measurement-form-label">Modified By</label>
+                                        <p class="measurement-form-control-plaintext">
+                                            @(measurement.ModifiedByUser?.Username ?? "Unknown")
+                                        </p>
+                                    </div>
+
+                                    <div class="measurement-form-group">
+                                        <label class="measurement-form-label">Modified Date</label>
+                                        <p class="measurement-form-control-plaintext">
+                                            @(measurement.ModifiedDate?.ToString("f") ?? "N/A")
+                                        </p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Confirmation Modal for Delete -->
+@if (showDeleteModal)
+{
+    <div class="modal-overlay" @onclick="CloseDeleteModal">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">
+                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                        Confirm Delete
+                    </h3>
+                    <button type="button" class="modal-close-btn" @onclick="CloseDeleteModal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this measurement?</p>
+                    <p class="text-muted">This action cannot be undone. The measurement and its PDF annotation will be permanently removed.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDeleteModal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

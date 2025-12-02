@@ -1,0 +1,443 @@
+@*
+═══════════════════════════════════════════════════════════════
+CARD-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: Card
+Entity: CatalogueItem
+Features: Details, Specifications, Actions
+Pattern: Standard
+Modern UI: Yes
+Last Updated: 2025-11-05
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/trace/catalogues/{catalogueId:int}/items/{itemId:int}"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Models.Entities
+
+<PageTitle>@(catalogueItem?.ItemCode ?? "Catalogue Item") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" PageType="PageType.Card" />
+
+<!-- Main Content Container -->
+<div class="item-layout">
+    @if (isLoading)
+    {
+        <!-- Loading State -->
+        <div class="item-loading">
+            <div class="item-spinner"></div>
+            <p>Loading item details...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <!-- Error State -->
+        <div class="item-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>@errorMessage</div>
+        </div>
+    }
+    else if (catalogueItem != null)
+    {
+        <!-- Container Wrapper -->
+        <div class="item-container">
+            <!-- Collapsible Sections -->
+            <div class="item-sections">
+
+                <!-- General Section (Basic Info) -->
+                <div class="item-section">
+                    <div class="item-section-header @(IsSectionExpanded("general") ? "expanded" : "")" @onclick="@(() => ToggleSection("general"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-info-circle section-icon"></i>
+                            <span class="section-title">General Information</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="item-section-content @(IsSectionExpanded("general") ? "expanded" : "collapsed")">
+                        <div class="item-form-grid two-column">
+                            <div class="item-form-group">
+                                <label class="item-form-label">Item Code</label>
+                                <p class="item-form-control-plaintext"><strong>@catalogueItem.ItemCode</strong></p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Category</label>
+                                <p class="item-form-control-plaintext">@catalogueItem.Category</p>
+                            </div>
+
+                            <div class="item-form-group full-width">
+                                <label class="item-form-label">Description</label>
+                                <p class="item-form-control-plaintext">@catalogueItem.Description</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Material</label>
+                                <p class="item-form-control-plaintext">@catalogueItem.Material</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Profile</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.Profile ?? "N/A")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Unit</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.Unit ?? "EA")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Status</label>
+                                <p class="item-form-control-plaintext">
+                                    <span class="status-badge @(catalogueItem.IsActive ? "status-active" : "status-inactive")">
+                                        @(catalogueItem.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dimensions Section -->
+                <div class="item-section">
+                    <div class="item-section-header @(IsSectionExpanded("dimensions") ? "expanded" : "")" @onclick="@(() => ToggleSection("dimensions"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-ruler-combined section-icon"></i>
+                            <span class="section-title">Dimensions</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="item-section-content @(IsSectionExpanded("dimensions") ? "expanded" : "collapsed")">
+                        <div class="item-form-grid three-column">
+                            <div class="item-form-group">
+                                <label class="item-form-label">Length (mm)</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.Length_mm?.ToString("N2") ?? "N/A")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Width (mm)</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.Width_mm?.ToString("N2") ?? "N/A")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Height (mm)</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.Height_mm?.ToString("N2") ?? "N/A")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Thickness (mm)</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.Thickness_mm?.ToString("N2") ?? "N/A")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Diameter (mm)</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.Diameter_mm?.ToString("N2") ?? "N/A")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Wall Thickness (mm)</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.WallThickness_mm?.ToString("N2") ?? "N/A")</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Properties Section -->
+                <div class="item-section">
+                    <div class="item-section-header @(IsSectionExpanded("properties") ? "expanded" : "")" @onclick="@(() => ToggleSection("properties"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-weight section-icon"></i>
+                            <span class="section-title">Material Properties</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="item-section-content @(IsSectionExpanded("properties") ? "expanded" : "collapsed")">
+                        <div class="item-form-grid two-column">
+                            <div class="item-form-group">
+                                <label class="item-form-label">Mass (kg/m)</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.Mass_kg_m?.ToString("N3") ?? "N/A")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Surface Area (m²/m)</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.SurfaceArea_m2_per_m?.ToString("N4") ?? "N/A")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Standard</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.Standard ?? "N/A")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Grade</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.Grade ?? "N/A")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Finish</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.Finish ?? "N/A")</p>
+                            </div>
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Standard Lengths</label>
+                                <p class="item-form-control-plaintext">@(catalogueItem.StandardLengths ?? "N/A")</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audit Section -->
+                <div class="item-section">
+                    <div class="item-section-header @(IsSectionExpanded("audit") ? "expanded" : "")" @onclick="@(() => ToggleSection("audit"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-history section-icon"></i>
+                            <span class="section-title">Audit Information</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="item-section-content @(IsSectionExpanded("audit") ? "expanded" : "collapsed")">
+                        <div class="item-form-grid two-column">
+                            <div class="item-form-group">
+                                <label class="item-form-label">Created Date</label>
+                                <p class="item-form-control-plaintext">@catalogueItem.CreatedDate.ToString("MMMM dd, yyyy hh:mm tt")</p>
+                            </div>
+
+                            @if (catalogueItem.ModifiedDate.HasValue)
+                            {
+                                <div class="item-form-group">
+                                    <label class="item-form-label">Modified Date</label>
+                                    <p class="item-form-control-plaintext">@catalogueItem.ModifiedDate.Value.ToString("MMMM dd, yyyy hh:mm tt")</p>
+                                </div>
+                            }
+
+                            <div class="item-form-group">
+                                <label class="item-form-label">Catalogue</label>
+                                <p class="item-form-control-plaintext">
+                                    <a href="/@TenantSlug/trace/catalogues/@catalogueItem.CatalogueId" class="catalogue-link">
+                                        @catalogue?.Name
+                                    </a>
+                                </p>
+                            </div>
+
+                            @if (catalogue != null && catalogue.IsSystemCatalogue)
+                            {
+                                <div class="item-form-group full-width">
+                                    <div class="info-box">
+                                        <i class="fas fa-info-circle"></i>
+                                        <span>This is a system catalogue item and cannot be edited or deleted.</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .item-layout {
+        background: #f5f7fa;
+        min-height: 100vh;
+        padding: 20px;
+    }
+
+    .item-loading,
+    .item-error {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        text-align: center;
+    }
+
+    .item-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #2196F3;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .item-error {
+        color: #d32f2f;
+    }
+
+    .item-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .item-sections {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .item-section {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .item-section-header {
+        padding: 16px 20px;
+        background: #fafafa;
+        border-bottom: 1px solid #e0e0e0;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background 0.2s;
+    }
+
+    .item-section-header:hover {
+        background: #f0f0f0;
+    }
+
+    .item-section-header.expanded {
+        background: #e3f2fd;
+    }
+
+    .section-header-content {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .section-icon {
+        color: #2196F3;
+        font-size: 18px;
+    }
+
+    .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #212121;
+    }
+
+    .section-chevron {
+        color: #757575;
+        transition: transform 0.3s;
+        font-size: 14px;
+    }
+
+    .item-section-header.expanded .section-chevron {
+        transform: rotate(180deg);
+    }
+
+    .item-section-content {
+        overflow: hidden;
+        transition: max-height 0.3s ease, padding 0.3s ease;
+    }
+
+    .item-section-content.expanded {
+        max-height: 2000px;
+        padding: 24px;
+    }
+
+    .item-section-content.collapsed {
+        max-height: 0;
+        padding: 0 24px;
+    }
+
+    .item-form-grid {
+        display: grid;
+        gap: 20px;
+    }
+
+    .item-form-grid.two-column {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .item-form-grid.three-column {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .item-form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .item-form-group.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .item-form-label {
+        font-weight: 600;
+        font-size: 13px;
+        color: #616161;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .item-form-control-plaintext {
+        padding: 10px 0;
+        font-size: 15px;
+        color: #212121;
+        margin: 0;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .status-active {
+        background: #E8F5E9;
+        color: #2E7D32;
+    }
+
+    .status-inactive {
+        background: #FFEBEE;
+        color: #C62828;
+    }
+
+    .catalogue-link {
+        color: #2196F3;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .catalogue-link:hover {
+        text-decoration: underline;
+    }
+
+    .info-box {
+        background: #E3F2FD;
+        border-left: 4px solid #2196F3;
+        padding: 12px 16px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #1565C0;
+        font-size: 14px;
+    }
+
+    @@media (max-width: 768px) {
+        .item-form-grid.two-column,
+        .item-form-grid.three-column {
+            grid-template-columns: 1fr;
+        }
+
+        .item-layout {
+            padding: 12px;
+        }
+    }
+</style>

@@ -59,77 +59,180 @@
 }
 
 /* ========================================
-   LIST VIEW CUSTOM CONTENT
+   LIST VIEW CUSTOM CONTENT - MODERN DESIGN
    ======================================== */
 
 .measurement-list-item {
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    width: 100%;
-}
-
-.measurement-header {
-    display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 2rem;
+    width: 100%;
+    padding: 1.25rem;
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #E5E7EB;
+    transition: all 0.2s ease;
 }
 
-.measurement-title {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #333;
-    margin: 0;
+.measurement-list-item:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+    transform: translateY(-2px);
 }
 
-.measurement-description {
-    font-size: 0.875rem;
-    color: #666;
-    margin: 0;
-}
-
-.measurement-meta {
+/* Left Section: Item Info */
+.list-item-left {
     display: flex;
-    gap: 1rem;
     align-items: center;
+    gap: 1rem;
+    flex: 1;
+    min-width: 0; /* Enable text truncation */
+}
+
+.item-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.item-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.item-code-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     flex-wrap: wrap;
 }
 
-.measurement-value {
-    font-weight: 600;
-    color: #333;
-    font-size: 0.95rem;
+.item-code {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #1F2937;
+    margin: 0;
+    letter-spacing: -0.02em;
 }
 
-.measurement-weight {
+.item-description {
+    font-size: 0.875rem;
+    color: #6B7280;
+    margin: 0;
+    line-height: 1.5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Right Section: Measurement Data */
+.list-item-right {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.measurement-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: flex-end;
+    min-width: 100px;
+}
+
+.measurement-stat.highlight {
+    padding: 0.5rem 0.75rem;
+    background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+    border-radius: 8px;
+    border: 1px solid #86EFAC;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #9CA3AF;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1F2937;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    color: #4CAF50;
-    font-weight: 600;
-    font-size: 0.9rem;
 }
 
-.measurement-date {
-    color: #999;
-    font-size: 0.8rem;
+.stat-value.weight {
+    color: #16A34A;
+    font-size: 1.125rem;
 }
 
+.stat-value.date {
+    color: #6B7280;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.stat-value i {
+    font-size: 0.875rem;
+    opacity: 0.7;
+}
+
+/* Badges */
 .badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
+    padding: 0.375rem 0.875rem;
+    border-radius: 6px;
     font-size: 0.75rem;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
 }
 
 .badge-type {
-    background: #F3E5F5;
+    background: linear-gradient(135deg, #F3E5F5 0%, #E1BEE7 100%);
     color: #7B1FA2;
+    border: 1px solid #CE93D8;
 }
 
 .badge-category {
-    background: #E3F2FD;
-    color: #1976D2;
+    background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+    color: #1565C0;
+    border: 1px solid #64B5F6;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .measurement-list-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .list-item-right {
+        width: 100%;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .measurement-stat {
+        min-width: auto;
+        align-items: flex-start;
+    }
 }
 
 /* ========================================

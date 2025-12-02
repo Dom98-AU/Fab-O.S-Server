@@ -18,7 +18,6 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
 
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
-    [Inject] private FabOS.WebServer.Services.BreadcrumbService BreadcrumbService { get; set; } = default!;
 
     private Takeoff? takeoff;
     private List<Package> packages = new();
@@ -49,26 +48,6 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
         await LoadTakeoff();
         InitializeTableColumns();
         await LoadPackages();
-        UpdateBreadcrumb();
-    }
-
-    private void UpdateBreadcrumb()
-    {
-        if (takeoff != null)
-        {
-            if (RevisionId.HasValue)
-            {
-                BreadcrumbService.SetBreadcrumb($"Takeoffs / {takeoff.DrawingNumber ?? $"Takeoff #{TakeoffId}"} / Revision / Packages");
-            }
-            else
-            {
-                BreadcrumbService.SetBreadcrumb($"Takeoffs / {takeoff.DrawingNumber ?? $"Takeoff #{TakeoffId}"} / Packages");
-            }
-        }
-        else
-        {
-            BreadcrumbService.SetBreadcrumb("Takeoffs / Packages");
-        }
     }
 
     private async Task LoadTakeoff()
@@ -380,6 +359,5 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
 
     public void Dispose()
     {
-        BreadcrumbService.OnBreadcrumbChanged -= StateHasChanged;
     }
 }

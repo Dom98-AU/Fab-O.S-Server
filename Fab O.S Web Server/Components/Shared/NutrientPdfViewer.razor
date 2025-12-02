@@ -20,6 +20,8 @@
 @inject FabOS.WebServer.Hubs.IMeasurementHubService MeasurementHubService
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ITenantService TenantService
+@inject HttpClient HttpClient
+@inject IConfiguration Configuration
 @implements IAsyncDisposable
 
 <div class="nutrient-pdf-viewer">
@@ -184,6 +186,7 @@
     private bool initializationAttempted = false;
     private bool needsToLoadPdf = false;
     private string? pdfUrlToLoad = null;
+    private string? sessionToken = null; // DWS session token (if DWS mode enabled)
 
     // Catalogue integration
     private bool sidebarVisible = true;
@@ -255,7 +258,8 @@
                 var loadResult = await JS.InvokeAsync<JsonElement>("nutrientViewer.loadPdf",
                     containerId,
                     pdfUrlToLoad,
-                    isEditMode);
+                    isEditMode,
+                    sessionToken); // Pass session token (null if self-hosted mode)
 
                 // Check if load failed immediately (not async failure)
                 if (loadResult.TryGetProperty("success", out var loadSuccess) && !loadSuccess.GetBoolean())
@@ -328,6 +332,14 @@
                     Logger.LogInformation("[NutrientPdfViewer] Using SharePoint API endpoint for PDF (drawing {DrawingId}) - isEditMode={IsEditMode}", PackageDrawingId, isEditMode);
                 }
 
+                // Check if DWS mode is enabled (Nutrient cloud-hosted SDK)
+                var dwsApiKey = Configuration["Nutrient:DWS:ApiKey"];
+                if (!string.IsNullOrEmpty(dwsApiKey) && !string.IsNullOrEmpty(pdfUrlToLoad))
+                {
+                    Logger.LogInformation("[NutrientPdfViewer] DWS mode enabled - fetching session token...");
+                    await FetchSessionTokenAsync(pdfUrlToLoad);
+                }
+
                 needsToLoadPdf = true;
 
                 Logger.LogInformation("[NutrientPdfViewer] Triggering StateHasChanged to render container");
@@ -357,6 +369,55 @@
             isLoading = false;
             StateHasChanged();
         }
+    }
+
+    /// <summary>
+    /// Fetches DWS session token from backend API
+    /// </summary>
+    private async Task FetchSessionTokenAsync(string documentUrl)
+    {
+        try
+        {
+            // Convert relative URL to absolute URL for DWS API
+            var absoluteDocumentUrl = NavigationManager.ToAbsoluteUri(documentUrl).ToString();
+            Logger.LogInformation("[NutrientPdfViewer] Fetching DWS session token for: {Url}", absoluteDocumentUrl);
+
+            var response = await HttpClient.PostAsJsonAsync("/api/nutrientauth/session", new
+            {
+                DocumentUrl = absoluteDocumentUrl,
+                UserId = HttpContextAccessor.HttpContext?.User?.Identity?.Name
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<SessionTokenResponse>();
+                if (result != null && !string.IsNullOrEmpty(result.SessionToken))
+                {
+                    sessionToken = result.SessionToken;
+                    Logger.LogInformation("[NutrientPdfViewer] ✓ DWS session token acquired successfully");
+                }
+                else
+                {
+                    Logger.LogWarning("[NutrientPdfViewer] Session token response was empty");
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Logger.LogError("[NutrientPdfViewer] Failed to fetch session token: {StatusCode} - {Error}",
+                    response.StatusCode, errorContent);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[NutrientPdfViewer] Exception while fetching DWS session token");
+            // Don't throw - fallback to self-hosted mode if DWS fails
+        }
+    }
+
+    private class SessionTokenResponse
+    {
+        public string SessionToken { get; set; } = string.Empty;
     }
 
     private async Task LoadDrawing()
@@ -572,6 +633,7 @@
     }
 
     // JavaScript callbacks
+
     [JSInvokable]
     public async Task OnPdfLoaded(int pageCount)
     {
@@ -1503,7 +1565,7 @@
         {
             // Reload PDF in edit mode
             var pdfUrl = $"/api/packagedrawings/{PackageDrawingId}/pdf";
-            await JS.InvokeVoidAsync("nutrientViewer.loadPdf", containerId, pdfUrl, isEditMode);
+            await JS.InvokeVoidAsync("nutrientViewer.loadPdf", containerId, pdfUrl, isEditMode, sessionToken);
         }
     }
 }

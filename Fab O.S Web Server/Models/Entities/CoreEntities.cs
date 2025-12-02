@@ -259,22 +259,90 @@ public class RoutingTemplate
     public int Id { get; set; }
 
     [Required]
-    [StringLength(100)]
+    [StringLength(50)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(200)]
     public string Name { get; set; } = string.Empty;
 
     [StringLength(500)]
     public string? Description { get; set; }
 
     [Required]
+    public int CompanyId { get; set; }
+
+    [Required]
+    [StringLength(50)]
+    public string TemplateType { get; set; } = "Standard";
+
+    [StringLength(100)]
+    public string? ProductCategory { get; set; }
+
+    [StringLength(100)]
+    public string? MaterialType { get; set; }
+
+    [Required]
+    [StringLength(20)]
+    public string ComplexityLevel { get; set; } = "Medium";
+
+    [Required]
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal EstimatedTotalHours { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal DefaultEfficiencyPercentage { get; set; } = 100m;
+
+    [Required]
+    public bool IncludesWelding { get; set; } = false;
+
+    [Required]
+    public bool IncludesQualityControl { get; set; } = false;
+
+    [Required]
+    [StringLength(20)]
+    public string Version { get; set; } = "1.0";
+
+    [Required]
     public bool IsActive { get; set; } = true;
+
+    [Required]
+    public bool IsDefault { get; set; } = false;
+
+    [Required]
+    public bool IsDeleted { get; set; } = false;
+
+    [Required]
+    public int UsageCount { get; set; } = 0;
+
+    public DateTime? LastUsedDate { get; set; }
+
+    [Required]
+    [StringLength(50)]
+    public string ApprovalStatus { get; set; } = "Draft";
+
+    public int? ApprovedByUserId { get; set; }
+
+    public DateTime? ApprovalDate { get; set; }
+
+    [StringLength(2000)]
+    public string? Notes { get; set; }
 
     [Required]
     public DateTime CreatedDate { get; set; }
 
+    public int? CreatedByUserId { get; set; }
+
     [Required]
     public DateTime LastModified { get; set; }
 
+    public int? LastModifiedByUserId { get; set; }
+
     // Navigation properties
+    [ForeignKey("CompanyId")]
+    public virtual Company Company { get; set; } = null!;
+
     public virtual ICollection<Package> Packages { get; set; } = new List<Package>();
     public virtual ICollection<RoutingOperation> RoutingOperations { get; set; } = new List<RoutingOperation>();
 }
@@ -289,31 +357,124 @@ public class RoutingOperation
     public int RoutingTemplateId { get; set; }
 
     [Required]
-    [StringLength(100)]
+    public int WorkCenterId { get; set; }
+
+    public int? MachineCenterId { get; set; }
+
+    [Required]
+    [StringLength(50)]
+    public string OperationCode { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(200)]
     public string OperationName { get; set; } = string.Empty;
 
-    [StringLength(500)]
+    [StringLength(1000)]
     public string? Description { get; set; }
 
     [Required]
-    public int Sequence { get; set; }
+    public int SequenceNumber { get; set; }
 
-    [Column(TypeName = "decimal(10,2)")]
-    public decimal? SetupTime { get; set; }
+    [Required]
+    [StringLength(50)]
+    public string OperationType { get; set; } = "Run";
 
+    [Required]
     [Column(TypeName = "decimal(10,2)")]
-    public decimal? RunTime { get; set; }
+    public decimal SetupTimeMinutes { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(10,4)")]
+    public decimal ProcessingTimePerUnit { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(10,4)")]
+    public decimal ProcessingTimePerKg { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal MovementTimeMinutes { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal WaitingTimeMinutes { get; set; } = 0m;
+
+    [Required]
+    [StringLength(20)]
+    public string CalculationMethod { get; set; } = "PerUnit";
+
+    [Required]
+    public int RequiredOperators { get; set; } = 1;
+
+    [StringLength(100)]
+    public string? RequiredSkillLevel { get; set; }
+
+    [Required]
+    public bool RequiresInspection { get; set; } = false;
+
+    [Required]
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal InspectionPercentage { get; set; } = 0m;
+
+    public int? PreviousOperationId { get; set; }
+
+    [Required]
+    public bool CanRunInParallel { get; set; } = false;
+
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal? OverrideHourlyRate { get; set; }
+
+    [Required]
+    [Column(TypeName = "decimal(18,4)")]
+    public decimal MaterialCostPerUnit { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal ToolingCost { get; set; } = 0m;
+
+    [Required]
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal EfficiencyFactor { get; set; } = 100m;
+
+    [Required]
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal ScrapPercentage { get; set; } = 0m;
+
+    [StringLength(2000)]
+    public string? WorkInstructions { get; set; }
+
+    [StringLength(1000)]
+    public string? SafetyNotes { get; set; }
+
+    [StringLength(500)]
+    public string? QualityNotes { get; set; }
 
     [Required]
     public bool IsActive { get; set; } = true;
 
     [Required]
+    public bool IsOptional { get; set; } = false;
+
+    [Required]
+    public bool IsCriticalPath { get; set; } = true;
+
+    [Required]
     public DateTime CreatedDate { get; set; }
+
+    public int? CreatedByUserId { get; set; }
 
     [Required]
     public DateTime LastModified { get; set; }
 
+    public int? LastModifiedByUserId { get; set; }
+
     // Navigation properties
     [ForeignKey("RoutingTemplateId")]
     public virtual RoutingTemplate RoutingTemplate { get; set; } = null!;
+
+    [ForeignKey("WorkCenterId")]
+    public virtual WorkCenter WorkCenter { get; set; } = null!;
+
+    [ForeignKey("MachineCenterId")]
+    public virtual MachineCenter? MachineCenter { get; set; }
 }

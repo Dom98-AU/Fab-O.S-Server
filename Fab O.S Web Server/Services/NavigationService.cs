@@ -60,14 +60,6 @@ public class NavigationService
             Url = "/trace/takeoffs/drawings",
             Category = "QuickAction"
         },
-        new() {
-            Label = "View Database",
-            Title = "View Database",
-            Description = "Database management",
-            Icon = "database",
-            Url = "/database",
-            Category = "QuickAction"
-        },
 
         // Trace Module
         new() {
@@ -80,47 +72,38 @@ public class NavigationService
             Module = "Trace"
         },
         new() {
-            Label = "Drawings",
-            Title = "Drawing Management",
-            Description = "Manage drawings",
-            Icon = "file-text",
-            Url = "/trace/drawings",
+            Label = "Customers",
+            Title = "Customers",
+            Description = "Manage customers",
+            Icon = "building",
+            Url = "/trace/customers",
             Category = "Module",
             Module = "Trace"
         },
         new() {
-            Label = "Drawing Library",
-            Title = "Drawing Library",
-            Description = "Browse drawings",
-            Icon = "folder",
-            Url = "/drawing-management",
+            Label = "Contacts",
+            Title = "Contacts",
+            Description = "Manage contacts",
+            Icon = "users",
+            Url = "/trace/contacts",
             Category = "Module",
             Module = "Trace"
         },
         new() {
-            Label = "PDF Viewer",
-            Title = "PDF Viewer",
-            Description = "View PDF files",
-            Icon = "file-search",
-            Url = "/test-pdf-viewer",
+            Label = "Packages",
+            Title = "Packages",
+            Description = "Manage packages",
+            Icon = "package",
+            Url = "/trace/packages",
             Category = "Module",
             Module = "Trace"
         },
         new() {
-            Label = "Takeoff Manager",
-            Title = "Takeoff Manager",
-            Description = "Manage takeoffs",
-            Icon = "clipboard-list",
-            Url = "/trace/takeoffs/drawings",
-            Category = "Module",
-            Module = "Trace"
-        },
-        new() {
-            Label = "Database",
-            Title = "Database",
-            Description = "Database management",
-            Icon = "database",
-            Url = "/database",
+            Label = "Catalogues",
+            Title = "Catalogues",
+            Description = "Manage catalogues",
+            Icon = "book-open",
+            Url = "/trace/catalogues",
             Category = "Module",
             Module = "Trace"
         },
@@ -269,19 +252,11 @@ public class NavigationService
             Category = "Recent"
         },
         new() {
-            Label = "Test PDF",
-            Title = "Test PDF",
-            Description = "PDF viewer test",
-            Icon = "file-search",
-            Url = "/test-pdf-viewer",
-            Category = "Recent"
-        },
-        new() {
-            Label = "Drawing Library",
-            Title = "Drawing Library",
-            Description = "Browse drawings",
-            Icon = "folder",
-            Url = "/drawing-management",
+            Label = "Recent Customers",
+            Title = "Recent Customers",
+            Description = "View recent customers",
+            Icon = "building",
+            Url = "/trace/customers",
             Category = "Recent"
         },
     };

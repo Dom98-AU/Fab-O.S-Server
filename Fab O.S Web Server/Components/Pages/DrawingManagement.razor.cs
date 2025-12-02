@@ -59,7 +59,7 @@ public partial class DrawingManagement : ComponentBase
                 var drawing = new Takeoff
                 {
                     CompanyId = 1, // TODO: Get from user context
-                    ProjectId = 1, // TODO: Get from selected project
+                    ProjectId = null, // Projects are optional - no longer using Project entity
                     FileName = file.Name,
                     FileType = file.ContentType,
                     ProcessingStatus = "Processing",

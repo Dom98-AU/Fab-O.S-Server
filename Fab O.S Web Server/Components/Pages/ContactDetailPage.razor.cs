@@ -16,7 +16,6 @@ public partial class ContactDetailPage : ComponentBase, IToolbarActionProvider
 
     [Inject] private IDbContextFactory<ApplicationDbContext> DbContextFactory { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
-    [Inject] private BreadcrumbService BreadcrumbService { get; set; } = default!;
     [Inject] private NumberSeriesService NumberSeriesService { get; set; } = default!;
 
     private CustomerContact? contact;
@@ -66,31 +65,6 @@ public partial class ContactDetailPage : ComponentBase, IToolbarActionProvider
             // Load existing contact
             await LoadContactDetails();
             isEditMode = false;
-        }
-
-        await UpdateBreadcrumbAsync();
-    }
-
-    private async Task UpdateBreadcrumbAsync()
-    {
-        if (Id == 0)
-        {
-            // For new contacts, use custom label
-            await BreadcrumbService.BuildAndSetSimpleBreadcrumbAsync(
-                "Contacts",
-                $"/{TenantSlug}/trace/contacts",
-                "Contact",
-                null,
-                "New Contact"
-            );
-        }
-        else
-        {
-            // For existing contacts, use the breadcrumb builder to load the actual contact name
-            await BreadcrumbService.BuildAndSetBreadcrumbsAsync(
-                ("Contacts", null, $"/{TenantSlug}/trace/contacts", null),
-                ("Contact", Id, null, null)
-            );
         }
     }
 
@@ -302,7 +276,6 @@ public partial class ContactDetailPage : ComponentBase, IToolbarActionProvider
                 // Switch to view mode
                 isEditMode = false;
                 await LoadContactDetails();
-                await UpdateBreadcrumbAsync();
             }
         }
         catch (Exception ex)
@@ -391,87 +364,65 @@ public partial class ContactDetailPage : ComponentBase, IToolbarActionProvider
     public ToolbarActionGroup GetActions()
     {
         var group = new ToolbarActionGroup();
+        bool isNewContact = Id == 0;
 
-        if (isEditMode)
+        // PRIMARY ACTIONS - [Back] [Edit/Save]
+        group.PrimaryActions = new List<ToolbarAction>
         {
-            // Edit mode actions
-            group.PrimaryActions = new List<ToolbarAction>
+            new ToolbarAction
             {
-                new ToolbarAction
-                {
-                    Label = "Save",
-                    Text = "Save Contact",
-                    Icon = "fas fa-save",
-                    Action = EventCallback.Factory.Create(this, async () => await SaveContact()),
-                    IsDisabled = isProcessing,
-                    Style = ToolbarActionStyle.Primary
-                }
-            };
-            group.MenuActions = new List<ToolbarAction>
+                Label = "Back",
+                Text = "Back",
+                Icon = "fas fa-arrow-left",
+                Tooltip = "Return to contacts list",
+                Action = EventCallback.Factory.Create(this, NavigateBack),
+                Style = ToolbarActionStyle.Secondary
+            },
+            new ToolbarAction
             {
-                new ToolbarAction
-                {
-                    Label = "Cancel",
-                    Text = "Cancel",
-                    Icon = "fas fa-times",
-                    Action = EventCallback.Factory.Create(this, CancelEdit),
-                    IsDisabled = false
-                }
-            };
-        }
-        else
-        {
-            // View mode actions
-            group.PrimaryActions = new List<ToolbarAction>
-            {
-                new ToolbarAction
-                {
-                    Label = "Edit",
-                    Text = "Edit Contact",
-                    Icon = "fas fa-edit",
-                    Action = EventCallback.Factory.Create(this, ToggleEditMode),
-                    IsDisabled = contact == null,
-                    Style = ToolbarActionStyle.Primary
-                }
-            };
+                Label = isEditMode ? "Save" : "Edit",
+                Text = isEditMode ? "Save" : "Edit",
+                Icon = isEditMode ? "fas fa-save" : "fas fa-edit",
+                Tooltip = isEditMode ? "Save changes" : "Edit contact details",
+                Action = isEditMode
+                    ? EventCallback.Factory.Create(this, async () => await SaveContact())
+                    : EventCallback.Factory.Create(this, ToggleEditMode),
+                IsDisabled = contact == null || isProcessing,
+                Style = ToolbarActionStyle.Primary
+            }
+        };
 
-            // Menu Actions
+        // MENU ACTIONS - [Delete] (only for existing contacts)
+        if (!isNewContact && contact != null)
+        {
             group.MenuActions = new List<ToolbarAction>
             {
                 new ToolbarAction
                 {
                     Label = "Delete",
-                    Text = "Delete Contact",
+                    Text = "Delete",
                     Icon = "fas fa-trash",
+                    Tooltip = "Delete this contact",
                     Action = EventCallback.Factory.Create(this, async () => await DeleteContact()),
-                    IsDisabled = contact == null,
                     Style = ToolbarActionStyle.Danger
-                },
-                new ToolbarAction
-                {
-                    Label = "Back",
-                    Text = "Back to List",
-                    Icon = "fas fa-arrow-left",
-                    Action = EventCallback.Factory.Create(this, NavigateBack),
-                    IsDisabled = false
                 }
             };
+        }
 
-            // Related Actions
-            if (customer != null)
+        // RELATED ACTIONS - [Customer] (only when contact has a customer)
+        if (customer != null)
+        {
+            group.RelatedActions = new List<ToolbarAction>
             {
-                group.RelatedActions = new List<ToolbarAction>
+                new ToolbarAction
                 {
-                    new ToolbarAction
-                    {
-                        Label = "View Customer",
-                        Text = "View Customer",
-                        Icon = "fas fa-building",
-                        Action = EventCallback.Factory.Create(this, NavigateToCustomer),
-                        IsDisabled = false
-                    }
-                };
-            }
+                    Label = "Customer",
+                    Text = "Customer",
+                    Icon = "fas fa-building",
+                    Tooltip = "View customer details",
+                    Action = EventCallback.Factory.Create(this, NavigateToCustomer)
+                }
+            };
         }
 
         return group;

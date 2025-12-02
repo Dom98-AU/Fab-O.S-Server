@@ -87,7 +87,7 @@ public class PackageDrawing
     public DateTime? CalibrationConfigLastUpdated { get; set; }
 
     // Navigation properties
-    [ForeignKey("PackageId")]
+    // ForeignKey attributes removed - relationships explicitly configured in ApplicationDbContext
     public virtual Package Package { get; set; } = null!;
 
     [ForeignKey("UploadedBy")]

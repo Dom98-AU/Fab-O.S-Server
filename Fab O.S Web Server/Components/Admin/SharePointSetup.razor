@@ -486,7 +486,8 @@
             clientId = existingSettings.ClientId;
             // Don't populate the secret for security reasons
             siteUrl = existingSettings.SiteUrl;
-            documentLibrary = existingSettings.DocumentLibrary;
+            // Document libraries are now configured per module - use Trace as default for this setup page
+            documentLibrary = existingSettings.TraceDocumentLibrary ?? "Takeoff Files";
         }
     }
 

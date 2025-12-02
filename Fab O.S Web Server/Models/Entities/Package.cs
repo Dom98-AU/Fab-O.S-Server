@@ -9,10 +9,14 @@ public class Package
     [Key]
     public int Id { get; set; }
 
+    // Multi-tenant support
     [Required]
-    public int ProjectId { get; set; }
+    public int CompanyId { get; set; }
 
-    // NEW: Direct Order relationship (for simple quote-based packages)
+    // DEPRECATED: ProjectId is now optional - transitioning away from Project entity
+    public int? ProjectId { get; set; }
+
+    // NEW: Direct Order relationship (for production packages)
     public int? OrderId { get; set; }
 
     // NEW: Revision relationship (packages belong to a specific takeoff revision)
@@ -82,8 +86,11 @@ public class Package
     public int? RoutingId { get; set; }
 
     // Navigation properties
+    [ForeignKey("CompanyId")]
+    public virtual Company Company { get; set; } = null!;
+
     [ForeignKey("ProjectId")]
-    public virtual Project Project { get; set; } = null!;
+    public virtual Project? Project { get; set; }
 
     // NEW: Order navigation property (for direct order packages)
     [ForeignKey("OrderId")]
@@ -109,8 +116,10 @@ public class Package
     // public virtual ICollection<Takeoff> TraceDrawings { get; set; } = new List<Takeoff>();
     public virtual ICollection<WeldingConnection> WeldingConnections { get; set; } = new List<WeldingConnection>();
 
-    // NEW: Work orders collection (production management)
-    public virtual ICollection<WorkOrder> WorkOrders { get; set; } = new List<WorkOrder>();
+    // NOTE: WorkOrders collection REMOVED - Trace Package does NOT link to WorkOrder
+    // WorkOrder belongs to FabMate module and links to WorkPackage (not Package)
+    // When an Estimation is converted to an Order, Packages become WorkPackages
+    // public virtual ICollection<WorkOrder> WorkOrders { get; set; } = new List<WorkOrder>();
 
     // Package drawings stored in SharePoint
     public virtual ICollection<PackageDrawing> PackageDrawings { get; set; } = new List<PackageDrawing>();

@@ -19,8 +19,8 @@ public class Takeoff
     [Required]
     public int CompanyId { get; set; }
 
-    [Required]
-    public int ProjectId { get; set; }
+    // DEPRECATED: ProjectId is now optional - transitioning away from Project entity
+    public int? ProjectId { get; set; }
 
     [StringLength(50)]
     public string? TakeoffNumber { get; set; }
@@ -140,7 +140,7 @@ public class Takeoff
     public virtual Company Company { get; set; } = null!;
 
     [ForeignKey("ProjectId")]
-    public virtual Project Project { get; set; } = null!;
+    public virtual Project? Project { get; set; }
 
     [ForeignKey("CustomerId")]
     public virtual Customer? Customer { get; set; }

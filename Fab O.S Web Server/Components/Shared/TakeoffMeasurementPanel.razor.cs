@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
+using System.Security.Claims;
 
 namespace FabOS.WebServer.Components.Shared
 {
@@ -43,7 +44,8 @@ namespace FabOS.WebServer.Components.Shared
             Full       // 60vh
         }
 
-        private int currentCompanyId = 1; // Retrieved from authenticated user, defaults to 1
+        private int currentUserId = 0; // Retrieved from authenticated user
+        private int currentCompanyId = 0; // Retrieved from authenticated user
 
         // SignalR Hub connection (C# client, NOT Blazor circuit)
         private HubConnection? _hubConnection;
@@ -58,18 +60,33 @@ namespace FabOS.WebServer.Components.Shared
 
         protected override async Task OnInitializedAsync()
         {
-            // Get company ID from authenticated user
+            // Get user ID and company ID from authenticated user
             var httpContext = HttpContextAccessor.HttpContext;
             if (httpContext?.User?.Identity?.IsAuthenticated == true)
             {
-                var userIdClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+                // Get UserId
+                var userIdClaim = httpContext.User.FindFirst("UserId") ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
-                    await using var dbContext = await DbContextFactory.CreateDbContextAsync();
-                    var user = await dbContext.Users.FindAsync(userId);
-                    currentCompanyId = user?.CompanyId ?? 1;
-                    Logger.LogInformation("[TakeoffMeasurementPanel] Retrieved CompanyId={CompanyId} for user {UserId}", currentCompanyId, userId);
+                    currentUserId = userId;
+                    Logger.LogInformation("[TakeoffMeasurementPanel] Retrieved UserId={UserId}", currentUserId);
                 }
+
+                // Get CompanyId
+                var companyIdClaim = httpContext.User.FindFirst("CompanyId");
+                if (companyIdClaim != null && int.TryParse(companyIdClaim.Value, out int companyId))
+                {
+                    currentCompanyId = companyId;
+                    Logger.LogInformation("[TakeoffMeasurementPanel] Retrieved CompanyId={CompanyId}", currentCompanyId);
+                }
+            }
+
+            if (currentUserId == 0 || currentCompanyId == 0)
+            {
+                Logger.LogWarning("[TakeoffMeasurementPanel] User is not authenticated or missing required claims - currentUserId={UserId}, currentCompanyId={CompanyId}",
+                    currentUserId, currentCompanyId);
+                errorMessage = "User is not authenticated. Please log in and try again.";
+                return;
             }
 
             // Connect to SignalR Hub using C# client (NOT JavaScript interop)
@@ -323,25 +340,63 @@ namespace FabOS.WebServer.Components.Shared
             {
                 Logger.LogInformation("[TakeoffMeasurementPanel] 🖱️ Annotation selected: {AnnotationId}", annotationId);
 
-                // Find the measurement that corresponds to this annotation
-                // Note: We need to look up via PdfAnnotations table to find the TraceTakeoffMeasurementId
-                var measurement = measurements.FirstOrDefault(m =>
-                {
-                    // Check if any of the measurements match - we'll need to enhance this
-                    // For now, we'll just set the selected annotation ID and let the UI highlight it
-                    return false; // TODO: Implement proper lookup once we link annotations to measurements
-                });
-
                 // Set the selected annotation ID for highlighting
                 selectedAnnotationId = annotationId;
 
-                Logger.LogInformation("[TakeoffMeasurementPanel] Selected annotation ID set to: {AnnotationId}", selectedAnnotationId);
+                // Find the measurement ID that corresponds to this annotation using our mapping
+                var measurementId = measurementToAnnotationMap
+                    .FirstOrDefault(kvp => kvp.Value == annotationId)
+                    .Key;
+
+                if (measurementId > 0)
+                {
+                    var measurement = measurements.FirstOrDefault(m => m.Id == measurementId);
+                    if (measurement != null)
+                    {
+                        Logger.LogInformation("[TakeoffMeasurementPanel] ✓ Found measurement: Id={MeasurementId}, ItemCode={ItemCode}",
+                            measurement.Id, measurement.CatalogueItem?.ItemCode);
+
+                        // Scroll to the measurement in the UI (optional - could be implemented with JS interop)
+                        // await JSRuntime.InvokeVoidAsync("scrollToMeasurement", measurement.Id);
+                    }
+                    else
+                    {
+                        Logger.LogWarning("[TakeoffMeasurementPanel] Measurement ID {MeasurementId} found in mapping but not in current measurements list",
+                            measurementId);
+                    }
+                }
+                else
+                {
+                    Logger.LogInformation("[TakeoffMeasurementPanel] No measurement found for annotation {AnnotationId} - might be a non-measurement annotation",
+                        annotationId);
+                }
 
                 await InvokeAsync(StateHasChanged);
             }
             catch (Exception ex)
             {
                 Logger.LogError(ex, "[TakeoffMeasurementPanel] Error handling annotation selection");
+            }
+        }
+
+        /// <summary>
+        /// Called from JavaScript when a PDF annotation is deselected (clicking outside)
+        /// </summary>
+        [JSInvokable]
+        public async Task OnAnnotationDeselected()
+        {
+            try
+            {
+                Logger.LogInformation("[TakeoffMeasurementPanel] 🖱️ Annotation deselected - clearing highlight");
+
+                // Clear the selected annotation ID
+                selectedAnnotationId = null;
+
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "[TakeoffMeasurementPanel] Error handling annotation deselection");
             }
         }
 
@@ -442,6 +497,7 @@ namespace FabOS.WebServer.Components.Shared
                     unit: CurrentMeasurement.Unit,
                     coordinates: null, // TODO: Get coordinates from Nutrient annotation
                     companyId: currentCompanyId,
+                    userId: currentUserId, // Use authenticated user ID
                     annotationId: CurrentMeasurement.AnnotationId // Link to PDF annotation
                 );
 
@@ -504,13 +560,13 @@ namespace FabOS.WebServer.Components.Shared
         {
             try
             {
-                Logger.LogInformation("[TakeoffMeasurementPanel] Deleting measurement {Id}", measurementId);
+                Logger.LogInformation("[TakeoffMeasurementPanel] Deleting measurement {Id} by user {UserId}", measurementId, currentUserId);
 
                 // Delete measurement and get list of deleted annotation IDs
-                var deletedAnnotationIds = await CatalogueService.DeleteMeasurementAsync(measurementId, currentCompanyId);
+                var deletedAnnotationIds = await CatalogueService.DeleteMeasurementAsync(measurementId, currentCompanyId, currentUserId);
 
-                Logger.LogInformation("[TakeoffMeasurementPanel] Measurement deleted successfully, {Count} annotation(s) to remove from PDF",
-                    deletedAnnotationIds?.Count ?? 0);
+                Logger.LogInformation("[TakeoffMeasurementPanel] Measurement deleted successfully by user {UserId}, {Count} annotation(s) to remove from PDF",
+                    currentUserId, deletedAnnotationIds?.Count ?? 0);
 
                 // Remove annotations from PDF viewer
                 if (deletedAnnotationIds != null && deletedAnnotationIds.Count > 0)
@@ -638,6 +694,43 @@ namespace FabOS.WebServer.Components.Shared
                 FooterHeight.Full => "fa-compress-alt",
                 _ => "fa-expand-alt"
             };
+        }
+
+        /// <summary>
+        /// Handle measurement row click - highlight corresponding annotation in PDF
+        /// </summary>
+        private async Task OnMeasurementClicked(TraceTakeoffMeasurement measurement)
+        {
+            try
+            {
+                Logger.LogInformation("[TakeoffMeasurementPanel] 🖱️ Measurement clicked: Id={MeasurementId}, ItemCode={ItemCode}",
+                    measurement.Id, measurement.CatalogueItem?.ItemCode);
+
+                // Check if this measurement has an associated PDF annotation
+                if (measurementToAnnotationMap.TryGetValue(measurement.Id, out string? annotationId))
+                {
+                    Logger.LogInformation("[TakeoffMeasurementPanel] ✓ Found annotation {AnnotationId} for measurement {MeasurementId}",
+                        annotationId, measurement.Id);
+
+                    // Highlight the annotation in the PDF viewer
+                    await JSRuntime.InvokeVoidAsync("nutrientViewer.highlightAnnotationById", PdfContainerId, annotationId);
+
+                    // Update selected annotation for UI highlighting
+                    selectedAnnotationId = annotationId;
+                    StateHasChanged();
+
+                    Logger.LogInformation("[TakeoffMeasurementPanel] ✓ Highlighted annotation {AnnotationId} in PDF viewer", annotationId);
+                }
+                else
+                {
+                    Logger.LogInformation("[TakeoffMeasurementPanel] No annotation found for measurement {MeasurementId} - may not have been created with PDF annotation",
+                        measurement.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "[TakeoffMeasurementPanel] Error handling measurement click");
+            }
         }
 
         public async ValueTask DisposeAsync()

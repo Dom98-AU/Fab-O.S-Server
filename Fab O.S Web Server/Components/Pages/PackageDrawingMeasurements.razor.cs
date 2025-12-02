@@ -297,7 +297,6 @@ namespace FabOS.WebServer.Components.Pages
                 await using var dbContext = await DbContextFactory.CreateDbContextAsync();
                 allMeasurements = await dbContext.TraceTakeoffMeasurements
                     .Include(m => m.CatalogueItem)
-                        .ThenInclude(c => c!.Category)
                     .Where(m => m.PackageDrawingId == DrawingId)
                     .OrderByDescending(m => m.CreatedDate)
                     .ToListAsync();
@@ -327,18 +326,33 @@ namespace FabOS.WebServer.Components.Pages
         /// </summary>
         private async Task LoadAnnotationMappingAsync()
         {
-            // TODO: AnnotationId field doesn't exist in TraceTakeoffMeasurement entity
-            // This feature needs to be implemented with a database migration first
             try
             {
-                // Temporarily disabled until AnnotationId field is added to TraceTakeoffMeasurement
-                measurementToAnnotationMap = new Dictionary<int, string>();
+                measurementToAnnotationMap.Clear();
 
-                Logger.LogInformation("[PackageDrawingMeasurements] Annotation mapping disabled - AnnotationId field not yet implemented");
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+
+                // Load PDF annotations for this drawing that have associated measurements
+                var annotations = await dbContext.PdfAnnotations
+                    .Where(a => a.PackageDrawingId == DrawingId && a.TraceTakeoffMeasurementId != null)
+                    .Select(a => new { a.TraceTakeoffMeasurementId, a.AnnotationId })
+                    .ToListAsync();
+
+                foreach (var annotation in annotations)
+                {
+                    if (annotation.TraceTakeoffMeasurementId.HasValue)
+                    {
+                        measurementToAnnotationMap[annotation.TraceTakeoffMeasurementId.Value] = annotation.AnnotationId;
+                    }
+                }
+
+                Logger.LogInformation("[PackageDrawingMeasurements] ✓ Loaded {Count} annotation mappings for click-to-highlight",
+                    measurementToAnnotationMap.Count);
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "[PackageDrawingMeasurements] Error loading annotation mappings");
+                Logger.LogError(ex, "[PackageDrawingMeasurements] ❌ Error loading annotation mappings - click-to-highlight may not work");
+                measurementToAnnotationMap.Clear();
             }
         }
 
@@ -466,8 +480,8 @@ namespace FabOS.WebServer.Components.Pages
 
         private void HandleRowDoubleClick(TraceTakeoffMeasurement measurement)
         {
-            Logger.LogInformation("[PackageDrawingMeasurements] Measurement double-clicked: {Id}", measurement.Id);
-            // TODO: Open measurement details modal or navigate to detail page
+            Logger.LogInformation("[PackageDrawingMeasurements] Measurement double-clicked: {Id} - Navigating to detail page", measurement.Id);
+            NavigationManager.NavigateTo($"/{TenantSlug}/trace/measurements/{measurement.Id}");
         }
 
         private async Task InitializeSignalR()

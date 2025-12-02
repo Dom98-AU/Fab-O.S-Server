@@ -106,10 +106,13 @@
                 <div class="measurements-list-rows">
                     @foreach (var measurement in measurements)
                     {
-                        <div class="measurement-row @(IsMeasurementHighlighted(measurement) ? "highlighted" : "")" @key="measurement.Id">
+                        <div class="measurement-row @(IsMeasurementHighlighted(measurement) ? "highlighted" : "")"
+                             @key="measurement.Id"
+                             @onclick="() => OnMeasurementClicked(measurement)"
+                             style="cursor: pointer;">
                             <div class="row-item-info">
-                                <span class="item-code">@measurement.CatalogueItem?.ItemCode</span>
-                                <span class="item-desc">@measurement.CatalogueItem?.Description</span>
+                                <span class="item-code">@(measurement.CatalogueItem?.ItemCode ?? $"Item #{measurement.CatalogueItemId}")</span>
+                                <span class="item-desc">@(measurement.CatalogueItem?.Description ?? "No description")</span>
                             </div>
                             <div class="row-category">
                                 <span class="badge badge-category">@(measurement.CatalogueItem?.Category ?? "Uncategorized")</span>
@@ -136,7 +139,7 @@
                                 <span>@measurement.CreatedDate.ToLocalTime().ToString("g")</span>
                             </div>
                             <div class="row-actions">
-                                <button class="btn-icon" @onclick="() => DeleteMeasurement(measurement.Id)" title="Delete">
+                                <button class="btn-icon" @onclick="() => DeleteMeasurement(measurement.Id)" @onclick:stopPropagation="true" title="Delete">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>

@@ -4,139 +4,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace FabOS.WebServer.Models.Entities;
 
 // ==========================================
-// QUOTE SYSTEM (Simple Path)
-// ==========================================
-
-[Table("Quotes")]
-public class Quote
-{
-    [Key]
-    public int Id { get; set; }
-
-    [Required]
-    [StringLength(50)]
-    public string QuoteNumber { get; set; } = string.Empty; // QTE-2025-0001
-
-    [Required]
-    public int CustomerId { get; set; }
-
-    [Required]
-    public DateTime QuoteDate { get; set; } = DateTime.UtcNow;
-
-    [Required]
-    public DateTime ValidUntil { get; set; }
-
-    // Single package concept for simple jobs
-    [Required]
-    [StringLength(1000)]
-    public string Description { get; set; } = string.Empty;
-
-    [Required]
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal MaterialCost { get; set; }
-
-    [Required]
-    [Column(TypeName = "decimal(10,2)")]
-    public decimal LaborHours { get; set; }
-
-    [Required]
-    [Column(TypeName = "decimal(10,2)")]
-    public decimal LaborRate { get; set; }
-
-    [Required]
-    [Column(TypeName = "decimal(5,2)")]
-    public decimal OverheadPercentage { get; set; } = 15.00m;
-
-    [Required]
-    [Column(TypeName = "decimal(5,2)")]
-    public decimal MarginPercentage { get; set; } = 20.00m;
-
-    [Required]
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal TotalAmount { get; set; }
-
-    [Required]
-    [StringLength(20)]
-    public string Status { get; set; } = "Draft"; // Draft, Sent, Accepted, Rejected, Expired
-
-    // Audit fields
-    [Required]
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
-
-    public int? CreatedBy { get; set; }
-
-    [Required]
-    public DateTime LastModified { get; set; } = DateTime.UtcNow;
-
-    public int? LastModifiedBy { get; set; }
-
-    // Conversion tracking
-    public int? OrderId { get; set; }
-
-    // Navigation properties
-    [ForeignKey("CustomerId")]
-    public virtual Customer Customer { get; set; } = null!;
-
-    [ForeignKey("CreatedBy")]
-    public virtual User? CreatedByUser { get; set; }
-
-    [ForeignKey("LastModifiedBy")]
-    public virtual User? LastModifiedByUser { get; set; }
-
-    [ForeignKey("OrderId")]
-    public virtual Order? Order { get; set; }
-
-    public virtual ICollection<QuoteLineItem> LineItems { get; set; } = new List<QuoteLineItem>();
-}
-
-[Table("QuoteLineItems")]
-public class QuoteLineItem
-{
-    [Key]
-    public int Id { get; set; }
-
-    [Required]
-    public int QuoteId { get; set; }
-
-    [Required]
-    public int LineNumber { get; set; }
-
-    // Item details
-    [Required]
-    [StringLength(500)]
-    public string ItemDescription { get; set; } = string.Empty;
-
-    [Required]
-    [Column(TypeName = "decimal(18,4)")]
-    public decimal Quantity { get; set; }
-
-    [Required]
-    [StringLength(20)]
-    public string Unit { get; set; } = string.Empty; // EA, KG, M, M2, HR
-
-    [Required]
-    [Column(TypeName = "decimal(18,4)")]
-    public decimal UnitPrice { get; set; }
-
-    [Required]
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal LineTotal { get; set; }
-
-    // Optional catalog reference
-    public int? CatalogueItemId { get; set; }
-
-    [StringLength(1000)]
-    public string? Notes { get; set; }
-
-    // Navigation properties
-    [ForeignKey("QuoteId")]
-    public virtual Quote Quote { get; set; } = null!;
-
-    // Note: CatalogueItem foreign key will be added when catalog system is implemented
-}
-
-// ==========================================
-// ESTIMATION SYSTEM (Complex Path)
+// ESTIMATION SYSTEM
+// Estimation → Revision → Package → Costs
 // ==========================================
 
 [Table("Estimations")]
@@ -307,14 +176,27 @@ public class Order
     [Required]
     public int CustomerId { get; set; }
 
+    // Multi-tenant
+    [Required]
+    public int CompanyId { get; set; }
+
     // Source tracking
     [Required]
     [StringLength(20)]
-    public string Source { get; set; } = string.Empty; // FromQuote, FromEstimation, Direct
+    public string Source { get; set; } = string.Empty; // FromEstimation, Direct
 
-    public int? QuoteId { get; set; } // Source quote for simple orders
+    public int? EstimationId { get; set; } // Source estimation (can be simple or complex)
 
-    public int? EstimationId { get; set; } // Source estimation for complex orders
+    // Order description (required for direct orders, copied from Quote/Estimation when converted)
+    // NOTE: These columns don't exist in database yet - marked as NotMapped
+    [NotMapped]
+    [Required]
+    [StringLength(500)]
+    public string Description { get; set; } = string.Empty;
+
+    [NotMapped]
+    [StringLength(200)]
+    public string? ProjectName { get; set; }
 
     // Customer references
     [StringLength(100)]
@@ -323,61 +205,44 @@ public class Order
     [StringLength(200)]
     public string? CustomerReference { get; set; }
 
-    // Commercial details
-    [Required]
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal TotalValue { get; set; }
-
-    [Required]
-    [StringLength(100)]
-    public string PaymentTerms { get; set; } = "NET30";
-
+    // Order date
     [Required]
     public DateTime OrderDate { get; set; } = DateTime.UtcNow;
 
-    public DateTime? RequiredDate { get; set; }
-
-    public DateTime? PromisedDate { get; set; }
-
-    // Status tracking
-    [Required]
-    [StringLength(20)]
-    public string Status { get; set; } = "Confirmed"; // Confirmed, InProgress, OnHold, Complete, Cancelled, Invoiced, Paid
+    // Note: Status, TotalValue, and Schedule are calculated from WorkPackages
+    // Not stored on Order - calculated on demand from child WorkPackages
 
     // Audit fields
     [Required]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
 
-    [Required]
-    public int CreatedBy { get; set; }
+    public int? CreatedBy { get; set; }
 
     [Required]
     public DateTime LastModified { get; set; } = DateTime.UtcNow;
 
-    [Required]
-    public int LastModifiedBy { get; set; }
+    // Map to ModifiedBy column in database (not LastModifiedBy)
+    [Column("ModifiedBy")]
+    public int? LastModifiedBy { get; set; }
 
     // Navigation properties
     [ForeignKey("CustomerId")]
     public virtual Customer Customer { get; set; } = null!;
 
-    [ForeignKey("QuoteId")]
-    public virtual Quote? Quote { get; set; }
+    [ForeignKey("CompanyId")]
+    public virtual Company Company { get; set; } = null!;
 
     [ForeignKey("EstimationId")]
     public virtual Estimation? Estimation { get; set; }
 
     [ForeignKey("CreatedBy")]
-    public virtual User CreatedByUser { get; set; } = null!;
+    public virtual User? CreatedByUser { get; set; }
 
     [ForeignKey("LastModifiedBy")]
-    public virtual User LastModifiedByUser { get; set; } = null!;
+    public virtual User? LastModifiedByUser { get; set; }
 
-    // For simple orders: direct packages (from quotes)
-    public virtual ICollection<Package> DirectPackages { get; set; } = new List<Package>();
-
-    // For complex orders: project container (from estimations)
-    public virtual ICollection<Project> Projects { get; set; } = new List<Project>();
+    // FabMate production packages
+    public virtual ICollection<WorkPackage> WorkPackages { get; set; } = new List<WorkPackage>();
 }
 
 // ==========================================

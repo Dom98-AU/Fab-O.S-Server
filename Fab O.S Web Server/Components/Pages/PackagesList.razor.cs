@@ -19,7 +19,6 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
     [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
-    [Inject] private FabOS.WebServer.Services.BreadcrumbService BreadcrumbService { get; set; } = default!;
 
     // Query parameters
     [SupplyParameterFromQuery(Name = "takeoffId")]
@@ -56,26 +55,9 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
 
     protected override async Task OnInitializedAsync()
     {
-        UpdateBreadcrumb();
         await InitializeTableColumns();
         InitializeColumnDefinitions();
         await LoadPackages();
-    }
-
-    private void UpdateBreadcrumb()
-    {
-        if (TakeoffId.HasValue && TakeoffId.Value > 0)
-        {
-            BreadcrumbService.SetBreadcrumbs(
-                new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = "Takeoffs", Url = "/takeoffs", IsActive = false },
-                new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = $"Takeoff #{TakeoffId}", Url = $"/takeoffs/{TakeoffId}", IsActive = false },
-                new FabOS.WebServer.Components.Shared.Breadcrumb.BreadcrumbItem { Label = "Packages", Url = $"/packages?takeoffId={TakeoffId}", IsActive = true }
-            );
-        }
-        else
-        {
-            BreadcrumbService.SetBreadcrumb("Packages");
-        }
     }
 
     private async Task InitializeTableColumns()
@@ -399,23 +381,17 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
                     Label = "New",
                     Icon = "fas fa-plus",
                     ActionFunc = () => { CreateNew(); return Task.CompletedTask; },
-                    IsDisabled = false,
+                    Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Primary,
                     Tooltip = TakeoffId.HasValue ? "Create new package for this takeoff" : "Create new package"
                 },
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
-                    Text = "Edit",
-                    Icon = "fas fa-edit",
-                    ActionFunc = () => { EditPackage(); return Task.CompletedTask; },
-                    IsDisabled = !singleSelection,
-                    Tooltip = singleSelection ? "Edit selected package" : "Select a single package to edit"
-                },
-                new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
-                {
                     Text = "Delete",
+                    Label = "Delete",
                     Icon = "fas fa-trash",
                     ActionFunc = () => DeletePackages(),
                     IsDisabled = !hasSelection,
+                    Style = FabOS.WebServer.Components.Shared.Interfaces.ToolbarActionStyle.Danger,
                     Tooltip = hasSelection ? "Delete selected packages" : "Select packages to delete"
                 }
             },
@@ -423,7 +399,17 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
             {
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
+                    Text = "Edit",
+                    Label = "Edit",
+                    Icon = "fas fa-edit",
+                    ActionFunc = () => { EditPackage(); return Task.CompletedTask; },
+                    IsDisabled = !singleSelection,
+                    Tooltip = singleSelection ? "Edit selected package" : "Select a single package to edit"
+                },
+                new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+                {
                     Text = "Export",
+                    Label = "Export",
                     Icon = "fas fa-file-export",
                     ActionFunc = () => Task.CompletedTask,
                     IsDisabled = !hasSelection,
@@ -432,6 +418,7 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = "Duplicate",
+                    Label = "Duplicate",
                     Icon = "fas fa-copy",
                     ActionFunc = () => Task.CompletedTask,
                     IsDisabled = !singleSelection,
@@ -443,17 +430,17 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = TakeoffId.HasValue ? "Back to Takeoff" : "View Takeoffs",
+                    Label = TakeoffId.HasValue ? "Back to Takeoff" : "View Takeoffs",
                     Icon = "fas fa-ruler",
-                    ActionFunc = () => { Navigation.NavigateTo(TakeoffId.HasValue ? $"/takeoffs/{TakeoffId}" : "/takeoffs"); return Task.CompletedTask; },
-                    IsDisabled = false,
+                    ActionFunc = () => { Navigation.NavigateTo(TakeoffId.HasValue ? $"/{TenantSlug}/trace/takeoffs/{TakeoffId}" : $"/{TenantSlug}/trace/takeoffs"); return Task.CompletedTask; },
                     Tooltip = TakeoffId.HasValue ? "Go back to takeoff details" : "View all takeoffs"
                 },
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
                 {
                     Text = "View Estimations",
+                    Label = "View Estimations",
                     Icon = "fas fa-calculator",
-                    ActionFunc = () => { Navigation.NavigateTo("/estimations"); return Task.CompletedTask; },
-                    IsDisabled = false,
+                    ActionFunc = () => { Navigation.NavigateTo($"/{TenantSlug}/estimate/estimations"); return Task.CompletedTask; },
                     Tooltip = "View all estimations"
                 },
                 new FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
@@ -674,6 +661,5 @@ public partial class PackagesList : ComponentBase, IToolbarActionProvider, IDisp
 
     public void Dispose()
     {
-        BreadcrumbService.OnBreadcrumbChanged -= StateHasChanged;
     }
 }
