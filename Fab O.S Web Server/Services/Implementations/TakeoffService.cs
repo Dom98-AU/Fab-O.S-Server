@@ -20,8 +20,14 @@ namespace FabOS.WebServer.Services.Implementations
             _logger = logger;
         }
 
-        public async Task<TraceTakeoff> CreateTakeoffSessionAsync(int traceRecordId, string pdfUrl, int? drawingId = null)
+        public async Task<TraceTakeoff> CreateTakeoffSessionAsync(int traceRecordId, string pdfUrl, int? drawingId = null, int? companyId = null)
         {
+            // Validate companyId is provided
+            if (!companyId.HasValue || companyId.Value <= 0)
+            {
+                throw new ArgumentException("CompanyId is required for creating a takeoff session", nameof(companyId));
+            }
+
             var takeoff = new TraceTakeoff
             {
                 TraceRecordId = traceRecordId,
@@ -29,7 +35,7 @@ namespace FabOS.WebServer.Services.Implementations
                 DrawingId = drawingId,
                 Status = "Draft",
                 CreatedDate = DateTime.UtcNow,
-                CompanyId = 1 // TODO: Get from user context when authentication is implemented
+                CompanyId = companyId.Value
             };
 
             _context.TraceTakeoffs.Add(takeoff);
@@ -62,11 +68,15 @@ namespace FabOS.WebServer.Services.Implementations
             return true;
         }
 
-        public async Task<List<TraceTakeoff>> GetTakeoffsByProjectAsync(int projectId)
+        public async Task<List<TraceTakeoff>> GetTakeoffsByProjectAsync(int projectId, int companyId)
         {
-            // TODO: Add project relationship when available
+            if (companyId <= 0)
+            {
+                throw new ArgumentException("CompanyId is required", nameof(companyId));
+            }
+
             return await _context.TraceTakeoffs
-                .Where(t => t.CompanyId == 1) // Placeholder
+                .Where(t => t.CompanyId == companyId)
                 .ToListAsync();
         }
 

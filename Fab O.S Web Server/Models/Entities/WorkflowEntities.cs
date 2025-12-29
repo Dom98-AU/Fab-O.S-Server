@@ -5,7 +5,7 @@ namespace FabOS.WebServer.Models.Entities;
 
 // ==========================================
 // ESTIMATION SYSTEM
-// Estimation → Revision → Package → Costs
+// Estimation → Revision → Package → Worksheet → Row
 // ==========================================
 
 [Table("Estimations")]
@@ -14,27 +14,52 @@ public class Estimation
     [Key]
     public int Id { get; set; }
 
+    // Multi-tenant support (NEW - needs migration)
+    [Required]
+    public int CompanyId { get; set; }
+
     [Required]
     [StringLength(50)]
     public string EstimationNumber { get; set; } = string.Empty; // EST-2025-0001
 
+    // NEW - Estimation name (shorter than project name)
+    [Required]
+    [StringLength(200)]
+    public string Name { get; set; } = string.Empty;
+
+    // NEW - Description
+    [StringLength(1000)]
+    public string? Description { get; set; }
+
     [Required]
     public int CustomerId { get; set; }
 
+    // Project name (existing column in DB)
     [Required]
     [StringLength(200)]
     public string ProjectName { get; set; } = string.Empty;
+
+    // NEW - Link to project entity
+    public int? ProjectId { get; set; }
+
+    // NEW - Source takeoff reference
+    public int? SourceTakeoffId { get; set; }
 
     [Required]
     public DateTime EstimationDate { get; set; } = DateTime.UtcNow;
 
     [Required]
-    public DateTime ValidUntil { get; set; }
+    public DateTime ValidUntil { get; set; } = DateTime.UtcNow.AddDays(30);
 
     [Required]
     public int RevisionNumber { get; set; } = 1;
 
-    // Detailed cost breakdown
+    // NEW - Current revision letter (A, B, C...)
+    [Required]
+    [StringLength(10)]
+    public string CurrentRevisionLetter { get; set; } = "A";
+
+    // Cost breakdown
     [Required]
     [Column(TypeName = "decimal(18,2)")]
     public decimal TotalMaterialCost { get; set; }
@@ -67,10 +92,17 @@ public class Estimation
     [Column(TypeName = "decimal(18,2)")]
     public decimal TotalAmount { get; set; }
 
-    // Status and approval
+    // NEW - Current total (denormalized from current revision for quick access)
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal CurrentTotal { get; set; }
+
+    // Status
     [Required]
     [StringLength(20)]
-    public string Status { get; set; } = "Draft"; // Draft, InReview, Sent, Accepted, Rejected, Expired
+    public string Status { get; set; } = "Draft";
+
+    // NEW - Soft delete support
+    public bool IsDeleted { get; set; } = false;
 
     public DateTime? ApprovedDate { get; set; }
 
@@ -89,28 +121,39 @@ public class Estimation
     [Required]
     public int LastModifiedBy { get; set; }
 
-    // Conversion tracking
+    // Alias properties for code compatibility (map to LastModified/LastModifiedBy)
+    [NotMapped]
+    public DateTime? ModifiedDate { get => LastModified; set => LastModified = value ?? DateTime.UtcNow; }
+
+    [NotMapped]
+    public int? ModifiedBy { get => LastModifiedBy; set => LastModifiedBy = value ?? 0; }
+
+    // Link to Order
     public int? OrderId { get; set; }
 
     // Navigation properties
+    [ForeignKey("CompanyId")]
+    public virtual Company Company { get; set; } = null!;
+
     [ForeignKey("CustomerId")]
     public virtual Customer Customer { get; set; } = null!;
 
     [ForeignKey("CreatedBy")]
     public virtual User CreatedByUser { get; set; } = null!;
 
-    [ForeignKey("LastModifiedBy")]
-    public virtual User LastModifiedByUser { get; set; } = null!;
-
-    [ForeignKey("ApprovedBy")]
-    public virtual User? ApprovedByUser { get; set; }
-
     [ForeignKey("OrderId")]
     public virtual Order? Order { get; set; }
 
+    [ForeignKey("SourceTakeoffId")]
+    public virtual Takeoff? SourceTakeoff { get; set; }
+
     public virtual ICollection<EstimationPackage> Packages { get; set; } = new List<EstimationPackage>();
+
+    public virtual ICollection<EstimationRevision> Revisions { get; set; } = new List<EstimationRevision>();
 }
 
+// Note: EstimationPackage is deprecated. Use EstimationRevisionPackage from EstimationWorksheetEntities.cs instead.
+// This class is kept for backward compatibility only.
 [Table("EstimationPackages")]
 public class EstimationPackage
 {

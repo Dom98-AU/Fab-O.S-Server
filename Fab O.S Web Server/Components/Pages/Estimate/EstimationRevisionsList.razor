@@ -1,0 +1,157 @@
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: EstimationRevision
+Views: Table, List, Card
+Features: ViewPreferences, ColumnManagement, Search, Selection, Sorting, Filtering
+Pattern: Standard
+Modern UI: Yes
+Last Updated: 2025-12-12
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/estimate/estimations/{estimationId:int}/revisions"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Revisions - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search revisions..." />
+
+<!-- Content -->
+<div class="revisions-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading revisions...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="error-container">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>@errorMessage</div>
+        </div>
+    }
+    else
+    {
+        @if (estimation != null)
+        {
+            <div class="takeoff-info">
+                <h5>@(estimation.EstimationNumber ?? "Estimation") - @estimation.Name</h5>
+            </div>
+        }
+
+        <!-- Unified View Toolbar -->
+        <TableViewToolbar TItem="EstimationRevision"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="EstimationRevision"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
+
+        <!-- Views -->
+        @if (filteredRevisions.Any())
+        {
+            @if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationRevision>.ViewType.Table)
+            {
+                <GenericTableView TItem="EstimationRevision"
+                                 Items="@filteredRevisions"
+                                 AllItems="@allRevisions"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 ShowCheckboxes="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleRowClick"
+                                 OnRowDoubleClick="@HandleRowDoubleClick"
+                                 EnableAdvancedFeatures="true"
+                                 EnableColumnManagement="true"
+                                 EnableFiltering="true"
+                                 EnableViewPreferences="true"
+                                 EntityType="EstimationRevision" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationRevision>.ViewType.Card)
+            {
+                <GenericCardView TItem="EstimationRevision"
+                                Items="@filteredRevisions"
+                                TitleSelector="@(item => $"Revision {item.RevisionLetter}")"
+                                SubtitleSelector="@(item => item.Status ?? "Draft")"
+                                DescriptionSelector="@(item => $"Total: {item.TotalAmount:C}")"
+                                StatusSelector="@(item => item.Status ?? "Draft")"
+                                BadgeSelector="@(item => $"{item.Packages?.Count(p => !p.IsDeleted) ?? 0} Packages")"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<EstimationRevision>>(this, HandleCardSelectionChanged))"
+                                OnItemClick="@(EventCallback.Factory.Create<EstimationRevision>(this, (item) => NavigateToRevision(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<EstimationRevision>(this, (item) => NavigateToRevision(item.Id)))" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationRevision>.ViewType.List)
+            {
+                <GenericListView TItem="EstimationRevision"
+                                Items="@filteredRevisions"
+                                OnItemClick="@HandleRowClick"
+                                OnItemDoubleClick="@HandleRowDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedListItems"
+                                SelectedItemsChanged="@HandleListSelectionChanged">
+                    <ItemTitle Context="revision">
+                        <span>Revision @revision.RevisionLetter</span>
+                        @if (revision.RevisionLetter == estimation?.CurrentRevisionLetter)
+                        {
+                            <span class="badge bg-success ms-2">Current</span>
+                        }
+                    </ItemTitle>
+                    <ItemStatus Context="revision">
+                        <span class="badge @GetStatusBadgeClass(revision.Status)">@(revision.Status ?? "Draft")</span>
+                    </ItemStatus>
+                    <ItemSubtitle Context="revision">
+                        <span>Total: @revision.TotalAmount.ToString("C")</span>
+                    </ItemSubtitle>
+                    <ItemDetails Context="revision">
+                        <div class="d-flex gap-3">
+                            <span>
+                                <i class="fas fa-box"></i>
+                                @(revision.Packages?.Count(p => !p.IsDeleted) ?? 0) Packages
+                            </span>
+                            <span>
+                                <i class="fas fa-calendar"></i>
+                                @revision.CreatedDate.ToString("MMM dd, yyyy")
+                            </span>
+                            @if (revision.ValidUntilDate.HasValue)
+                            {
+                                <span>
+                                    <i class="fas fa-calendar-check"></i>
+                                    Valid Until: @revision.ValidUntilDate.Value.ToString("MMM dd, yyyy")
+                                </span>
+                            }
+                        </div>
+                    </ItemDetails>
+                </GenericListView>
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-code-branch"></i>
+                </div>
+                <h3>No revisions found</h3>
+                <p>@(string.IsNullOrEmpty(searchTerm) ? "This estimation doesn't have any revisions yet. Use the 'New' button above to create your first revision." : $"No revisions match \"{searchTerm}\". Try adjusting your search.")</p>
+            </div>
+        }
+    }
+</div>

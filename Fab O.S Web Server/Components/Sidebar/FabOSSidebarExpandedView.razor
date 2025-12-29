@@ -3,6 +3,7 @@
 @using FabOS.WebServer.Components.Shared
 @inject SidebarService SidebarService
 @inject NavigationService NavService
+@implements IDisposable
 
 @if (_quickActions == null || _moduleItems == null || _recentItems == null)
 {
@@ -67,9 +68,22 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        SidebarService.OnStateChanged += OnStateChanged;
+        await LoadNavigationItems();
+    }
+
+    private async Task LoadNavigationItems()
+    {
         _quickActions = await NavService.GetQuickActionsAsync();
         _moduleItems = await NavService.GetModuleItemsAsync(SidebarService.CurrentModule);
         _recentItems = await NavService.GetRecentItemsAsync();
+        StateHasChanged();
+    }
+
+    private void OnStateChanged()
+    {
+        _ = LoadNavigationItems();
+        StateHasChanged();
     }
 
     private string GetModuleIcon()
@@ -83,5 +97,10 @@ else
             "Settings" => "settings",
             _ => "folder"
         };
+    }
+
+    public void Dispose()
+    {
+        SidebarService.OnStateChanged -= OnStateChanged;
     }
 }

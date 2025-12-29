@@ -77,6 +77,13 @@ namespace FabOS.WebServer.Components.Pages
             {
                 new ColumnDefinition
                 {
+                    PropertyName = nameof(Catalogue.Id),
+                    DisplayName = "ID",
+                    IsVisible = true,
+                    Width = 80
+                },
+                new ColumnDefinition
+                {
                     PropertyName = nameof(Catalogue.Name),
                     DisplayName = "Name",
                     IsVisible = true,
@@ -122,6 +129,7 @@ namespace FabOS.WebServer.Components.Pages
             // Build table columns from managed columns
             tableColumns = new List<GenericTableView<Catalogue>.TableColumn<Catalogue>>
             {
+                new() { Header = "ID", ValueSelector = c => c.Id.ToString(), IsSortable = true },
                 new() { Header = "Name", ValueSelector = c => c.Name, IsSortable = true },
                 new() { Header = "Description", ValueSelector = c => c.Description ?? "", IsSortable = true },
                 new() { Header = "Type", ValueSelector = c => c.IsSystemCatalogue ? "System" : "Custom", IsSortable = true },
@@ -207,6 +215,9 @@ namespace FabOS.WebServer.Components.Pages
             {
                 switch (col.PropertyName)
                 {
+                    case nameof(Catalogue.Id):
+                        tableColumns.Add(new() { Header = "ID", ValueSelector = c => c.Id.ToString(), IsSortable = true });
+                        break;
                     case nameof(Catalogue.Name):
                         tableColumns.Add(new() { Header = "Name", ValueSelector = c => c.Name, IsSortable = true });
                         break;

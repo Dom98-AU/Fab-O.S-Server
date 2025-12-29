@@ -3,30 +3,50 @@ using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Services.Interfaces;
 using FabOS.WebServer.Hubs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace FabOS.WebServer.Services.Implementations
 {
     /// <summary>
     /// Implementation of takeoff catalogue service with measurement calculations
+    /// Includes caching for frequently accessed catalogue metadata (categories, materials)
     /// </summary>
     public class TakeoffCatalogueService : ITakeoffCatalogueService
     {
         private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly ILogger<TakeoffCatalogueService> _logger;
         private readonly IMeasurementHubService _measurementHub;
+        private readonly IMemoryCache _cache;
+
+        // Cache configuration
+        private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(1);
+        private const string CategoriesCacheKeyPrefix = "catalogue_categories_";
+        private const string MaterialsCacheKeyPrefix = "catalogue_materials_";
+        private const string CategoriesByMaterialCacheKeyPrefix = "catalogue_categories_by_material_";
 
         public TakeoffCatalogueService(
             IDbContextFactory<ApplicationDbContext> contextFactory,
             ILogger<TakeoffCatalogueService> logger,
-            IMeasurementHubService measurementHub)
+            IMeasurementHubService measurementHub,
+            IMemoryCache cache)
         {
             _contextFactory = contextFactory;
             _logger = logger;
             _measurementHub = measurementHub;
+            _cache = cache;
         }
 
         public async Task<List<string>> GetMaterialsAsync(int companyId)
         {
+            var cacheKey = $"{MaterialsCacheKeyPrefix}{companyId}";
+
+            // Try to get from cache first
+            if (_cache.TryGetValue(cacheKey, out List<string>? cachedMaterials) && cachedMaterials != null)
+            {
+                _logger.LogDebug("Cache hit for materials, company {CompanyId}", companyId);
+                return cachedMaterials;
+            }
+
             try
             {
                 await using var context = await _contextFactory.CreateDbContextAsync();
@@ -38,7 +58,10 @@ namespace FabOS.WebServer.Services.Implementations
                     .OrderBy(m => m)
                     .ToListAsync();
 
-                _logger.LogInformation("Retrieved {Count} materials for company {CompanyId}",
+                // Cache the result
+                _cache.Set(cacheKey, materials, CacheDuration);
+
+                _logger.LogInformation("Retrieved and cached {Count} materials for company {CompanyId}",
                     materials.Count, companyId);
 
                 return materials;
@@ -52,6 +75,15 @@ namespace FabOS.WebServer.Services.Implementations
 
         public async Task<List<string>> GetCategoriesAsync(int companyId)
         {
+            var cacheKey = $"{CategoriesCacheKeyPrefix}{companyId}";
+
+            // Try to get from cache first
+            if (_cache.TryGetValue(cacheKey, out List<string>? cachedCategories) && cachedCategories != null)
+            {
+                _logger.LogDebug("Cache hit for categories, company {CompanyId}", companyId);
+                return cachedCategories;
+            }
+
             try
             {
                 await using var context = await _contextFactory.CreateDbContextAsync();
@@ -63,7 +95,10 @@ namespace FabOS.WebServer.Services.Implementations
                     .OrderBy(c => c)
                     .ToListAsync();
 
-                _logger.LogInformation("Retrieved {Count} categories for company {CompanyId}",
+                // Cache the result
+                _cache.Set(cacheKey, categories, CacheDuration);
+
+                _logger.LogInformation("Retrieved and cached {Count} categories for company {CompanyId}",
                     categories.Count, companyId);
 
                 return categories;
@@ -77,6 +112,15 @@ namespace FabOS.WebServer.Services.Implementations
 
         public async Task<List<string>> GetCategoriesByMaterialAsync(string material, int companyId)
         {
+            var cacheKey = $"{CategoriesByMaterialCacheKeyPrefix}{companyId}_{material}";
+
+            // Try to get from cache first
+            if (_cache.TryGetValue(cacheKey, out List<string>? cachedCategories) && cachedCategories != null)
+            {
+                _logger.LogDebug("Cache hit for categories by material '{Material}', company {CompanyId}", material, companyId);
+                return cachedCategories;
+            }
+
             try
             {
                 await using var context = await _contextFactory.CreateDbContextAsync();
@@ -88,7 +132,10 @@ namespace FabOS.WebServer.Services.Implementations
                     .OrderBy(c => c)
                     .ToListAsync();
 
-                _logger.LogInformation("Retrieved {Count} categories for material '{Material}' in company {CompanyId}",
+                // Cache the result
+                _cache.Set(cacheKey, categories, CacheDuration);
+
+                _logger.LogInformation("Retrieved and cached {Count} categories for material '{Material}' in company {CompanyId}",
                     categories.Count, material, companyId);
 
                 return categories;

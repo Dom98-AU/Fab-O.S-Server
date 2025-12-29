@@ -1113,3 +1113,355 @@ public class LocationTypeDto
 }
 
 #endregion
+
+#region Label Template DTOs
+
+/// <summary>
+/// Response DTO for label templates
+/// </summary>
+public class LabelTemplateResponseDto
+{
+    public int Id { get; set; }
+    public int? CompanyId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string EntityType { get; set; } = "All";
+
+    // Dimensions
+    public decimal WidthMm { get; set; }
+    public decimal HeightMm { get; set; }
+
+    // QR Code settings
+    public bool IncludeQRCode { get; set; }
+    public int QRCodePixelsPerModule { get; set; }
+
+    // Field visibility
+    public bool IncludeCode { get; set; }
+    public bool IncludeName { get; set; }
+    public bool IncludeCategory { get; set; }
+    public bool IncludeLocation { get; set; }
+    public bool IncludeSerialNumber { get; set; }
+    public bool IncludeServiceDate { get; set; }
+    public bool IncludeContactInfo { get; set; }
+
+    // Styling
+    public int PrimaryFontSize { get; set; }
+    public int SecondaryFontSize { get; set; }
+    public decimal MarginMm { get; set; }
+
+    // Flags
+    public bool IsSystemTemplate { get; set; }
+    public bool IsDefault { get; set; }
+
+    // Audit
+    public DateTime CreatedDate { get; set; }
+    public int? CreatedByUserId { get; set; }
+    public DateTime? LastModified { get; set; }
+    public int? LastModifiedByUserId { get; set; }
+}
+
+/// <summary>
+/// Request DTO for creating a label template
+/// </summary>
+public class CreateLabelTemplateRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string EntityType { get; set; } = "All";
+
+    // Dimensions (custom sizes)
+    public decimal WidthMm { get; set; } = 50;
+    public decimal HeightMm { get; set; } = 25;
+
+    // QR Code settings
+    public bool IncludeQRCode { get; set; } = true;
+    public int QRCodePixelsPerModule { get; set; } = 10;
+
+    // Field visibility
+    public bool IncludeCode { get; set; } = true;
+    public bool IncludeName { get; set; } = true;
+    public bool IncludeCategory { get; set; } = true;
+    public bool IncludeLocation { get; set; } = true;
+    public bool IncludeSerialNumber { get; set; } = false;
+    public bool IncludeServiceDate { get; set; } = false;
+    public bool IncludeContactInfo { get; set; } = false;
+
+    // Styling
+    public int PrimaryFontSize { get; set; } = 8;
+    public int SecondaryFontSize { get; set; } = 6;
+    public decimal MarginMm { get; set; } = 2;
+
+    // Set as default for entity type
+    public bool SetAsDefault { get; set; }
+}
+
+/// <summary>
+/// Request DTO for updating a label template
+/// </summary>
+public class UpdateLabelTemplateRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string EntityType { get; set; } = "All";
+
+    // Dimensions
+    public decimal WidthMm { get; set; }
+    public decimal HeightMm { get; set; }
+
+    // QR Code settings
+    public bool IncludeQRCode { get; set; }
+    public int QRCodePixelsPerModule { get; set; }
+
+    // Field visibility
+    public bool IncludeCode { get; set; }
+    public bool IncludeName { get; set; }
+    public bool IncludeCategory { get; set; }
+    public bool IncludeLocation { get; set; }
+    public bool IncludeSerialNumber { get; set; }
+    public bool IncludeServiceDate { get; set; }
+    public bool IncludeContactInfo { get; set; }
+
+    // Styling
+    public int PrimaryFontSize { get; set; }
+    public int SecondaryFontSize { get; set; }
+    public decimal MarginMm { get; set; }
+
+    // Set as default
+    public bool SetAsDefault { get; set; }
+}
+
+/// <summary>
+/// List response for label templates
+/// </summary>
+public class LabelTemplateListResponse
+{
+    public List<LabelTemplateResponseDto> Items { get; set; } = new();
+    public int TotalCount { get; set; }
+}
+
+/// <summary>
+/// Request DTO for generating labels with a template
+/// </summary>
+public class GenerateLabelsWithTemplateRequest
+{
+    /// <summary>
+    /// Template ID to use (takes priority over TemplateName)
+    /// </summary>
+    public int? TemplateId { get; set; }
+
+    /// <summary>
+    /// Template name to use (if TemplateId not provided)
+    /// </summary>
+    public string? TemplateName { get; set; }
+
+    /// <summary>
+    /// List of entity IDs to generate labels for
+    /// </summary>
+    public List<int> EntityIds { get; set; } = new();
+}
+
+/// <summary>
+/// Preset label size option
+/// </summary>
+public class LabelSizePreset
+{
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public decimal WidthMm { get; set; }
+    public decimal HeightMm { get; set; }
+}
+
+#endregion
+
+#region Equipment Attachment DTOs
+
+/// <summary>
+/// Response DTO for equipment attachment
+/// </summary>
+public class EquipmentAttachmentDto
+{
+    public int Id { get; set; }
+    public int CompanyId { get; set; }
+
+    // Parent entity references (polymorphic)
+    public int? EquipmentId { get; set; }
+    public string? EquipmentCode { get; set; }
+    public string? EquipmentName { get; set; }
+    public int? EquipmentKitId { get; set; }
+    public string? KitCode { get; set; }
+    public string? KitName { get; set; }
+    public int? LocationId { get; set; }
+    public string? LocationName { get; set; }
+    public int? MaintenanceRecordId { get; set; }
+
+    // Type and category
+    public AttachmentType Type { get; set; }
+    public string TypeName => Type.ToString();
+    public AttachmentCategory Category { get; set; }
+    public string CategoryName => Category.ToString();
+
+    // File metadata
+    public string FileName { get; set; } = string.Empty;
+    public string OriginalFileName { get; set; } = string.Empty;
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    public string ContentType { get; set; } = string.Empty;
+    public long FileSizeBytes { get; set; }
+    public string FormattedFileSize => FormatFileSize(FileSizeBytes);
+
+    // Storage info
+    public string StorageProvider { get; set; } = string.Empty;
+    public string? StorageUrl { get; set; }
+
+    // Photo-specific
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+    public bool IsPrimaryPhoto { get; set; }
+    public string? ThumbnailUrl { get; set; }
+
+    // Certificate-specific
+    public DateTime? ExpiryDate { get; set; }
+    public string? CertificateNumber { get; set; }
+    public string? IssuingAuthority { get; set; }
+    public bool IsExpired => ExpiryDate.HasValue && ExpiryDate.Value < DateTime.UtcNow;
+    public bool IsExpiringSoon => ExpiryDate.HasValue &&
+        ExpiryDate.Value >= DateTime.UtcNow &&
+        ExpiryDate.Value <= DateTime.UtcNow.AddDays(30);
+    public int? DaysUntilExpiry => ExpiryDate.HasValue
+        ? (int)(ExpiryDate.Value - DateTime.UtcNow).TotalDays
+        : null;
+
+    // Audit
+    public DateTime UploadedDate { get; set; }
+    public string? UploadedBy { get; set; }
+    public DateTime? LastModified { get; set; }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double size = bytes;
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+        return $"{size:0.##} {sizes[order]}";
+    }
+}
+
+/// <summary>
+/// Request DTO for uploading an attachment
+/// </summary>
+public class UploadAttachmentRequest
+{
+    // Parent entity (one required)
+    public int? EquipmentId { get; set; }
+    public int? EquipmentKitId { get; set; }
+    public int? LocationId { get; set; }
+    public int? MaintenanceRecordId { get; set; }
+
+    // Type and category
+    public AttachmentType Type { get; set; }
+    public AttachmentCategory Category { get; set; } = AttachmentCategory.Other;
+
+    // Optional metadata
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+
+    // Certificate-specific (for Certificate type)
+    public DateTime? ExpiryDate { get; set; }
+    public string? CertificateNumber { get; set; }
+    public string? IssuingAuthority { get; set; }
+
+    // Photo-specific
+    public bool SetAsPrimaryPhoto { get; set; }
+}
+
+/// <summary>
+/// Request DTO for updating attachment metadata
+/// </summary>
+public class UpdateAttachmentRequest
+{
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    public AttachmentCategory? Category { get; set; }
+
+    // Certificate-specific
+    public DateTime? ExpiryDate { get; set; }
+    public string? CertificateNumber { get; set; }
+    public string? IssuingAuthority { get; set; }
+}
+
+/// <summary>
+/// Photo gallery response DTO
+/// </summary>
+public class PhotoGalleryDto
+{
+    public EquipmentAttachmentDto? PrimaryPhoto { get; set; }
+    public List<EquipmentAttachmentDto> Photos { get; set; } = new();
+    public int TotalCount { get; set; }
+}
+
+/// <summary>
+/// Attachment list response with pagination
+/// </summary>
+public class AttachmentListResponse
+{
+    public List<EquipmentAttachmentDto> Items { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+}
+
+/// <summary>
+/// Attachment upload result
+/// </summary>
+public class AttachmentUploadResult
+{
+    public bool Success { get; set; }
+    public EquipmentAttachmentDto? Attachment { get; set; }
+    public string? ErrorMessage { get; set; }
+    public string? DownloadUrl { get; set; }
+    public string? ThumbnailUrl { get; set; }
+}
+
+/// <summary>
+/// Multiple attachment upload result
+/// </summary>
+public class MultipleAttachmentUploadResult
+{
+    public bool Success { get; set; }
+    public int TotalCount { get; set; }
+    public int SuccessCount { get; set; }
+    public int FailedCount { get; set; }
+    public List<EquipmentAttachmentDto> UploadedAttachments { get; set; } = new();
+    public List<string> Errors { get; set; } = new();
+}
+
+/// <summary>
+/// Attachment download response
+/// </summary>
+public class AttachmentDownloadResponse
+{
+    public string DownloadUrl { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long FileSizeBytes { get; set; }
+}
+
+/// <summary>
+/// Certificate attachment summary for expiry tracking
+/// </summary>
+public class CertificateAttachmentSummaryDto
+{
+    public int TotalCertificates { get; set; }
+    public int ValidCertificates { get; set; }
+    public int ExpiredCertificateCount { get; set; }
+    public int ExpiringSoonCertificates { get; set; }
+    public List<EquipmentAttachmentDto> ExpiringCertificatesList { get; set; } = new();
+    public List<EquipmentAttachmentDto> ExpiredCertificatesList { get; set; } = new();
+}
+
+#endregion

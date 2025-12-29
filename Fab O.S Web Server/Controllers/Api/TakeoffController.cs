@@ -6,12 +6,13 @@ using FabOS.WebServer.Models.ViewModels;
 using FabOS.WebServer.Data.Contexts;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using System.Security.Claims;
 
 namespace FabOS.WebServer.Controllers.Api
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Bearer")]
     public class TakeoffController : ControllerBase
     {
         private readonly ITakeoffService _takeoffService;
@@ -219,7 +220,14 @@ namespace FabOS.WebServer.Controllers.Api
         {
             try
             {
-                var takeoffs = await _takeoffService.GetTakeoffsByProjectAsync(projectId);
+                // Get companyId from claims
+                var companyIdClaim = User.FindFirst("CompanyId");
+                if (companyIdClaim == null || !int.TryParse(companyIdClaim.Value, out var companyId))
+                {
+                    return Unauthorized("Company ID not found in claims");
+                }
+
+                var takeoffs = await _takeoffService.GetTakeoffsByProjectAsync(projectId, companyId);
 
                 var summary = new TakeoffProjectSummary
                 {
@@ -233,7 +241,7 @@ namespace FabOS.WebServer.Controllers.Api
                 foreach (var takeoff in takeoffs)
                 {
                     var measurements = await _takeoffService.GetMeasurementsByTakeoffAsync(takeoff.Id);
-                    summary.TotalMeasurements += measurements.Count;
+                    summary.TotalMeasurements += measurements.Count();
 
                     foreach (var measurement in measurements)
                     {

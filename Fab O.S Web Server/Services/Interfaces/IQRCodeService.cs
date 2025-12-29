@@ -56,4 +56,12 @@ public interface IQRCodeService
     /// <param name="pixelsPerModule">Pixels per QR module</param>
     /// <returns>QR code generation result</returns>
     QRCodeGenerationResult GenerateQRCodeWithSize(EquipmentQRData data, int pixelsPerModule);
+
+    /// <summary>
+    /// Generates QR code bytes directly from a string content
+    /// </summary>
+    /// <param name="content">The content to encode in the QR code</param>
+    /// <param name="pixelsPerModule">Pixels per QR module (default 10)</param>
+    /// <returns>PNG image bytes of the QR code</returns>
+    byte[] GenerateQRCodeBytes(string content, int pixelsPerModule = 10);
 }

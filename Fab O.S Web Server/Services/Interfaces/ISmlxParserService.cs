@@ -18,6 +18,17 @@ public interface ISmlxParserService
         string fileName);
 
     /// <summary>
+    /// Parse an SMLX file with identification tracking.
+    /// Returns parts separated into identified (have part references) and unidentified (need user input).
+    /// </summary>
+    /// <param name="fileStream">SMLX file stream</param>
+    /// <param name="fileName">Original file name</param>
+    /// <returns>Parse result with identified/unidentified parts, assemblies with hierarchy</returns>
+    Task<CadParseResultDto> ParseSmlxFileWithIdentificationAsync(
+        Stream fileStream,
+        string fileName);
+
+    /// <summary>
     /// Validate SMLX file structure
     /// </summary>
     /// <param name="fileStream">SMLX file stream</param>

@@ -1,0 +1,157 @@
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: EstimationWorksheetTemplate
+Views: Table, List, Card
+Features: ViewPreferences, ColumnManagement, Search, Selection, Sorting, Filtering
+Pattern: Standard
+Modern UI: Yes
+Last Updated: 2025-12-17
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/estimate/templates"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Worksheet Templates - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search templates..." PageType="PageType.List" />
+
+<!-- Content -->
+<div class="templates-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading templates...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="error-container">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Error</h3>
+            <p>@errorMessage</p>
+        </div>
+    }
+    else
+    {
+        <!-- Unified View Toolbar -->
+        <TableViewToolbar TItem="EstimationWorksheetTemplate"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="EstimationWorksheetTemplate"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
+
+        <!-- Views -->
+        @if (filteredTemplates.Any())
+        {
+            @if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationWorksheetTemplate>.ViewType.Table)
+            {
+                <GenericTableView TItem="EstimationWorksheetTemplate"
+                                 Items="@filteredTemplates"
+                                 AllItems="@allTemplates"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 ShowCheckboxes="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleRowClick"
+                                 OnRowDoubleClick="@HandleRowDoubleClick"
+                                 EnableAdvancedFeatures="true"
+                                 EnableColumnManagement="true"
+                                 EnableFiltering="true"
+                                 EnableViewPreferences="true"
+                                 EntityType="EstimationWorksheetTemplate" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationWorksheetTemplate>.ViewType.List)
+            {
+                <GenericListView TItem="EstimationWorksheetTemplate"
+                                Items="@filteredTemplates"
+                                OnItemClick="@HandleRowClick"
+                                OnItemDoubleClick="@HandleRowDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedListItems"
+                                SelectedItemsChanged="@HandleListSelectionChanged">
+                    <ItemTitle Context="template">
+                        <span>@template.Name</span>
+                        @if (template.IsSystemTemplate)
+                        {
+                            <span class="badge bg-secondary ms-2">System</span>
+                        }
+                        @if (template.IsDefault)
+                        {
+                            <span class="badge bg-success ms-2">Default</span>
+                        }
+                    </ItemTitle>
+                    <ItemStatus Context="template">
+                        <span class="badge @GetWorksheetTypeBadgeClass(template.WorksheetType)">@template.WorksheetType</span>
+                    </ItemStatus>
+                    <ItemSubtitle Context="template">
+                        <span>@(template.Description ?? "No description")</span>
+                    </ItemSubtitle>
+                    <ItemDetails Context="template">
+                        <div class="d-flex gap-3">
+                            <span>
+                                <i class="fas fa-columns"></i>
+                                @(template.Columns?.Count(c => !c.IsDeleted) ?? 0) Columns
+                            </span>
+                            @if (template.IsPublished)
+                            {
+                                <span class="text-success">
+                                    <i class="fas fa-check-circle"></i> Published
+                                </span>
+                            }
+                            @if (template.IsCompanyDefault)
+                            {
+                                <span class="text-primary">
+                                    <i class="fas fa-building"></i> Company Default
+                                </span>
+                            }
+                        </div>
+                    </ItemDetails>
+                </GenericListView>
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationWorksheetTemplate>.ViewType.Card)
+            {
+                <GenericCardView TItem="EstimationWorksheetTemplate"
+                                Items="@filteredTemplates"
+                                TitleSelector="@(item => item.Name)"
+                                SubtitleSelector="@(item => item.Description ?? "No description")"
+                                DescriptionSelector="@(item => $"{item.Columns?.Count(c => !c.IsDeleted) ?? 0} columns")"
+                                StatusSelector="@(item => item.WorksheetType)"
+                                BadgeSelector="@(item => item.IsSystemTemplate ? "System" : (item.IsDefault ? "Default" : ""))"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<EstimationWorksheetTemplate>>(this, HandleCardSelectionChanged))"
+                                OnItemClick="@(EventCallback.Factory.Create<EstimationWorksheetTemplate>(this, (item) => NavigateToTemplate(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<EstimationWorksheetTemplate>(this, (item) => NavigateToTemplate(item.Id)))" />
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <h3>No templates found</h3>
+                <p>@(string.IsNullOrEmpty(searchTerm) ? "You don't have any worksheet templates yet. Use the 'New' button above to create your first template." : $"No templates match \"{searchTerm}\". Try adjusting your search.")</p>
+            </div>
+        }
+    }
+</div>

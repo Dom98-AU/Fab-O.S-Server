@@ -1,0 +1,181 @@
+@page "/{tenantSlug}/estimate/estimations/{estimationId:int}/revisions/{id:int}"
+@page "/{tenantSlug}/estimate/estimations/{estimationId:int}/revisions/new"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>@(Id == 0 ? "New Revision" : $"Revision {revision?.RevisionLetter ?? ""}") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" ShowSearch="false" PageType="PageType.Card" />
+
+<!-- Main Content Container -->
+<div class="takeoff-layout">
+    @if (isLoading)
+    {
+        <!-- Loading State -->
+        <div class="takeoff-loading">
+            <div class="takeoff-spinner"></div>
+            <p>Loading revision details...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <!-- Error State -->
+        <div class="takeoff-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>@errorMessage</div>
+        </div>
+    }
+    else if (revision != null)
+    {
+        <!-- Container Wrapper -->
+        <div class="takeoff-container">
+            <!-- Collapsible Sections -->
+            <div class="takeoff-sections">
+
+                <!-- General Section -->
+                <div class="takeoff-section">
+                    <div class="takeoff-section-header @(IsSectionExpanded("general") ? "expanded" : "")" @onclick="@(() => ToggleSection("general"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-info-circle section-icon"></i>
+                            <span class="section-title">Revision Details</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="takeoff-section-content @(IsSectionExpanded("general") ? "expanded" : "collapsed")">
+                        <div class="takeoff-form-grid two-column">
+                            <!-- Revision Letter -->
+                            <div class="takeoff-form-group">
+                                <label class="takeoff-form-label">Revision Letter</label>
+                                <p class="takeoff-form-control-plaintext">
+                                    <span class="badge bg-info fs-6">@revision.RevisionLetter</span>
+                                    @if (revision.RevisionLetter == estimation?.CurrentRevisionLetter)
+                                    {
+                                        <span class="badge bg-success ms-1">Current</span>
+                                    }
+                                </p>
+                            </div>
+
+                            <!-- Status -->
+                            <div class="takeoff-form-group">
+                                <label class="takeoff-form-label">Status</label>
+                                @if (isEditMode && revision.Status == "Draft")
+                                {
+                                    <select class="takeoff-form-control" @bind="revision.Status">
+                                        <option value="Draft">Draft</option>
+                                        <option value="InProgress">In Progress</option>
+                                        <option value="SubmittedForReview">Submitted for Review</option>
+                                        <option value="InReview">In Review</option>
+                                        <option value="Approved">Approved</option>
+                                        <option value="Rejected">Rejected</option>
+                                    </select>
+                                }
+                                else
+                                {
+                                    <p class="takeoff-form-control-plaintext">
+                                        <span class="takeoff-badge @GetStatusBadgeClass(revision.Status)">
+                                            @(revision.Status ?? "Draft")
+                                        </span>
+                                    </p>
+                                }
+                            </div>
+
+                            <!-- Valid Until -->
+                            <div class="takeoff-form-group">
+                                <label class="takeoff-form-label">Valid Until</label>
+                                @if (isEditMode && revision.Status == "Draft")
+                                {
+                                    <input type="date" class="takeoff-form-control" @bind="revision.ValidUntilDate" />
+                                }
+                                else
+                                {
+                                    <p class="takeoff-form-control-plaintext">@(revision.ValidUntilDate?.ToString("MMM dd, yyyy") ?? "-")</p>
+                                }
+                            </div>
+
+                            <!-- Created Date -->
+                            @if (Id > 0)
+                            {
+                                <div class="takeoff-form-group">
+                                    <label class="takeoff-form-label">Created</label>
+                                    <p class="takeoff-form-control-plaintext">@revision.CreatedDate.ToString("MMM dd, yyyy 'at' HH:mm")</p>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cost Summary Section -->
+                @if (Id > 0)
+                {
+                    <div class="takeoff-section">
+                        <div class="takeoff-section-header @(IsSectionExpanded("cost") ? "expanded" : "")" @onclick="@(() => ToggleSection("cost"))">
+                            <div class="section-header-content">
+                                <i class="fas fa-chart-pie section-icon"></i>
+                                <span class="section-title">Cost Summary</span>
+                            </div>
+                            <i class="fas fa-chevron-down section-chevron"></i>
+                        </div>
+                        <div class="takeoff-section-content @(IsSectionExpanded("cost") ? "expanded" : "collapsed")">
+                            <div class="takeoff-form-grid two-column">
+                                <div class="takeoff-form-group">
+                                    <label class="takeoff-form-label">Material Cost</label>
+                                    <p class="takeoff-form-control-plaintext">@revision.TotalMaterialCost.ToString("C")</p>
+                                </div>
+                                <div class="takeoff-form-group">
+                                    <label class="takeoff-form-label">Labor Cost</label>
+                                    <p class="takeoff-form-control-plaintext">@revision.TotalLaborCost.ToString("C")</p>
+                                </div>
+                                <div class="takeoff-form-group">
+                                    <label class="takeoff-form-label">Subtotal</label>
+                                    <p class="takeoff-form-control-plaintext fw-bold">@revision.Subtotal.ToString("C")</p>
+                                </div>
+                                <div class="takeoff-form-group">
+                                    <label class="takeoff-form-label">Overhead (@revision.OverheadPercentage%)</label>
+                                    @if (isEditMode && revision.Status == "Draft")
+                                    {
+                                        <input type="number" class="takeoff-form-control" @bind="revision.OverheadPercentage" step="0.01" min="0" max="100" />
+                                    }
+                                    else
+                                    {
+                                        <p class="takeoff-form-control-plaintext">@revision.OverheadAmount.ToString("C")</p>
+                                    }
+                                </div>
+                                <div class="takeoff-form-group">
+                                    <label class="takeoff-form-label">Margin (@revision.MarginPercentage%)</label>
+                                    @if (isEditMode && revision.Status == "Draft")
+                                    {
+                                        <input type="number" class="takeoff-form-control" @bind="revision.MarginPercentage" step="0.01" min="0" max="100" />
+                                    }
+                                    else
+                                    {
+                                        <p class="takeoff-form-control-plaintext">@revision.MarginAmount.ToString("C")</p>
+                                    }
+                                </div>
+                                <div class="takeoff-form-group">
+                                    <label class="takeoff-form-label"><strong>Total</strong></label>
+                                    <p class="takeoff-form-control-plaintext">
+                                        <strong class="h5 text-success">@revision.TotalAmount.ToString("C")</strong>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+            </div> <!-- End of takeoff-sections -->
+        </div> <!-- End of takeoff-container -->
+    }
+    else
+    {
+        <!-- No Data State -->
+        <div class="takeoff-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>No revision found</div>
+        </div>
+    }
+</div>

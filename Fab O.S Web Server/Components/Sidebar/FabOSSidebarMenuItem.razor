@@ -3,6 +3,7 @@
 @using FabOS.WebServer.Services
 @using FabOS.WebServer.Components.Shared
 @inject SidebarService SidebarService
+@implements IDisposable
 
 <div class="fabos-nav-item-container">
     <a href="@Item.Url" class="fabos-nav-item @(IsPinned ? "pinned-indicator" : "")">
@@ -32,5 +33,15 @@
 
     private bool IsPinned => SidebarService.IsPinned(Item.Url);
 
+    protected override void OnInitialized()
+    {
+        SidebarService.OnStateChanged += StateHasChanged;
+    }
+
     private async Task TogglePin() => await SidebarService.TogglePinAsync(Item.Url);
+
+    public void Dispose()
+    {
+        SidebarService.OnStateChanged -= StateHasChanged;
+    }
 }

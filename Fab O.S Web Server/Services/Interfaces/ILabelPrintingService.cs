@@ -1,4 +1,5 @@
 using FabOS.WebServer.Models.DTOs.Assets;
+using FabOS.WebServer.Models.Entities;
 
 namespace FabOS.WebServer.Services.Interfaces;
 
@@ -7,6 +8,8 @@ namespace FabOS.WebServer.Services.Interfaces;
 /// </summary>
 public interface ILabelPrintingService
 {
+    #region Legacy Methods (Backward Compatibility)
+
     /// <summary>
     /// Generates a label PDF for a single equipment item
     /// </summary>
@@ -18,12 +21,12 @@ public interface ILabelPrintingService
     Task<LabelGenerationResult> GenerateBatchLabelsAsync(IEnumerable<int> equipmentIds, string template = "Standard", LabelOptionsDto? options = null);
 
     /// <summary>
-    /// Gets available label templates
+    /// Gets available label templates (legacy - returns static templates)
     /// </summary>
     IEnumerable<LabelTemplateDto> GetAvailableTemplates();
 
     /// <summary>
-    /// Gets a specific label template by name
+    /// Gets a specific label template by name (legacy)
     /// </summary>
     LabelTemplateDto? GetTemplate(string templateName);
 
@@ -51,4 +54,34 @@ public interface ILabelPrintingService
     /// Generates labels for equipment needing maintenance
     /// </summary>
     Task<LabelGenerationResult> GenerateMaintenanceDueLabelsAsync(int companyId, int daysAhead = 7, string template = "Standard", LabelOptionsDto? options = null);
+
+    #endregion
+
+    #region Template-Based Label Generation
+
+    /// <summary>
+    /// Generates labels for equipment using a database template
+    /// </summary>
+    Task<LabelGenerationResult> GenerateEquipmentLabelsAsync(
+        int companyId,
+        IEnumerable<int> equipmentIds,
+        LabelTemplate template);
+
+    /// <summary>
+    /// Generates labels for equipment kits using a database template
+    /// </summary>
+    Task<LabelGenerationResult> GenerateKitLabelsAsync(
+        int companyId,
+        IEnumerable<int> kitIds,
+        LabelTemplate template);
+
+    /// <summary>
+    /// Generates labels for locations using a database template
+    /// </summary>
+    Task<LabelGenerationResult> GenerateLocationLabelsAsync(
+        int companyId,
+        IEnumerable<int> locationIds,
+        LabelTemplate template);
+
+    #endregion
 }

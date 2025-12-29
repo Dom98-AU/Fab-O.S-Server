@@ -15,7 +15,7 @@
 <PageTitle>@(Id == 0 ? "New Takeoff" : takeoff?.TakeoffNumber ?? "Takeoff Details") - Fab.OS</PageTitle>
 
 <!-- Standard Toolbar -->
-<StandardToolbar ActionProvider="@this" PageType="PageType.Card" />
+<StandardToolbar ActionProvider="@this" ShowSearch="false" PageType="PageType.Card" />
 
 <!-- Main Content Container -->
 <div class="takeoff-layout">

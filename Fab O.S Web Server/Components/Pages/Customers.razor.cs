@@ -53,26 +53,17 @@ public partial class Customers : ComponentBase, IToolbarActionProvider, IDisposa
         {
             new GenericTableView<Customer>.TableColumn<Customer>
             {
+                Header = "Code",
+                PropertyName = "Code",
+                ValueSelector = c => c.Code ?? "-",
+                IsSortable = true
+            },
+            new GenericTableView<Customer>.TableColumn<Customer>
+            {
                 Header = "Name",
                 PropertyName = "Name",
                 ValueSelector = c => c.Name ?? "",
-                IsSortable = true,
-                Template = customer => builder =>
-                {
-                    builder.OpenElement(0, "div");
-                    builder.AddAttribute(1, "class", "customer-name");
-                    builder.OpenElement(2, "strong");
-                    builder.AddContent(3, customer.Name);
-                    builder.CloseElement();
-                    if (!string.IsNullOrEmpty(customer.Code))
-                    {
-                        builder.OpenElement(4, "span");
-                        builder.AddAttribute(5, "class", "customer-code ms-2");
-                        builder.AddContent(6, $"({customer.Code})");
-                        builder.CloseElement();
-                    }
-                    builder.CloseElement();
-                }
+                IsSortable = true
             },
             new GenericTableView<Customer>.TableColumn<Customer>
             {

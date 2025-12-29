@@ -5,11 +5,11 @@ namespace FabOS.WebServer.Services.Interfaces
     public interface ITakeoffService
     {
         // Takeoff Session Management
-        Task<TraceTakeoff> CreateTakeoffSessionAsync(int traceRecordId, string pdfUrl, int? drawingId = null);
+        Task<TraceTakeoff> CreateTakeoffSessionAsync(int traceRecordId, string pdfUrl, int? drawingId = null, int? companyId = null);
         Task<TraceTakeoff> GetTakeoffSessionAsync(int takeoffId);
         Task<TraceTakeoff> UpdateTakeoffSessionAsync(TraceTakeoff takeoff);
         Task<bool> DeleteTakeoffSessionAsync(int takeoffId);
-        Task<List<TraceTakeoff>> GetTakeoffsByProjectAsync(int projectId);
+        Task<List<TraceTakeoff>> GetTakeoffsByProjectAsync(int projectId, int companyId);
 
         // Measurement Operations
         Task<TraceTakeoffMeasurement> AddMeasurementAsync(TraceTakeoffMeasurement measurement);

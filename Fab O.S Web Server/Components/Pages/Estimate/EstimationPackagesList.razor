@@ -1,0 +1,149 @@
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: EstimationRevisionPackage
+Views: Table, List, Card
+Features: ViewPreferences, ColumnManagement, Search, Selection, Sorting, Filtering
+Pattern: Standard
+Modern UI: Yes
+Last Updated: 2025-12-12
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/estimate/estimations/{estimationId:int}/revisions/{revisionId:int}/packages"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Packages - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search packages..." PageType="PageType.List" />
+
+<!-- Content -->
+<div class="takeoff-packages-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading packages...</p>
+        </div>
+    }
+    else if (revision == null)
+    {
+        <div class="error-container">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Revision not found</h3>
+            <p>The requested revision could not be found.</p>
+            <button class="fabos-btn fabos-btn-primary" @onclick="NavigateToRevisions">
+                <i class="fas fa-arrow-left"></i>
+                Back to Revisions
+            </button>
+        </div>
+    }
+    else
+    {
+        <!-- Unified View Toolbar -->
+        <TableViewToolbar TItem="EstimationRevisionPackage"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="EstimationRevisionPackage"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
+
+        <!-- Views -->
+        @if (filteredPackages.Any())
+        {
+            @if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationRevisionPackage>.ViewType.Table)
+            {
+                <GenericTableView TItem="EstimationRevisionPackage"
+                                 Items="@filteredPackages"
+                                 AllItems="@allPackages"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 ShowCheckboxes="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleRowClick"
+                                 OnRowDoubleClick="@HandleRowDoubleClick"
+                                 EnableAdvancedFeatures="true"
+                                 EnableColumnManagement="true"
+                                 EnableFiltering="true"
+                                 EnableViewPreferences="true"
+                                 EntityType="EstimationRevisionPackage" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationRevisionPackage>.ViewType.List)
+            {
+                <GenericListView TItem="EstimationRevisionPackage"
+                                Items="@filteredPackages"
+                                OnItemClick="@HandleRowClick"
+                                OnItemDoubleClick="@HandleRowDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedListItems"
+                                SelectedItemsChanged="@HandleListSelectionChanged">
+                    <ItemTitle Context="package">
+                        <span>@package.Name</span>
+                    </ItemTitle>
+                    <ItemStatus Context="package">
+                        <span class="badge bg-info">@package.PackageTotal.ToString("C")</span>
+                    </ItemStatus>
+                    <ItemSubtitle Context="package">
+                        <span>@(package.Description ?? "No description")</span>
+                    </ItemSubtitle>
+                    <ItemDetails Context="package">
+                        <div class="d-flex gap-3">
+                            <span>
+                                <i class="fas fa-table"></i>
+                                @(package.Worksheets?.Count(w => !w.IsDeleted) ?? 0) Worksheets
+                            </span>
+                            <span>
+                                <i class="fas fa-dollar-sign"></i>
+                                Material: @package.MaterialCost.ToString("C")
+                            </span>
+                            <span>
+                                <i class="fas fa-tools"></i>
+                                Labor: @package.LaborCost.ToString("C")
+                            </span>
+                        </div>
+                    </ItemDetails>
+                </GenericListView>
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationRevisionPackage>.ViewType.Card)
+            {
+                <GenericCardView TItem="EstimationRevisionPackage"
+                                Items="@filteredPackages"
+                                TitleSelector="@(item => item.Name)"
+                                SubtitleSelector="@(item => item.Description ?? "No description")"
+                                DescriptionSelector="@(item => $"Material: {item.MaterialCost:C} • Labor: {item.LaborCost:C}")"
+                                StatusSelector="@(item => item.PackageTotal.ToString("C"))"
+                                BadgeSelector="@(item => $"{item.Worksheets?.Count(w => !w.IsDeleted) ?? 0} Worksheets")"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<EstimationRevisionPackage>>(this, HandleCardSelectionChanged))"
+                                OnItemClick="@(EventCallback.Factory.Create<EstimationRevisionPackage>(this, (item) => NavigateToPackage(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<EstimationRevisionPackage>(this, (item) => NavigateToPackage(item.Id)))" />
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-box-open"></i>
+                </div>
+                <h3>No packages found</h3>
+                <p>@(string.IsNullOrEmpty(searchTerm) ? "This revision doesn't have any packages yet. Use the 'New' button above to create your first package." : $"No packages match \"{searchTerm}\". Try adjusting your search.")</p>
+            </div>
+        }
+    }
+</div>

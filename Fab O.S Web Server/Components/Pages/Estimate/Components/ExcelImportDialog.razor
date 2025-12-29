@@ -1,0 +1,459 @@
+@*
+═══════════════════════════════════════════════════════════════
+COMPONENT
+═══════════════════════════════════════════════════════════════
+Component: ExcelImportDialog
+Purpose: Import Excel data into worksheets with column mapping
+Features: File upload, preview, column mapping
+Module: Estimate
+Last Updated: 2025-12-09
+═══════════════════════════════════════════════════════════════
+*@
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Services.Interfaces.Estimate
+@inject IWorksheetExcelService ExcelService
+@inject ILogger<ExcelImportDialog> Logger
+
+@if (IsVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-file-import me-2"></i>Import from Excel
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (currentStep == 1)
+                    {
+                        <!-- Step 1: File Upload -->
+                        <div class="text-center py-5">
+                            <div class="upload-zone @(isDragging ? "dragging" : "")"
+                                 @ondragenter="OnDragEnter"
+                                 @ondragleave="OnDragLeave"
+                                 @ondragover:preventDefault="true">
+                                <i class="fas fa-cloud-upload-alt fa-4x text-muted mb-3"></i>
+                                <h5>Drag & Drop Excel File</h5>
+                                <p class="text-muted mb-3">or</p>
+                                <InputFile OnChange="OnFileSelected" accept=".xlsx,.xls" class="d-none" id="excelFileInput" />
+                                <label for="excelFileInput" class="btn btn-primary">
+                                    <i class="fas fa-folder-open me-1"></i>Browse Files
+                                </label>
+                                <p class="text-muted small mt-3">Supported formats: .xlsx, .xls (max 10MB)</p>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(uploadError))
+                        {
+                            <div class="alert alert-danger mt-3">
+                                <i class="fas fa-exclamation-circle me-2"></i>@uploadError
+                            </div>
+                        }
+                    }
+                    else if (currentStep == 2)
+                    {
+                        <!-- Step 2: Preview & Column Mapping -->
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-file-excel text-success me-2"></i>
+                                        <strong>@selectedFileName</strong>
+                                        <span class="text-muted ms-2">(@previewRowCount rows)</span>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="ResetUpload">
+                                        <i class="fas fa-undo me-1"></i>Choose Different File
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <h6 class="mb-3">Column Mapping</h6>
+                                <p class="text-muted small">Map Excel columns to worksheet columns. Unmapped columns will be skipped.</p>
+
+                                <div class="table-responsive">
+                                    <table class="table table-bordered">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Excel Column</th>
+                                                <th>Sample Data</th>
+                                                <th style="width: 40px;"></th>
+                                                <th>Worksheet Column</th>
+                                                <th>Type</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var excelCol in excelColumns)
+                                            {
+                                                <tr>
+                                                    <td><strong>@excelCol.Name</strong></td>
+                                                    <td class="text-muted small">@(excelCol.SampleValue ?? "-")</td>
+                                                    <td class="text-center">
+                                                        <i class="fas fa-arrow-right text-muted"></i>
+                                                    </td>
+                                                    <td>
+                                                        <select class="form-select form-select-sm" @bind="columnMappings[excelCol.Name]">
+                                                            <option value="">-- Skip Column --</option>
+                                                            @foreach (var wsCol in WorksheetColumns)
+                                                            {
+                                                                <option value="@wsCol.ColumnKey">@wsCol.ColumnName</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        @{
+                                                            var mappedKey = columnMappings.GetValueOrDefault(excelCol.Name);
+                                                            var mappedCol = WorksheetColumns.FirstOrDefault(c => c.ColumnKey == mappedKey);
+                                                        }
+                                                        @if (mappedCol != null)
+                                                        {
+                                                            <span class="badge @GetTypeBadgeClass(mappedCol.DataType)">@mappedCol.DataType</span>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                @if (mappingWarnings.Any())
+                                {
+                                    <div class="alert alert-warning">
+                                        <h6><i class="fas fa-exclamation-triangle me-2"></i>Warnings</h6>
+                                        <ul class="mb-0">
+                                            @foreach (var warning in mappingWarnings)
+                                            {
+                                                <li>@warning</li>
+                                            }
+                                        </ul>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="col-12 mt-3">
+                                <h6 class="mb-3">Import Options</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" @bind="skipHeaderRow" id="skipHeader" />
+                                            <label class="form-check-label" for="skipHeader">
+                                                Skip first row (header)
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" @bind="replaceExisting" id="replaceExisting" />
+                                            <label class="form-check-label" for="replaceExisting">
+                                                Replace existing data
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else if (currentStep == 3)
+                    {
+                        <!-- Step 3: Import Progress/Results -->
+                        @if (isImporting)
+                        {
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary mb-3" role="status">
+                                    <span class="visually-hidden">Importing...</span>
+                                </div>
+                                <h5>Importing Data...</h5>
+                                <p class="text-muted">Please wait while we import your data.</p>
+                            </div>
+                        }
+                        else if (importResult != null)
+                        {
+                            <div class="text-center py-4">
+                                @if (importResult.Success)
+                                {
+                                    <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                                    <h4 class="text-success">Import Successful!</h4>
+                                    <p class="mb-4">
+                                        <strong>@importResult.RowsImported</strong> rows imported successfully.
+                                        @if (importResult.RowsSkipped > 0)
+                                        {
+                                            <span class="text-muted">(@importResult.RowsSkipped rows skipped)</span>
+                                        }
+                                    </p>
+                                }
+                                else
+                                {
+                                    <i class="fas fa-times-circle fa-4x text-danger mb-3"></i>
+                                    <h4 class="text-danger">Import Failed</h4>
+                                    <p class="text-muted mb-4">@importResult.ErrorMessage</p>
+                                }
+
+                                @if (importResult.Errors.Any())
+                                {
+                                    <div class="text-start">
+                                        <h6>Errors:</h6>
+                                        <div class="alert alert-danger" style="max-height: 200px; overflow-y: auto;">
+                                            <ul class="mb-0">
+                                                @foreach (var error in importResult.Errors.Take(10))
+                                                {
+                                                    <li>Row @error.RowNumber: @error.Message</li>
+                                                }
+                                                @if (importResult.Errors.Count > 10)
+                                                {
+                                                    <li class="text-muted">...and @(importResult.Errors.Count - 10) more errors</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Close">
+                        @(currentStep == 3 ? "Close" : "Cancel")
+                    </button>
+                    @if (currentStep == 2)
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="ExecuteImport" disabled="@(!HasAnyMapping())">
+                            <i class="fas fa-file-import me-1"></i>Import Data
+                        </button>
+                    }
+                    @if (currentStep == 3 && importResult?.Success == true)
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="Close">
+                            <i class="fas fa-check me-1"></i>Done
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .upload-zone {
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 3rem;
+        transition: all 0.3s ease;
+    }
+
+    .upload-zone:hover,
+    .upload-zone.dragging {
+        border-color: #0d6efd;
+        background-color: #f0f7ff;
+    }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public int WorksheetId { get; set; }
+    [Parameter] public List<EstimationWorksheetColumn> WorksheetColumns { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnImportComplete { get; set; }
+
+    private int currentStep = 1;
+    private bool isDragging = false;
+    private string? uploadError;
+
+    // File state
+    private string? selectedFileName;
+    private Stream? fileStream;
+    private int previewRowCount = 0;
+
+    // Mapping state
+    private List<ExcelColumnInfo> excelColumns = new();
+    private Dictionary<string, string?> columnMappings = new();
+    private List<string> mappingWarnings = new();
+
+    // Options
+    private bool skipHeaderRow = true;
+    private bool replaceExisting = false;
+
+    // Import state
+    private bool isImporting = false;
+    private ImportResult? importResult;
+
+    private class ExcelColumnInfo
+    {
+        public string Name { get; set; } = "";
+        public string? SampleValue { get; set; }
+        public string? DetectedType { get; set; }
+    }
+
+    private void OnDragEnter() => isDragging = true;
+    private void OnDragLeave() => isDragging = false;
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        uploadError = null;
+
+        try
+        {
+            var file = e.File;
+
+            if (file.Size > 10 * 1024 * 1024)
+            {
+                uploadError = "File size exceeds 10MB limit.";
+                return;
+            }
+
+            if (!file.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) &&
+                !file.Name.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
+            {
+                uploadError = "Please select a valid Excel file (.xlsx or .xls).";
+                return;
+            }
+
+            selectedFileName = file.Name;
+
+            // Read file into memory stream
+            var ms = new MemoryStream();
+            await file.OpenReadStream(10 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+            fileStream = ms;
+
+            // Get preview
+            var preview = await ExcelService.PreviewImportAsync(ms, WorksheetId);
+
+            excelColumns = preview.ExcelColumns.Select(c => new ExcelColumnInfo
+            {
+                Name = c.Name,
+                SampleValue = c.SampleValues.FirstOrDefault(),
+                DetectedType = c.DetectedType
+            }).ToList();
+
+            previewRowCount = preview.TotalRows;
+
+            // Apply suggested mappings
+            columnMappings.Clear();
+            foreach (var col in excelColumns)
+            {
+                var suggestion = preview.SuggestedMappings.FirstOrDefault(m => m.ExcelColumnName == col.Name);
+                columnMappings[col.Name] = suggestion?.WorksheetColumnKey;
+            }
+
+            ValidateMappings();
+            currentStep = 2;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error processing uploaded file");
+            uploadError = "Error processing file. Please try again.";
+        }
+    }
+
+    private void ValidateMappings()
+    {
+        mappingWarnings.Clear();
+
+        // Check for required columns not mapped
+        var requiredColumns = WorksheetColumns.Where(c => c.IsRequired).ToList();
+        foreach (var reqCol in requiredColumns)
+        {
+            if (!columnMappings.Values.Contains(reqCol.ColumnKey))
+            {
+                mappingWarnings.Add($"Required column '{reqCol.ColumnName}' is not mapped.");
+            }
+        }
+
+        // Check for duplicate mappings
+        var mappedKeys = columnMappings.Values.Where(v => !string.IsNullOrEmpty(v)).ToList();
+        var duplicates = mappedKeys.GroupBy(k => k).Where(g => g.Count() > 1).Select(g => g.Key);
+        foreach (var dup in duplicates)
+        {
+            var col = WorksheetColumns.FirstOrDefault(c => c.ColumnKey == dup);
+            if (col != null)
+            {
+                mappingWarnings.Add($"Column '{col.ColumnName}' is mapped multiple times.");
+            }
+        }
+    }
+
+    private bool HasAnyMapping()
+    {
+        return columnMappings.Values.Any(v => !string.IsNullOrEmpty(v));
+    }
+
+    private void ResetUpload()
+    {
+        currentStep = 1;
+        fileStream?.Dispose();
+        fileStream = null;
+        selectedFileName = null;
+        excelColumns.Clear();
+        columnMappings.Clear();
+        mappingWarnings.Clear();
+        importResult = null;
+    }
+
+    private async Task ExecuteImport()
+    {
+        if (fileStream == null)
+            return;
+
+        isImporting = true;
+        currentStep = 3;
+
+        try
+        {
+            fileStream.Position = 0;
+
+            var mapping = new ColumnMapping
+            {
+                Mappings = columnMappings
+                    .Where(kvp => !string.IsNullOrEmpty(kvp.Value))
+                    .ToDictionary(kvp => kvp.Key, kvp => kvp.Value!),
+                StartRow = skipHeaderRow ? 2 : 1,
+                SkipHeaderRow = skipHeaderRow,
+                ReplaceExisting = replaceExisting
+            };
+
+            importResult = await ExcelService.ImportWorksheetAsync(WorksheetId, fileStream, mapping);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error importing worksheet data");
+            importResult = new ImportResult
+            {
+                Success = false,
+                ErrorMessage = "An error occurred during import. Please try again."
+            };
+        }
+        finally
+        {
+            isImporting = false;
+        }
+
+        if (importResult?.Success == true)
+        {
+            await OnImportComplete.InvokeAsync();
+        }
+    }
+
+    private async Task Close()
+    {
+        ResetUpload();
+        currentStep = 1;
+        await OnClose.InvokeAsync();
+    }
+
+    private string GetTypeBadgeClass(string type)
+    {
+        return type switch
+        {
+            "text" => "bg-secondary",
+            "number" => "bg-primary",
+            "currency" => "bg-success",
+            "computed" => "bg-info",
+            "select" => "bg-warning text-dark",
+            "date" => "bg-dark",
+            "checkbox" => "bg-light text-dark",
+            _ => "bg-secondary"
+        };
+    }
+}

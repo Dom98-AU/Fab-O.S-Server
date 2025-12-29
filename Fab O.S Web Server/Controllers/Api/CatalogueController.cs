@@ -10,7 +10,7 @@ namespace FabOS.WebServer.Controllers.Api;
 /// API controller for managing catalogues and catalogue items
 /// Supports multi-tenant catalogues with system (Database Catalogue) and custom catalogues
 /// </summary>
-[Authorize]
+[Authorize(AuthenticationSchemes = "Bearer")]
 [ApiController]
 [Route("api/catalogues")]
 public class CatalogueController : ControllerBase

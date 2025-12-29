@@ -78,7 +78,7 @@ public partial class PackageSharePointFiles : ComponentBase, IToolbarActionProvi
         var user = authState.User;
         if (user.Identity?.IsAuthenticated == true)
         {
-            var userIdClaim = user.FindFirst("UserId") ?? user.FindFirst(ClaimTypes.NameIdentifier);
+            var userIdClaim = user.FindFirst("user_id") ?? user.FindFirst("UserId") ?? user.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
             {
                 currentUserId = userId;

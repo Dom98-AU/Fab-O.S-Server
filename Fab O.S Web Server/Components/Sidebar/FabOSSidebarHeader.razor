@@ -2,6 +2,7 @@
 @using FabOS.WebServer.Services
 @using FabOS.WebServer.Components.Shared
 @inject SidebarService SidebarService
+@implements IDisposable
 
 <div class="fabos-sidebar-header">
     <!-- Hamburger Button -->
@@ -38,3 +39,15 @@
         </button>
     }
 </div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        SidebarService.OnStateChanged += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        SidebarService.OnStateChanged -= StateHasChanged;
+    }
+}

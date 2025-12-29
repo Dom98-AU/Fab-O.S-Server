@@ -10,7 +10,7 @@ namespace FabOS.WebServer.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(AuthenticationSchemes = "Bearer")]
 public class PdfAnnotationsController : ControllerBase
 {
     private readonly Services.Interfaces.IPdfAnnotationService _annotationService;
@@ -38,9 +38,11 @@ public class PdfAnnotationsController : ControllerBase
                 return BadRequest(new { message = "Invalid annotation data", errors = ModelState });
             }
 
-            // Set audit fields
-            var userId = int.Parse(User.FindFirst("user_id")?.Value ?? "0");
-            var companyId = int.Parse(User.FindFirst("company_id")?.Value ?? "0");
+            // Set audit fields using standard claims
+            var userIdClaim = User.FindFirst("UserId") ?? User.FindFirst(ClaimTypes.NameIdentifier);
+            var companyIdClaim = User.FindFirst("CompanyId");
+            var userId = int.Parse(userIdClaim?.Value ?? "0");
+            var companyId = int.Parse(companyIdClaim?.Value ?? "0");
 
             if (annotation.Id == 0) // New annotation
             {
@@ -76,9 +78,11 @@ public class PdfAnnotationsController : ControllerBase
                 return BadRequest(new { message = "Invalid annotations data", errors = ModelState });
             }
 
-            // Set audit fields for all annotations
-            var userId = int.Parse(User.FindFirst("user_id")?.Value ?? "0");
-            var companyId = int.Parse(User.FindFirst("company_id")?.Value ?? "0");
+            // Set audit fields for all annotations using standard claims
+            var userIdClaim = User.FindFirst("UserId") ?? User.FindFirst(ClaimTypes.NameIdentifier);
+            var companyIdClaim = User.FindFirst("CompanyId");
+            var userId = int.Parse(userIdClaim?.Value ?? "0");
+            var companyId = int.Parse(companyIdClaim?.Value ?? "0");
 
             foreach (var annotation in annotations.Where(a => a.Id == 0))
             {

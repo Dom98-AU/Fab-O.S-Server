@@ -58,6 +58,8 @@
     
     <!-- Excel/PDF Processing -->
     <PackageReference Include="EPPlus" Version="7.0.0" />
+    <PackageReference Include="ExcelDataReader" Version="3.7.0" />
+    <PackageReference Include="ExcelDataReader.DataSet" Version="3.7.0" />
     <PackageReference Include="PdfSharpCore" Version="1.3.65" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.0" />
 
@@ -68,9 +70,13 @@
     <!-- Microsoft Graph for SharePoint -->
     <PackageReference Include="Microsoft.Graph" Version="5.42.0" />
 
+    <!-- Azure Blob Storage for Asset Photos -->
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.19.1" />
+
     <!-- SignalR Client for C# hub connections -->
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.0" />
-    <PackageReference Include="Xbim.Essentials" Version="6.0.521" />
+    <PackageReference Include="Xbim.Essentials" Version="6.0.563" />
+    <PackageReference Include="Xbim.Ifc4" Version="6.0.563" />
   </ItemGroup>
 
 </Project>

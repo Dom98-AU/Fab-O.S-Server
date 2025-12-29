@@ -10,12 +10,12 @@ namespace FabOS.WebServer.Services
 {
     public class NumberSeriesService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly ILogger<NumberSeriesService> _logger;
 
-        public NumberSeriesService(ApplicationDbContext context, ILogger<NumberSeriesService> logger)
+        public NumberSeriesService(IDbContextFactory<ApplicationDbContext> contextFactory, ILogger<NumberSeriesService> logger)
         {
-            _context = context;
+            _contextFactory = contextFactory;
             _logger = logger;
         }
 
@@ -26,8 +26,10 @@ namespace FabOS.WebServer.Services
         {
             try
             {
+                await using var context = await _contextFactory.CreateDbContextAsync();
+
                 // Get the number series configuration
-                var numberSeries = await _context.NumberSeries
+                var numberSeries = await context.NumberSeries
                     .FirstOrDefaultAsync(ns => ns.EntityType == entityType
                         && ns.CompanyId == companyId
                         && ns.IsActive);
@@ -35,11 +37,11 @@ namespace FabOS.WebServer.Services
                 if (numberSeries == null)
                 {
                     // If no number series exists, create a default one
-                    numberSeries = await CreateDefaultNumberSeriesAsync(entityType, companyId);
+                    numberSeries = await CreateDefaultNumberSeriesAsync(context, entityType, companyId);
                 }
 
                 // Check if we need to reset based on year or month
-                await CheckAndResetIfNeededAsync(numberSeries);
+                CheckAndResetIfNeeded(numberSeries);
 
                 // Generate the number
                 var generatedNumber = numberSeries.GenerateNextNumber();
@@ -49,7 +51,7 @@ namespace FabOS.WebServer.Services
                 numberSeries.LastUsed = DateTime.Now;
                 numberSeries.LastModified = DateTime.Now;
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 _logger.LogInformation($"Generated number {generatedNumber} for entity type {entityType}");
                 return generatedNumber;
@@ -64,7 +66,7 @@ namespace FabOS.WebServer.Services
         /// <summary>
         /// Creates a default number series for an entity type
         /// </summary>
-        private async Task<NumberSeries> CreateDefaultNumberSeriesAsync(string entityType, int companyId)
+        private async Task<NumberSeries> CreateDefaultNumberSeriesAsync(ApplicationDbContext context, string entityType, int companyId)
         {
             var prefix = entityType switch
             {
@@ -75,6 +77,7 @@ namespace FabOS.WebServer.Services
                 "WorkPackage" => "WP-",
                 "WorkOrder" => "WO-",
                 "Customer" => "CUS-",
+                "Contact" => "CON-",
                 _ => $"{entityType.Substring(0, Math.Min(3, entityType.Length)).ToUpper()}-"
             };
 
@@ -98,8 +101,8 @@ namespace FabOS.WebServer.Services
                 LastUsed = DateTime.Now
             };
 
-            _context.NumberSeries.Add(numberSeries);
-            await _context.SaveChangesAsync();
+            context.NumberSeries.Add(numberSeries);
+            await context.SaveChangesAsync();
 
             _logger.LogInformation($"Created default number series for entity type {entityType}");
             return numberSeries;
@@ -108,7 +111,7 @@ namespace FabOS.WebServer.Services
         /// <summary>
         /// Checks if the number series needs to be reset based on year/month
         /// </summary>
-        private async Task CheckAndResetIfNeededAsync(NumberSeries numberSeries)
+        private void CheckAndResetIfNeeded(NumberSeries numberSeries)
         {
             var now = DateTime.Now;
             bool needsReset = false;
@@ -146,7 +149,9 @@ namespace FabOS.WebServer.Services
         /// </summary>
         public async Task<NumberSeries> UpdateNumberSeriesAsync(NumberSeries updatedSeries)
         {
-            var existingSeries = await _context.NumberSeries
+            await using var context = await _contextFactory.CreateDbContextAsync();
+
+            var existingSeries = await context.NumberSeries
                 .FirstOrDefaultAsync(ns => ns.Id == updatedSeries.Id);
 
             if (existingSeries == null)
@@ -172,7 +177,7 @@ namespace FabOS.WebServer.Services
             // Generate preview
             existingSeries.PreviewExample = existingSeries.GenerateNextNumber();
 
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
 
             _logger.LogInformation($"Updated number series for entity type {existingSeries.EntityType}");
             return existingSeries;
@@ -183,7 +188,9 @@ namespace FabOS.WebServer.Services
         /// </summary>
         public async Task<NumberSeries?> GetNumberSeriesAsync(string entityType, int companyId = 1)
         {
-            return await _context.NumberSeries
+            await using var context = await _contextFactory.CreateDbContextAsync();
+
+            return await context.NumberSeries
                 .FirstOrDefaultAsync(ns => ns.EntityType == entityType
                     && ns.CompanyId == companyId
                     && ns.IsActive);
@@ -194,11 +201,16 @@ namespace FabOS.WebServer.Services
         /// </summary>
         public async Task<string> GeneratePreviewAsync(string entityType, int companyId = 1)
         {
-            var numberSeries = await GetNumberSeriesAsync(entityType, companyId);
+            await using var context = await _contextFactory.CreateDbContextAsync();
+
+            var numberSeries = await context.NumberSeries
+                .FirstOrDefaultAsync(ns => ns.EntityType == entityType
+                    && ns.CompanyId == companyId
+                    && ns.IsActive);
 
             if (numberSeries == null)
             {
-                numberSeries = await CreateDefaultNumberSeriesAsync(entityType, companyId);
+                numberSeries = await CreateDefaultNumberSeriesAsync(context, entityType, companyId);
             }
 
             return numberSeries.GenerateNextNumber();
@@ -209,7 +221,12 @@ namespace FabOS.WebServer.Services
         /// </summary>
         public async Task<bool> ValidateManualNumberAsync(string entityType, string manualNumber, int companyId = 1)
         {
-            var numberSeries = await GetNumberSeriesAsync(entityType, companyId);
+            await using var context = await _contextFactory.CreateDbContextAsync();
+
+            var numberSeries = await context.NumberSeries
+                .FirstOrDefaultAsync(ns => ns.EntityType == entityType
+                    && ns.CompanyId == companyId
+                    && ns.IsActive);
 
             if (numberSeries == null || !numberSeries.AllowManualEntry)
             {
@@ -219,8 +236,8 @@ namespace FabOS.WebServer.Services
             // Check if the number already exists in the relevant table
             bool exists = entityType switch
             {
-                "Takeoff" => await _context.TraceDrawings.AnyAsync(td => td.TakeoffNumber == manualNumber),
-                "Customer" => await _context.Customers.AnyAsync(c => c.Code == manualNumber),
+                "Takeoff" => await context.TraceDrawings.AnyAsync(td => td.TakeoffNumber == manualNumber),
+                "Customer" => await context.Customers.AnyAsync(c => c.Code == manualNumber),
                 _ => false
             };
 

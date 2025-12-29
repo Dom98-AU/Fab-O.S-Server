@@ -70,8 +70,19 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Load navigation items for collapsed view
+        await LoadCollapsedNavItems();
+    }
+
+    private async Task LoadCollapsedNavItems()
+    {
         _collapsedNavItems = await NavService.GetModuleItemsAsync(SidebarService.CurrentModule);
+        StateHasChanged();
+    }
+
+    private void OnStateChanged()
+    {
+        _ = LoadCollapsedNavItems();
+        StateHasChanged();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -79,13 +90,13 @@
         if (firstRender)
         {
             await SidebarService.InitializeAsync();
-            SidebarService.OnStateChanged += StateHasChanged;
+            SidebarService.OnStateChanged += OnStateChanged;
             StateHasChanged();
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        SidebarService.OnStateChanged -= StateHasChanged;
+        SidebarService.OnStateChanged -= OnStateChanged;
     }
 }

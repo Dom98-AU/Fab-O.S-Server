@@ -1,0 +1,171 @@
+@namespace FabOS.WebServer.Components.Shared
+@rendermode InteractiveServer
+
+<div class="template-column-sidebar @(IsVisible ? "visible" : "")">
+    <!-- Sidebar Header -->
+    <div class="sidebar-header">
+        <h3>
+            <i class="fas fa-columns"></i>
+            Available Columns
+        </h3>
+        <div class="header-actions">
+            <button class="btn-close-sidebar" @onclick="ToggleSidebar" title="Toggle Sidebar">
+                <i class="fas @(IsVisible ? "fa-chevron-left" : "fa-chevron-right")"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="sidebar-search">
+        <div class="search-input-group">
+            <i class="fas fa-search"></i>
+            <input type="text"
+                   class="form-control"
+                   placeholder="Search fields..."
+                   @bind="searchTerm"
+                   @bind:event="oninput" />
+            @if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                <button class="btn-clear" @onclick="ClearSearch">
+                    <i class="fas fa-times"></i>
+                </button>
+            }
+        </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="sidebar-content">
+        <!-- Catalogue Fields Section -->
+        <div class="field-section">
+            <div class="section-header @(expandedSections.Contains("catalogue") ? "expanded" : "")"
+                 @onclick='() => ToggleSection("catalogue")'>
+                <i class="fas @(expandedSections.Contains("catalogue") ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                <span class="section-title">
+                    <i class="fas fa-book text-success me-2"></i>Catalogue Fields
+                </span>
+                <span class="section-badge">@GetFilteredCatalogueFields().Count()</span>
+            </div>
+
+            @if (expandedSections.Contains("catalogue"))
+            {
+                <div class="section-content">
+                    @foreach (var group in GetFilteredCatalogueFieldGroups())
+                    {
+                        <div class="field-group">
+                            <div class="group-header @(expandedGroups.Contains($"cat_{group.GroupName}") ? "expanded" : "")"
+                                 @onclick='() => ToggleGroup($"cat_{group.GroupName}")'>
+                                <i class="fas @(expandedGroups.Contains($"cat_{group.GroupName}") ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                                <span>@group.GroupName</span>
+                                <span class="group-count">@group.Fields.Count</span>
+                            </div>
+
+                            @if (expandedGroups.Contains($"cat_{group.GroupName}"))
+                            {
+                                <div class="field-list">
+                                    @foreach (var field in group.Fields)
+                                    {
+                                        <div class="field-item catalogue-field"
+                                             draggable="true"
+                                             @ondragstart="() => HandleDragStart(field)"
+                                             @ondragend="HandleDragEnd"
+                                             title="@field.Description">
+                                            <div class="field-icon">
+                                                <i class="@GetFieldIcon(field.DataType)"></i>
+                                            </div>
+                                            <div class="field-info">
+                                                <span class="field-name">@field.DisplayName</span>
+                                                <span class="field-type">@field.DataType</span>
+                                            </div>
+                                            <div class="field-drag-handle">
+                                                <i class="fas fa-grip-vertical"></i>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Custom Fields Section -->
+        <div class="field-section">
+            <div class="section-header @(expandedSections.Contains("custom") ? "expanded" : "")"
+                 @onclick='() => ToggleSection("custom")'>
+                <i class="fas @(expandedSections.Contains("custom") ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                <span class="section-title">
+                    <i class="fas fa-edit text-primary me-2"></i>Custom Fields
+                </span>
+                <span class="section-badge">@GetFilteredCustomFields().Count()</span>
+            </div>
+
+            @if (expandedSections.Contains("custom"))
+            {
+                <div class="section-content">
+                    @foreach (var group in GetFilteredCustomFieldGroups())
+                    {
+                        <div class="field-group">
+                            <div class="group-header @(expandedGroups.Contains($"custom_{group.GroupName}") ? "expanded" : "")"
+                                 @onclick='() => ToggleGroup($"custom_{group.GroupName}")'>
+                                <i class="fas @(expandedGroups.Contains($"custom_{group.GroupName}") ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                                <span>@group.GroupName</span>
+                                <span class="group-count">@group.Fields.Count</span>
+                            </div>
+
+                            @if (expandedGroups.Contains($"custom_{group.GroupName}"))
+                            {
+                                <div class="field-list">
+                                    @foreach (var field in group.Fields)
+                                    {
+                                        <div class="field-item custom-field"
+                                             draggable="true"
+                                             @ondragstart="() => HandleDragStart(field)"
+                                             @ondragend="HandleDragEnd"
+                                             title="@field.Description">
+                                            <div class="field-icon">
+                                                <i class="@GetFieldIcon(field.DataType)"></i>
+                                            </div>
+                                            <div class="field-info">
+                                                <span class="field-name">@field.DisplayName</span>
+                                                <span class="field-type">@field.DataType</span>
+                                            </div>
+                                            <div class="field-drag-handle">
+                                                <i class="fas fa-grip-vertical"></i>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Dragging Item Preview Footer -->
+    @if (draggedField != null)
+    {
+        <div class="sidebar-footer">
+            <div class="dragging-preview">
+                <div class="preview-header">
+                    <i class="fas fa-hand-holding"></i>
+                    <strong>Dragging</strong>
+                </div>
+                <div class="preview-content">
+                    <div class="preview-name">@draggedField.DisplayName</div>
+                    <div class="preview-type">@draggedField.DataType</div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Toggle Button (visible when sidebar is hidden) -->
+@if (!IsVisible)
+{
+    <button class="sidebar-toggle-btn" @onclick="ToggleSidebar" title="Show Column Sidebar">
+        <i class="fas fa-columns"></i>
+    </button>
+}

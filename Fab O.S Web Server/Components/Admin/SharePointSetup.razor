@@ -576,7 +576,26 @@
 
         try
         {
-            // Log the connection status first
+            // First, save the document library name to the database
+            // This must happen before checking connection status
+            var companyId = TenantService.GetCurrentCompanyId();
+            var settings = await DbContext.CompanySharePointSettings
+                .FirstOrDefaultAsync(s => s.CompanyId == companyId);
+
+            if (settings == null)
+            {
+                setupError = "SharePoint settings not found. Please go back and test the connection first.";
+                isCompleting = false;
+                return;
+            }
+
+            // Save the document library name
+            settings.TraceDocumentLibrary = documentLibrary;
+            settings.LastModifiedDate = DateTime.UtcNow;
+            await DbContext.SaveChangesAsync();
+            Console.WriteLine($"Saved TraceDocumentLibrary='{documentLibrary}' for company {companyId}");
+
+            // Now check connection status (after library is saved)
             var connectionStatus = await SharePointService.GetConnectionStatusAsync();
             Console.WriteLine($"Connection Status - Configured: {connectionStatus.IsConfigured}, Connected: {connectionStatus.IsConnected}");
 
@@ -587,7 +606,7 @@
                 return;
             }
 
-            // Check if the document library exists
+            // Check if the document library exists in SharePoint
             var libraryCheck = await SharePointService.CheckDocumentLibraryAsync();
             Console.WriteLine($"Library Check - Exists: {libraryCheck.Exists}, Message: {libraryCheck.Message}");
 
@@ -600,7 +619,7 @@ To create the document library manually:
 1. Go to your SharePoint site: {siteUrl}
 2. Click 'Settings' (gear icon) → 'Site contents'
 3. Click '+ New' → 'Document library'
-4. Name it: '{libraryCheck.LibraryName}'
+4. Name it: '{documentLibrary}'
 5. Click 'Create'
 6. Return here and click 'Complete Setup' again
 
@@ -609,14 +628,11 @@ Would you like to continue anyway? (The library must exist before uploading file
                 var shouldContinue = await JS.InvokeAsync<bool>("confirm", errorMessage);
                 if (!shouldContinue)
                 {
-                    setupError = $"Setup incomplete: Document library '{libraryCheck.LibraryName}' does not exist. Please create it manually and try again.";
+                    setupError = $"Setup incomplete: Document library '{documentLibrary}' does not exist. Please create it manually and try again.";
                     isCompleting = false;
                     return;
                 }
             }
-
-            // Save to configuration
-            // Note: In production, you'd want to save this more securely
 
             setupComplete = true;
             currentStep = 4;

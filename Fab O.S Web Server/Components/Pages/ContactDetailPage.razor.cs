@@ -23,7 +23,7 @@ public partial class ContactDetailPage : ComponentBase, IToolbarActionProvider
     private CustomerAddress? primaryCustomerAddress;
     private List<Customer> customers = new();
     private Customer? selectedCustomer;
-    private bool isLoading = false;
+    private bool isLoading = true;  // Start true to prevent rendering before OnInitializedAsync completes
     private bool isEditMode = false;
     private bool contactNumberGenerated = false;
     private bool isProcessing = false;
@@ -59,12 +59,14 @@ public partial class ContactDetailPage : ComponentBase, IToolbarActionProvider
             };
             isEditMode = true;
             await GenerateContactNumber();
+            isLoading = false;  // Done loading for new contact
         }
         else
         {
             // Load existing contact
             await LoadContactDetails();
             isEditMode = false;
+            // Note: isLoading is set to false inside LoadContactDetails()
         }
     }
 

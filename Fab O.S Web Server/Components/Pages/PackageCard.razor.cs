@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using FabOS.WebServer.Components.Shared.Interfaces;
 using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models;
 using FabOS.WebServer.Services;
+using System.Security.Claims;
 
 namespace FabOS.WebServer.Components.Pages;
 
@@ -22,6 +24,11 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
     [Inject] private ILogger<PackageCard> Logger { get; set; } = default!;
     [Inject] private NumberSeriesService NumberSeriesService { get; set; } = default!;
     [Inject] private FabOS.WebServer.Services.Interfaces.ITakeoffRevisionService RevisionService { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+
+    // Authentication state
+    private int currentUserId = 0;
+    private int currentCompanyId = 0;
 
     private Package? package = null;
     private bool isLoading = true;
@@ -42,6 +49,33 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
 
     protected override async Task OnInitializedAsync()
     {
+        // Get authentication state and extract user/company IDs
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var userIdClaim = user.FindFirst("user_id") ?? user.FindFirst("UserId") ?? user.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+            {
+                currentUserId = userId;
+            }
+
+            var companyIdClaim = user.FindFirst("company_id") ?? user.FindFirst("CompanyId");
+            if (companyIdClaim != null && int.TryParse(companyIdClaim.Value, out var companyId))
+            {
+                currentCompanyId = companyId;
+            }
+        }
+
+        if (currentCompanyId == 0)
+        {
+            Logger.LogWarning("User is not authenticated or missing company_id claim for PackageCard page");
+            errorMessage = "User is not authenticated. Please log in and try again.";
+            isLoading = false;
+            return;
+        }
+
         await LoadPackage();
     }
 
@@ -58,6 +92,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                 package = new Package
                 {
                     Id = 0,
+                    CompanyId = currentCompanyId,  // Set company ID from authenticated user
                     PackageName = "New Package",
                     Description = "",
                     Status = "Planning",
@@ -68,7 +103,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                     ActualCost = 0,
                     LaborRatePerHour = 150,
                     ProcessingEfficiency = 100,
-                    ProjectId = 1,
+                    ProjectId = null,  // ProjectId is now optional
                     CreatedDate = DateTime.UtcNow,
                     LastModified = DateTime.UtcNow,
                     IsDeleted = false
@@ -113,7 +148,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
                     {
                         try
                         {
-                            package.PackageNumber = await NumberSeriesService.GetNextNumberAsync("Package", 1);
+                            package.PackageNumber = await NumberSeriesService.GetNextNumberAsync("Package", package.CompanyId);
                             DbContext.Packages.Update(package);
                             await DbContext.SaveChangesAsync();
                             Logger.LogInformation($"Generated package number {package.PackageNumber} for existing package ID {Id}");
@@ -150,7 +185,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
         {
             try
             {
-                package.PackageNumber = await NumberSeriesService.GetNextNumberAsync("Package", 1);
+                package.PackageNumber = await NumberSeriesService.GetNextNumberAsync("Package", currentCompanyId);
                 packageNumberGenerated = true;
                 Logger.LogInformation($"Generated package number: {package.PackageNumber}");
             }
@@ -158,7 +193,7 @@ public partial class PackageCard : ComponentBase, IToolbarActionProvider, IDispo
             {
                 Logger.LogError(ex, "Failed to generate package number");
                 // Fallback to timestamp-based number
-                var packageCount = await DbContext.Packages.CountAsync();
+                var packageCount = await DbContext.Packages.Where(p => p.CompanyId == currentCompanyId).CountAsync();
                 package.PackageNumber = $"PKG-{DateTime.Now:yyyyMMdd}-{(packageCount + 1):D4}";
                 packageNumberGenerated = true;
             }

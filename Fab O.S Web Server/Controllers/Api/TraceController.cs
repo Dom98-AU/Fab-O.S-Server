@@ -9,7 +9,7 @@ namespace FabOS.WebServer.Controllers.Api
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Bearer")]
     public class TraceController : ControllerBase
     {
         private readonly ITraceService _traceService;

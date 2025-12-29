@@ -1,0 +1,228 @@
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: Estimation
+Views: Table, Card
+Features: ViewPreferences, Search, Selection, Sorting
+Pattern: Standard
+Module: Estimate
+Last Updated: 2025-12-09
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/estimate/estimations"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models
+@using FabOS.WebServer.Models.ViewState
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Estimations - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search estimations..." />
+
+<!-- Content -->
+<div class="estimations-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading estimations...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            @errorMessage
+        </div>
+    }
+    else
+    {
+        <!-- Table View Toolbar -->
+        <TableViewToolbar TItem="Estimation"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="Estimation"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
+
+        <!-- Views -->
+        @if (filteredEstimations.Any())
+        {
+            @if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.Estimation>.ViewType.Table)
+            {
+                <GenericTableView TItem="Estimation"
+                                 Items="@filteredEstimations"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleRowClick"
+                                 OnRowDoubleClick="@HandleRowDoubleClick"
+                                 ActionsTemplate="@TableActionsTemplate" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.Estimation>.ViewType.Card)
+            {
+                <GenericCardView TItem="Estimation"
+                                Items="@filteredEstimations"
+                                TitleSelector="@(item => item.EstimationNumber ?? "N/A")"
+                                SubtitleSelector="@(item => item.Name ?? "No description")"
+                                StatusSelector="@(item => item.Status)"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<Estimation>>(this, items => selectedCardItems = items))"
+                                OnItemClick="@(EventCallback.Factory.Create<Estimation>(this, (item) => OpenEstimation(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<Estimation>(this, (item) => OpenEstimation(item.Id)))" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.Estimation>.ViewType.List)
+            {
+                <GenericListView TItem="Estimation"
+                                Items="@filteredEstimations"
+                                AllowSelection="true"
+                                OnSelectionChanged="@(EventCallback.Factory.Create<(Estimation item, bool selected)>(this, OnSelectionChanged))"
+                                OnItemClick="@(EventCallback.Factory.Create<Estimation>(this, (item) => OpenEstimation(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<Estimation>(this, (item) => OpenEstimation(item.Id)))"
+                                ItemIcon="@ListIconTemplate"
+                                ItemTitle="@ListTitleTemplate"
+                                ItemSubtitle="@ListSubtitleTemplate"
+                                ItemStatus="@ListStatusTemplate"
+                                ItemDetails="@ListDetailsTemplate" />
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-calculator"></i>
+                </div>
+                <h3>No estimations found</h3>
+                <p>@(string.IsNullOrEmpty(searchTerm) ? "Start by creating your first estimation." : $"No estimations match \"{searchTerm}\". Try adjusting your search.")</p>
+                <button type="button" class="btn btn-primary" @onclick="CreateNew">
+                    <i class="fas fa-plus"></i>
+                    Create New Estimation
+                </button>
+            </div>
+        }
+    }
+</div>
+
+<!-- Create Dialog -->
+@if (showCreateDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-calculator me-2"></i>New Estimation
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateDialog"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" @bind="newEstimation.Name" placeholder="Enter estimation name" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" @bind="newEstimation.Description" rows="3" placeholder="Enter description"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Customer</label>
+                            <select class="form-select" @bind="newEstimation.CustomerId">
+                                <option value="">Select customer...</option>
+                                @foreach (var customer in customers)
+                                {
+                                    <option value="@customer.Id">@customer.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">From Takeoff</label>
+                            <select class="form-select" @bind="newEstimation.SourceTakeoffId">
+                                <option value="">Select takeoff (optional)...</option>
+                                @foreach (var takeoff in takeoffs)
+                                {
+                                    <option value="@takeoff.Id">@takeoff.TakeoffNumber - @takeoff.TraceName</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Default Overhead %</label>
+                            <input type="number" class="form-control" @bind="defaultOverhead" step="0.01" min="0" max="100" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Default Margin %</label>
+                            <input type="number" class="form-control" @bind="defaultMargin" step="0.01" min="0" max="100" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseCreateDialog">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveNewEstimation" disabled="@(string.IsNullOrWhiteSpace(newEstimation.Name))">
+                        <i class="fas fa-save me-2"></i>Create Estimation
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .estimations-container {
+        padding: 1rem;
+    }
+
+    .estimation-card {
+        transition: all 0.2s ease-in-out;
+    }
+
+    .estimation-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .estimation-card.border-primary {
+        border-width: 2px;
+    }
+
+    .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 300px;
+    }
+
+    .loading-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid #e9ecef;
+        border-top-color: #0d6efd;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 3rem;
+    }
+</style>

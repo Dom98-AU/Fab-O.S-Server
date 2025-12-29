@@ -6,7 +6,7 @@ using System.Security.Claims;
 
 namespace FabOS.WebServer.Controllers.Api
 {
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Bearer")]
     [ApiController]
     [Route("api/surface-coatings")]
     public class SurfaceCoatingController : ControllerBase

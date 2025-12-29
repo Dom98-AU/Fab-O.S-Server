@@ -110,29 +110,47 @@ public class NavigationService
 
         // Estimate Module
         new() {
-            Label = "Quotes",
-            Title = "Quotes",
-            Description = "Manage quotes",
-            Icon = "receipt",
-            Url = "/estimate/quotes",
-            Category = "Module",
-            Module = "Estimate"
-        },
-        new() {
             Label = "Estimations",
             Title = "Estimations",
-            Description = "Manage estimations",
+            Description = "Manage estimations and quotes",
             Icon = "calculator",
             Url = "/estimate/estimations",
             Category = "Module",
             Module = "Estimate"
         },
         new() {
-            Label = "Orders",
-            Title = "Orders",
-            Description = "Manage orders",
-            Icon = "clipboard-list",
-            Url = "/estimate/orders",
+            Label = "Templates",
+            Title = "Worksheet Templates",
+            Description = "Manage worksheet templates",
+            Icon = "layout-template",
+            Url = "/estimate/templates",
+            Category = "Module",
+            Module = "Estimate"
+        },
+        new() {
+            Label = "Customers",
+            Title = "Customers",
+            Description = "Manage customers",
+            Icon = "building",
+            Url = "/estimate/customers",
+            Category = "Module",
+            Module = "Estimate"
+        },
+        new() {
+            Label = "Contacts",
+            Title = "Contacts",
+            Description = "Manage contacts",
+            Icon = "users",
+            Url = "/estimate/contacts",
+            Category = "Module",
+            Module = "Estimate"
+        },
+        new() {
+            Label = "Catalogues",
+            Title = "Catalogues",
+            Description = "Material catalogues",
+            Icon = "book-open",
+            Url = "/estimate/catalogues",
             Category = "Module",
             Module = "Estimate"
         },

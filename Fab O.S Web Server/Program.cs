@@ -69,7 +69,10 @@ builder.Services.AddSession(options =>
     options.IdleTimeout = TimeSpan.FromHours(8);
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    // Use SameAsRequest in development to allow HTTP access from WSL/external IPs
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
 });
 
 // Add Hybrid Authentication System
@@ -84,8 +87,11 @@ builder.Services.AddAuthentication(options =>
     // Cookie configuration for web applications
     options.Cookie.Name = ".FabOS.Auth";
     options.Cookie.HttpOnly = true;  // XSS protection
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;  // HTTPS only
-    options.Cookie.SameSite = SameSiteMode.Strict;  // CSRF protection
+    // Use SameAsRequest in development to allow HTTP access from WSL/external IPs
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;  // HTTPS only in production
+    options.Cookie.SameSite = SameSiteMode.Lax;  // Allow cross-site requests in dev for WSL access
     options.LoginPath = "/Account/Login";
     options.LogoutPath = "/Account/Logout";
     options.AccessDeniedPath = "/Account/AccessDenied";
@@ -243,13 +249,18 @@ builder.Services.AddHttpClient<IGooglePlacesService, GooglePlacesService>();
 
 // Register QDocs CAD Parser services
 builder.Services.AddScoped<ISmlxParserService, SmlxParserService>();
-builder.Services.AddScoped<IIfcParserService, IfcParserService>();
+builder.Services.AddScoped<IIfcParserService, XbimIfcParserService>(); // Using xBim for better IFC extraction
+builder.Services.AddSingleton<ICadImportSessionService, CadImportSessionService>(); // Session cache for interactive CAD import
 
 // Register SharePoint services
 builder.Services.Configure<FabOS.WebServer.Models.Configuration.SharePointSettings>(
     builder.Configuration.GetSection("SharePoint"));
 builder.Services.AddScoped<ISharePointService, SharePointService>();
 builder.Services.AddScoped<ISharePointSyncService, SharePointSyncService>();
+
+// Register Azure Blob Storage settings (for Asset photos)
+builder.Services.Configure<FabOS.WebServer.Services.Implementations.CloudStorage.AzureBlobStorageSettings>(
+    builder.Configuration.GetSection("AzureBlobStorage"));
 
 // Register Cloud Storage Providers (Multi-provider support for SharePoint, GoogleDrive, Dropbox, AzureBlob)
 builder.Services.AddScoped<FabOS.WebServer.Services.Implementations.CloudStorage.SharePointStorageProvider>();
@@ -263,6 +274,7 @@ builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 builder.Services.AddScoped<ITraceService, TraceService>();
 builder.Services.AddScoped<IPdfProcessingService, PdfProcessingService>();
 builder.Services.AddScoped<ITakeoffService, TakeoffService>();
+builder.Services.AddScoped<ITakeoffCardService, TakeoffCardService>();
 builder.Services.AddScoped<ITakeoffRevisionService, TakeoffRevisionService>();
 builder.Services.AddScoped<IPackageDrawingService, PackageDrawingService>();
 builder.Services.AddScoped<IScaleCalibrationService, ScaleCalibrationService>();
@@ -274,6 +286,13 @@ builder.Services.AddScoped<IPdfAnnotationService, PdfAnnotationService>();
 builder.Services.AddScoped<IPdfLockService, PdfLockService>();
 builder.Services.AddScoped<IMeasurementExportService, MeasurementExportService>();
 builder.Services.AddScoped<ISurfaceCoatingService, SurfaceCoatingService>();
+
+// Register Estimate Module Services (Formula Engine, Calculation, Excel)
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.Estimate.IFormulaEngine, FabOS.WebServer.Services.Implementations.Estimate.FormulaEngine>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.Estimate.IEstimationCalculationService, FabOS.WebServer.Services.Implementations.Estimate.EstimationCalculationService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.Estimate.IWorksheetExcelService, FabOS.WebServer.Services.Implementations.Estimate.WorksheetExcelService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.Estimate.ICatalogueMatchingService, FabOS.WebServer.Services.Implementations.Estimate.CatalogueMatchingService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IImportMappingService, FabOS.WebServer.Services.Implementations.Estimate.ImportMappingService>();
 
 // Register SignalR Hub for real-time measurement updates (cross-tab/cross-user notifications)
 builder.Services.AddSignalR();
@@ -294,6 +313,8 @@ builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IKitTemplateServi
 builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IEquipmentKitService, FabOS.WebServer.Services.Implementations.Assets.EquipmentKitService>();
 builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IKitCheckoutService, FabOS.WebServer.Services.Implementations.Assets.KitCheckoutService>();
 builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.ILocationService, FabOS.WebServer.Services.Implementations.Assets.LocationService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.ILabelTemplateService, FabOS.WebServer.Services.Implementations.Assets.LabelTemplateService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IEquipmentAttachmentService, FabOS.WebServer.Services.Implementations.Assets.EquipmentAttachmentService>();
 
 // Add MVC services (includes controllers, views, and all necessary services)
 builder.Services.AddMvc();
@@ -409,7 +430,11 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "api-docs"; // Access at /api-docs
 });
 
-app.UseHttpsRedirection();
+// Skip HTTPS redirection in development to allow HTTP access from WSL/external IPs
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // Disable caching for static files in development to ensure JavaScript updates are loaded
 var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();

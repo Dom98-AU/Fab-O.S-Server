@@ -1,13 +1,14 @@
 using Microsoft.AspNetCore.Components;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Components.Authorization;
 using FabOS.WebServer.Components.Shared.Interfaces;
 using FabOS.WebServer.Components.Shared;
-using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models;
 using FabOS.WebServer.Models.Columns;
 using FabOS.WebServer.Models.ViewState;
+using FabOS.WebServer.Services.Interfaces;
 using ModelToolbarAction = FabOS.WebServer.Models.ToolbarAction;
+using System.Security.Claims;
 
 namespace FabOS.WebServer.Components.Pages;
 
@@ -15,8 +16,10 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
 {
     [Parameter] public string? TenantSlug { get; set; }
 
-    [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
+    [Inject] private ITakeoffCardService TakeoffService { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+    [Inject] private ILogger<Takeoffs> Logger { get; set; } = default!;
 
     private bool isLoading = true;
     private string searchTerm = "";
@@ -26,6 +29,11 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
     private List<Takeoff> selectedTableItems = new();
     private List<Takeoff> selectedListItems = new();
     private List<Takeoff> selectedCardItems = new();
+
+    // Authentication state
+    private int currentUserId = 0;
+    private int currentCompanyId = 0;
+    private string? errorMessage;
 
     // View state management
     private ViewState? currentViewState;
@@ -81,6 +89,33 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
 
     protected override async Task OnInitializedAsync()
     {
+        // Validate authentication and get user context
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var userIdClaim = user.FindFirst("user_id") ?? user.FindFirst("UserId") ?? user.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+            {
+                currentUserId = userId;
+            }
+
+            var companyIdClaim = user.FindFirst("company_id") ?? user.FindFirst("CompanyId");
+            if (companyIdClaim != null && int.TryParse(companyIdClaim.Value, out var companyId))
+            {
+                currentCompanyId = companyId;
+            }
+        }
+
+        if (currentUserId == 0 || currentCompanyId == 0)
+        {
+            Logger.LogWarning("User is not authenticated or missing required claims for Takeoffs page");
+            errorMessage = "User is not authenticated. Please log in and try again.";
+            isLoading = false;
+            return;
+        }
+
         InitializeColumns();
         await LoadTakeoffs();
     }
@@ -183,17 +218,14 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
         try
         {
             isLoading = true;
-            allTakeoffs = await DbContext.TraceDrawings
-                .Include(t => t.Customer)
-                .Include(t => t.Project)
-                .OrderByDescending(t => t.CreatedDate)
-                .ToListAsync();
+            allTakeoffs = await TakeoffService.GetTakeoffsAsync(currentCompanyId);
 
             FilterTakeoffs();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading takeoffs: {ex.Message}");
+            Logger.LogError(ex, "Error loading takeoffs for company {CompanyId}", currentCompanyId);
+            errorMessage = "Error loading takeoffs. Please try again.";
         }
         finally
         {
@@ -319,11 +351,13 @@ public partial class Takeoffs : ComponentBase, IToolbarActionProvider
         // TODO: Add confirmation dialog
         foreach (var takeoff in selected)
         {
-            takeoff.IsDeleted = true;
-            takeoff.LastModified = DateTime.UtcNow;
+            var success = await TakeoffService.DeleteTakeoffAsync(takeoff.Id, currentCompanyId, currentUserId);
+            if (!success)
+            {
+                Logger.LogWarning("Failed to delete takeoff {TakeoffId}", takeoff.Id);
+            }
         }
 
-        await DbContext.SaveChangesAsync();
         await LoadTakeoffs();
     }
 

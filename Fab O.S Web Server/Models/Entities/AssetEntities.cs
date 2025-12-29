@@ -293,6 +293,7 @@ public class Equipment
     public virtual ICollection<MaintenanceRecord> MaintenanceRecords { get; set; } = new List<MaintenanceRecord>();
     public virtual ICollection<EquipmentCertification> Certifications { get; set; } = new List<EquipmentCertification>();
     public virtual ICollection<EquipmentManual> Manuals { get; set; } = new List<EquipmentManual>();
+    public virtual ICollection<EquipmentAttachment> Attachments { get; set; } = new List<EquipmentAttachment>();
 }
 
 #endregion
@@ -993,6 +994,168 @@ public class KitCheckoutItem
 
     [ForeignKey("EquipmentId")]
     public virtual Equipment? Equipment { get; set; }
+}
+
+#endregion
+
+#region Equipment Attachments
+
+/// <summary>
+/// Attachment type enumeration - determines storage location
+/// Photos -> Azure Blob Storage
+/// Documents/Certificates -> SharePoint Cloud Storage
+/// </summary>
+public enum AttachmentType
+{
+    Photo = 0,          // Equipment photos -> Azure Blob
+    Document = 1,       // Receipts, warranties, manuals -> SharePoint
+    Certificate = 2     // Test certs, compliance docs -> SharePoint
+}
+
+/// <summary>
+/// Attachment category for more specific classification
+/// </summary>
+public enum AttachmentCategory
+{
+    // Photo categories (Type = Photo)
+    Primary = 0,        // Primary/thumbnail photo
+    Gallery = 1,        // Additional photos
+    Damage = 2,         // Damage documentation
+    BeforeService = 3,  // Before maintenance photos
+    AfterService = 4,   // After maintenance photos
+
+    // Document categories (Type = Document)
+    Receipt = 10,       // Purchase receipts
+    Warranty = 11,      // Warranty documents
+    Manual = 12,        // User manuals
+    Insurance = 13,     // Insurance documents
+    Invoice = 14,       // Purchase invoices
+
+    // Certificate categories (Type = Certificate)
+    SafetyTest = 20,    // Safety test certificates
+    Calibration = 21,   // Calibration certificates
+    Compliance = 22,    // Compliance certificates
+    Inspection = 23,    // Inspection reports
+
+    Other = 99
+}
+
+/// <summary>
+/// Equipment attachment entity for photos, documents, and certificates
+/// Photos stored in Azure Blob Storage, Documents/Certificates in SharePoint
+/// </summary>
+[Table("EquipmentAttachments")]
+public class EquipmentAttachment
+{
+    [Key]
+    public int Id { get; set; }
+
+    [Required]
+    public int CompanyId { get; set; }
+
+    // Polymorphic reference - can attach to Equipment, Kit, Location, or MaintenanceRecord
+    public int? EquipmentId { get; set; }
+    public int? EquipmentKitId { get; set; }
+    public int? LocationId { get; set; }
+    public int? MaintenanceRecordId { get; set; }
+
+    [Required]
+    public AttachmentType Type { get; set; }
+
+    public AttachmentCategory Category { get; set; } = AttachmentCategory.Other;
+
+    // File metadata
+    [Required]
+    [MaxLength(255)]
+    public string FileName { get; set; } = string.Empty;  // GUID-based storage name
+
+    [Required]
+    [MaxLength(255)]
+    public string OriginalFileName { get; set; } = string.Empty;  // User-provided name
+
+    [MaxLength(200)]
+    public string? Title { get; set; }
+
+    [MaxLength(1000)]
+    public string? Description { get; set; }
+
+    [Required]
+    [MaxLength(100)]
+    public string ContentType { get; set; } = string.Empty;
+
+    [Required]
+    public long FileSizeBytes { get; set; }
+
+    // Storage location - varies by type
+    // Photos: "AzureBlob", Documents/Certs: "SharePoint"
+    [Required]
+    [MaxLength(50)]
+    public string StorageProvider { get; set; } = string.Empty;
+
+    // Path in storage (blob path or SharePoint folder)
+    [Required]
+    [MaxLength(500)]
+    public string StoragePath { get; set; } = string.Empty;
+
+    // Provider-specific file ID (SharePoint item ID or blob name)
+    [MaxLength(500)]
+    public string? StorageFileId { get; set; }
+
+    // Direct/web URL for access
+    [MaxLength(1000)]
+    public string? StorageUrl { get; set; }
+
+    // For Azure Blob - container name
+    [MaxLength(100)]
+    public string? ContainerName { get; set; }
+
+    // Photo-specific fields
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+    public bool IsPrimaryPhoto { get; set; }
+
+    [MaxLength(500)]
+    public string? ThumbnailPath { get; set; }
+
+    // Certificate-specific fields
+    public DateTime? ExpiryDate { get; set; }
+
+    [MaxLength(100)]
+    public string? CertificateNumber { get; set; }
+
+    [MaxLength(200)]
+    public string? IssuingAuthority { get; set; }
+
+    // Soft delete
+    public bool IsDeleted { get; set; }
+
+    // Audit fields
+    [Required]
+    public DateTime UploadedDate { get; set; } = DateTime.UtcNow;
+
+    public int? UploadedByUserId { get; set; }
+
+    [MaxLength(100)]
+    public string? UploadedBy { get; set; }
+
+    public DateTime? LastModified { get; set; }
+    public int? LastModifiedByUserId { get; set; }
+
+    // Navigation properties
+    [ForeignKey("CompanyId")]
+    public virtual Company? Company { get; set; }
+
+    [ForeignKey("EquipmentId")]
+    public virtual Equipment? Equipment { get; set; }
+
+    [ForeignKey("EquipmentKitId")]
+    public virtual EquipmentKit? EquipmentKit { get; set; }
+
+    [ForeignKey("LocationId")]
+    public virtual Location? Location { get; set; }
+
+    [ForeignKey("MaintenanceRecordId")]
+    public virtual MaintenanceRecord? MaintenanceRecord { get; set; }
 }
 
 #endregion

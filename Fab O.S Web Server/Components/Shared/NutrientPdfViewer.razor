@@ -22,6 +22,7 @@
 @inject ITenantService TenantService
 @inject HttpClient HttpClient
 @inject IConfiguration Configuration
+@inject INutrientDwsSessionService DwsSessionService
 @implements IAsyncDisposable
 
 <div class="nutrient-pdf-viewer">
@@ -382,30 +383,17 @@
             var absoluteDocumentUrl = NavigationManager.ToAbsoluteUri(documentUrl).ToString();
             Logger.LogInformation("[NutrientPdfViewer] Fetching DWS session token for: {Url}", absoluteDocumentUrl);
 
-            var response = await HttpClient.PostAsJsonAsync("/api/nutrientauth/session", new
-            {
-                DocumentUrl = absoluteDocumentUrl,
-                UserId = HttpContextAccessor.HttpContext?.User?.Identity?.Name
-            });
+            // Call DWS session service directly (bypasses HTTP authentication issues)
+            var userId = HttpContextAccessor.HttpContext?.User?.Identity?.Name;
+            sessionToken = await DwsSessionService.CreateSessionTokenAsync(absoluteDocumentUrl, userId);
 
-            if (response.IsSuccessStatusCode)
+            if (!string.IsNullOrEmpty(sessionToken))
             {
-                var result = await response.Content.ReadFromJsonAsync<SessionTokenResponse>();
-                if (result != null && !string.IsNullOrEmpty(result.SessionToken))
-                {
-                    sessionToken = result.SessionToken;
-                    Logger.LogInformation("[NutrientPdfViewer] ✓ DWS session token acquired successfully");
-                }
-                else
-                {
-                    Logger.LogWarning("[NutrientPdfViewer] Session token response was empty");
-                }
+                Logger.LogInformation("[NutrientPdfViewer] ✓ DWS session token acquired successfully");
             }
             else
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                Logger.LogError("[NutrientPdfViewer] Failed to fetch session token: {StatusCode} - {Error}",
-                    response.StatusCode, errorContent);
+                Logger.LogWarning("[NutrientPdfViewer] Session token response was empty");
             }
         }
         catch (Exception ex)
@@ -413,11 +401,6 @@
             Logger.LogError(ex, "[NutrientPdfViewer] Exception while fetching DWS session token");
             // Don't throw - fallback to self-hosted mode if DWS fails
         }
-    }
-
-    private class SessionTokenResponse
-    {
-        public string SessionToken { get; set; } = string.Empty;
     }
 
     private async Task LoadDrawing()

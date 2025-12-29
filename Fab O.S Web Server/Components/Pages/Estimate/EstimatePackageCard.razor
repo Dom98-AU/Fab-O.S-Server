@@ -1,0 +1,381 @@
+@*
+═══════════════════════════════════════════════════════════════
+CARD-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: Card (Detail)
+Entity: EstimationRevisionPackage
+Features: Worksheets management, Cost summary
+Pattern: Standard (takeoff-* classes)
+Module: Estimate
+Last Updated: 2025-12-17
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/estimate/packages/{id:int}"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>@(isCreateMode ? "New Package" : package?.Name ?? "Package") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" ShowSearch="false" PageType="PageType.Card" />
+
+<!-- Main Content Container -->
+<div class="takeoff-layout">
+    @if (isLoading)
+    {
+        <!-- Loading State -->
+        <div class="takeoff-loading">
+            <div class="takeoff-spinner"></div>
+            <p>Loading package details...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <!-- Error State -->
+        <div class="takeoff-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>@errorMessage</div>
+        </div>
+    }
+    else if (package != null)
+    {
+        <!-- Container Wrapper -->
+        <div class="takeoff-container">
+            <!-- Collapsible Sections -->
+            <div class="takeoff-sections">
+
+                <!-- Section 1: Package Details (always show) -->
+                <div class="takeoff-section">
+                    <div class="takeoff-section-header @(IsSectionExpanded("general") ? "expanded" : "")" @onclick="@(() => ToggleSection("general"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-box section-icon"></i>
+                            <span class="section-title">Package Details</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="takeoff-section-content @(IsSectionExpanded("general") ? "expanded" : "collapsed")">
+                        <div class="takeoff-subsection">
+                            <h3 class="takeoff-subsection-title">
+                                <i class="fas fa-box"></i>
+                                Package Information
+                            </h3>
+                            <div class="takeoff-subsection-body">
+                                <div class="takeoff-form-grid two-column">
+                                    <!-- Package Name -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Package Name</label>
+                                        @if (isEditMode)
+                                        {
+                                            <input type="text" class="takeoff-form-control" @bind="package.Name" placeholder="Enter package name..." />
+                                        }
+                                        else
+                                        {
+                                            <p class="takeoff-form-control-plaintext">@(package.Name ?? "Not set")</p>
+                                        }
+                                    </div>
+
+                                    <!-- Revision Status -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Revision</label>
+                                        <p class="takeoff-form-control-plaintext">
+                                            @if (isCreateMode && parentRevision != null)
+                                            {
+                                                <span class="takeoff-badge @GetStatusBadgeClass(parentRevision.Status)">
+                                                    Rev @(parentRevision.RevisionLetter) - @(parentRevision.Status)
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="takeoff-badge @GetStatusBadgeClass(package.Revision?.Status)">
+                                                    Rev @(package.Revision?.RevisionLetter) - @(package.Revision?.Status)
+                                                </span>
+                                            }
+                                        </p>
+                                    </div>
+
+                                    <!-- Estimation Link -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Estimation</label>
+                                        <p class="takeoff-form-control-plaintext">
+                                            @if (isCreateMode && parentRevision != null)
+                                            {
+                                                <a href="/@TenantSlug/estimate/estimations/@(parentRevision.EstimationId)" class="takeoff-text-secondary">
+                                                    @(parentRevision.Estimation?.Name ?? "View Estimation") <i class="fas fa-external-link-alt ms-1"></i>
+                                                </a>
+                                            }
+                                            else
+                                            {
+                                                <a href="/@TenantSlug/estimate/estimations/@(package.Revision?.EstimationId)" class="takeoff-text-secondary">
+                                                    @(package.Revision?.Estimation?.Name ?? "View Estimation") <i class="fas fa-external-link-alt ms-1"></i>
+                                                </a>
+                                            }
+                                        </p>
+                                    </div>
+
+                                    <!-- Package Total (view mode only) -->
+                                    @if (!isCreateMode)
+                                    {
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Package Total</label>
+                                            <p class="takeoff-form-control-plaintext">
+                                                <strong class="h5 text-success">@package.PackageTotal.ToString("C")</strong>
+                                            </p>
+                                        </div>
+                                    }
+
+                                    <!-- Description (full-width) -->
+                                    <div class="takeoff-form-group full-width">
+                                        <label class="takeoff-form-label">Description</label>
+                                        @if (isEditMode)
+                                        {
+                                            <textarea class="takeoff-form-control" @bind="package.Description" rows="2" placeholder="Optional description"></textarea>
+                                        }
+                                        else if (!string.IsNullOrEmpty(package.Description))
+                                        {
+                                            <p class="takeoff-form-control-plaintext">@package.Description</p>
+                                        }
+                                        else
+                                        {
+                                            <p class="takeoff-form-control-plaintext takeoff-text-muted">No description</p>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Cost Summary (hide in create mode) -->
+                @if (!isCreateMode)
+                {
+                    <div class="takeoff-section">
+                        <div class="takeoff-section-header @(IsSectionExpanded("cost") ? "expanded" : "")" @onclick="@(() => ToggleSection("cost"))">
+                            <div class="section-header-content">
+                                <i class="fas fa-chart-pie section-icon"></i>
+                                <span class="section-title">Cost Summary</span>
+                            </div>
+                            <i class="fas fa-chevron-down section-chevron"></i>
+                        </div>
+                        <div class="takeoff-section-content @(IsSectionExpanded("cost") ? "expanded" : "collapsed")">
+                            <div class="takeoff-subsection">
+                                <h3 class="takeoff-subsection-title">
+                                    <i class="fas fa-chart-pie"></i>
+                                    Cost Breakdown
+                                </h3>
+                                <div class="takeoff-subsection-body">
+                                    <div class="takeoff-form-grid two-column">
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Material Cost</label>
+                                            <p class="takeoff-form-control-plaintext">@package.MaterialCost.ToString("C")</p>
+                                        </div>
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Labor Cost</label>
+                                            <p class="takeoff-form-control-plaintext">@package.LaborCost.ToString("C")</p>
+                                        </div>
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Subtotal</label>
+                                            <p class="takeoff-form-control-plaintext fw-bold">@((package.MaterialCost + package.LaborCost).ToString("C"))</p>
+                                        </div>
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Overhead (@package.OverheadPercentage%)</label>
+                                            <p class="takeoff-form-control-plaintext">@package.OverheadCost.ToString("C")</p>
+                                        </div>
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label"><strong>Total</strong></label>
+                                            <p class="takeoff-form-control-plaintext">
+                                                <strong class="h5 text-success">@package.PackageTotal.ToString("C")</strong>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- Section 3: Worksheets (hide in create mode) -->
+                @if (!isCreateMode)
+                {
+                    <div class="takeoff-section">
+                        <div class="takeoff-section-header @(IsSectionExpanded("worksheets") ? "expanded" : "")" @onclick="@(() => ToggleSection("worksheets"))">
+                            <div class="section-header-content">
+                                <i class="fas fa-table section-icon"></i>
+                                <span class="section-title">Worksheets</span>
+                                @if (package.Worksheets.Any(w => !w.IsDeleted))
+                                {
+                                    <span class="badge bg-secondary ms-2">@package.Worksheets.Count(w => !w.IsDeleted)</span>
+                                }
+                            </div>
+                            <i class="fas fa-chevron-down section-chevron"></i>
+                        </div>
+                        <div class="takeoff-section-content @(IsSectionExpanded("worksheets") ? "expanded" : "collapsed")">
+                            <div class="takeoff-subsection">
+                                <h3 class="takeoff-subsection-title">
+                                    <i class="fas fa-table"></i>
+                                    Worksheet List
+                                    @if (package.Revision?.Status == "Draft")
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary ms-auto" @onclick="() => showAddWorksheetDialog = true">
+                                            <i class="fas fa-plus me-1"></i>Add Worksheet
+                                        </button>
+                                    }
+                                </h3>
+                                <div class="takeoff-subsection-body">
+                            @if (package.Worksheets.Any(w => !w.IsDeleted))
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="width: 40px;">#</th>
+                                                <th>Worksheet Name</th>
+                                                <th>Type</th>
+                                                <th style="text-align: center;">Rows</th>
+                                                <th style="text-align: right;">Material</th>
+                                                <th style="text-align: right;">Labor</th>
+                                                <th style="text-align: right;">Total</th>
+                                                <th style="width: 120px;">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var worksheet in package.Worksheets.Where(w => !w.IsDeleted).OrderBy(w => w.SortOrder))
+                                            {
+                                                <tr @onclick="() => OpenWorksheet(worksheet.Id)" style="cursor: pointer;">
+                                                    <td class="text-muted">@(worksheet.SortOrder + 1)</td>
+                                                    <td>
+                                                        <strong>@worksheet.Name</strong>
+                                                        @if (!string.IsNullOrEmpty(worksheet.Description))
+                                                        {
+                                                            <br /><small class="text-muted">@worksheet.Description</small>
+                                                        }
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge @GetWorksheetTypeBadgeClass(worksheet.WorksheetType)">
+                                                            @worksheet.WorksheetType
+                                                        </span>
+                                                    </td>
+                                                    <td style="text-align: center;">@worksheet.Rows.Count(r => !r.IsDeleted && !r.IsGroupHeader)</td>
+                                                    <td style="text-align: right;">@worksheet.TotalMaterialCost.ToString("C")</td>
+                                                    <td style="text-align: right;">@worksheet.TotalLaborCost.ToString("C")</td>
+                                                    <td style="text-align: right; font-weight: 500;">@worksheet.TotalCost.ToString("C")</td>
+                                                    <td @onclick:stopPropagation="true">
+                                                        <div class="btn-group btn-group-sm">
+                                                            <button class="btn btn-outline-primary" @onclick="() => OpenWorksheet(worksheet.Id)" title="Edit Worksheet">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
+                                                            <button class="btn btn-outline-info" @onclick="() => ExportWorksheet(worksheet.Id)" title="Export to Excel">
+                                                                <i class="fas fa-file-excel"></i>
+                                                            </button>
+                                                            @if (package.Revision?.Status == "Draft")
+                                                            {
+                                                                <button class="btn btn-outline-danger" @onclick="() => DeleteWorksheet(worksheet.Id)" title="Delete">
+                                                                    <i class="fas fa-trash"></i>
+                                                                </button>
+                                                            }
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                        <tfoot class="table-light">
+                                            <tr>
+                                                <td colspan="4" class="text-end"><strong>Totals:</strong></td>
+                                                <td style="text-align: right;"><strong>@package.Worksheets.Where(w => !w.IsDeleted).Sum(w => w.TotalMaterialCost).ToString("C")</strong></td>
+                                                <td style="text-align: right;"><strong>@package.Worksheets.Where(w => !w.IsDeleted).Sum(w => w.TotalLaborCost).ToString("C")</strong></td>
+                                                <td style="text-align: right;"><strong>@package.Worksheets.Where(w => !w.IsDeleted).Sum(w => w.TotalCost).ToString("C")</strong></td>
+                                                <td></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="text-center py-5 text-muted">
+                                    <i class="fas fa-table fa-3x mb-3"></i>
+                                    <h5>No Worksheets Yet</h5>
+                                    <p class="mb-3">Add worksheets to start building your estimate</p>
+                                    @if (package.Revision?.Status == "Draft")
+                                    {
+                                        <button class="btn btn-primary" @onclick="() => showAddWorksheetDialog = true">
+                                            <i class="fas fa-plus me-1"></i>Add Worksheet
+                                        </button>
+                                    }
+                                </div>
+                            }
+                                </div> <!-- End of takeoff-subsection-body -->
+                            </div> <!-- End of takeoff-subsection -->
+                        </div>
+                    </div>
+                }
+
+            </div> <!-- End of takeoff-sections -->
+        </div> <!-- End of takeoff-container -->
+    }
+    else
+    {
+        <!-- No Data State -->
+        <div class="takeoff-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>No package found</div>
+        </div>
+    }
+</div>
+
+<!-- Add Worksheet Dialog -->
+@if (showAddWorksheetDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-table me-2"></i>Add Worksheet</h5>
+                    <button type="button" class="btn-close" @onclick="() => showAddWorksheetDialog = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Use Template</label>
+                            <select class="form-select" @bind="selectedTemplateId">
+                                <option value="">Create blank worksheet...</option>
+                                @foreach (var template in templates)
+                                {
+                                    <option value="@template.Id">@template.Name (@template.WorksheetType)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Worksheet Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" @bind="newWorksheetName" placeholder="e.g., Material Costs" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Type</label>
+                            <select class="form-select" @bind="newWorksheetType">
+                                <option value="MaterialCosts">Material Costs</option>
+                                <option value="LaborCosts">Labor Costs</option>
+                                <option value="WeldingCosts">Welding Costs</option>
+                                <option value="Equipment">Equipment</option>
+                                <option value="Custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" @bind="newWorksheetDescription" rows="2" placeholder="Optional description"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showAddWorksheetDialog = false">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="AddWorksheet" disabled="@(string.IsNullOrWhiteSpace(newWorksheetName))">
+                        <i class="fas fa-plus me-1"></i>Add Worksheet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

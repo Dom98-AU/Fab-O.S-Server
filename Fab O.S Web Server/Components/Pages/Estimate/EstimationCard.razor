@@ -1,0 +1,266 @@
+@*
+═══════════════════════════════════════════════════════════════
+CARD-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: Card (Detail)
+Entity: Estimation
+Features: Revisions, Packages, Worksheets overview
+Pattern: Standard
+Module: Estimate
+Last Updated: 2025-12-09
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/estimate/estimations/{id:int}"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>@(estimation?.Name ?? "Estimation") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" ShowSearch="false" PageType="PageType.Card" />
+
+<!-- Main Content Container -->
+<div class="takeoff-layout">
+    @if (isLoading)
+    {
+        <!-- Loading State -->
+        <div class="takeoff-loading">
+            <div class="takeoff-spinner"></div>
+            <p>Loading estimation details...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <!-- Error State -->
+        <div class="takeoff-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>@errorMessage</div>
+        </div>
+    }
+    else if (estimation != null)
+    {
+        <!-- Container Wrapper -->
+        <div class="takeoff-container">
+            <!-- Collapsible Sections -->
+            <div class="takeoff-sections">
+
+                <!-- General Section (Basic Info + Customer + Cost Summary) -->
+                <div class="takeoff-section">
+                    <div class="takeoff-section-header @(IsSectionExpanded("general") ? "expanded" : "")" @onclick="@(() => ToggleSection("general"))">
+                        <div class="section-header-content">
+                            <i class="fas fa-info-circle section-icon"></i>
+                            <span class="section-title">General</span>
+                        </div>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="takeoff-section-content @(IsSectionExpanded("general") ? "expanded" : "collapsed")">
+                        <!-- Basic Information -->
+                        <div class="takeoff-subsection">
+                            <h3 class="takeoff-subsection-title">
+                                <i class="fas fa-file-alt"></i>
+                                Basic Information
+                            </h3>
+                            <div class="takeoff-subsection-body">
+                                <div class="takeoff-form-grid two-column">
+                                    <!-- Estimation Number -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Estimation Number</label>
+                                        <p class="takeoff-form-control-plaintext">@(estimation.EstimationNumber ?? "Not set")</p>
+                                    </div>
+
+                                    <!-- Name -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Name</label>
+                                        @if (isEditMode)
+                                        {
+                                            <input type="text" class="takeoff-form-control" @bind="estimation.Name" placeholder="Enter estimation name" />
+                                        }
+                                        else
+                                        {
+                                            <p class="takeoff-form-control-plaintext">@(estimation.Name ?? "Not set")</p>
+                                        }
+                                    </div>
+
+                                    <!-- Status -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Status</label>
+                                        @if (isEditMode)
+                                        {
+                                            <select class="takeoff-form-control" @bind="estimation.Status">
+                                                <option value="Draft">Draft</option>
+                                                <option value="InProgress">In Progress</option>
+                                                <option value="SubmittedForReview">Submitted for Review</option>
+                                                <option value="Approved">Approved</option>
+                                                <option value="Sent">Sent</option>
+                                                <option value="Accepted">Accepted</option>
+                                            </select>
+                                        }
+                                        else
+                                        {
+                                            <p class="takeoff-form-control-plaintext">
+                                                <span class="takeoff-badge @GetStatusBadgeClass(estimation.Status)">
+                                                    @(estimation.Status ?? "Not set")
+                                                </span>
+                                            </p>
+                                        }
+                                    </div>
+
+                                    <!-- Current Revision -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Current Revision</label>
+                                        <p class="takeoff-form-control-plaintext">
+                                            <span class="badge bg-info">@(estimation.CurrentRevisionLetter ?? "A")</span>
+                                        </p>
+                                    </div>
+
+                                    <!-- Total -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Total</label>
+                                        <p class="takeoff-form-control-plaintext">
+                                            <span class="h4 text-success mb-0">@estimation.CurrentTotal.ToString("C")</span>
+                                        </p>
+                                    </div>
+
+                                    <!-- Description -->
+                                    <div class="takeoff-form-group full-width">
+                                        <label class="takeoff-form-label">Description</label>
+                                        @if (isEditMode)
+                                        {
+                                            <textarea class="takeoff-form-control" @bind="estimation.Description"
+                                                      placeholder="Enter estimation description"
+                                                      rows="3"></textarea>
+                                        }
+                                        else if (!string.IsNullOrEmpty(estimation.Description))
+                                        {
+                                            <p class="takeoff-form-control-plaintext">@estimation.Description</p>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Customer Information -->
+                        <div class="takeoff-subsection">
+                            <h3 class="takeoff-subsection-title">
+                                <i class="fas fa-building"></i>
+                                Customer Information
+                            </h3>
+                            <div class="takeoff-subsection-body">
+                                <div class="takeoff-form-grid two-column">
+                                    <!-- Customer -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Customer</label>
+                                        @if (isEditMode)
+                                        {
+                                            <select class="takeoff-form-control" @bind="estimation.CustomerId">
+                                                <option value="">Select customer...</option>
+                                                @foreach (var customer in customers)
+                                                {
+                                                    <option value="@customer.Id">@customer.Name</option>
+                                                }
+                                            </select>
+                                        }
+                                        else
+                                        {
+                                            <p class="takeoff-form-control-plaintext">
+                                                @(estimation.Customer?.Name ?? "Not set")
+                                            </p>
+                                        }
+                                    </div>
+
+                                    <!-- Source Takeoff -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Source Takeoff</label>
+                                        @if (estimation.SourceTakeoffId.HasValue)
+                                        {
+                                            <p class="takeoff-form-control-plaintext">
+                                                <a href="/@TenantSlug/trace/takeoffs/@estimation.SourceTakeoffId" class="takeoff-text-secondary">
+                                                    View Takeoff <i class="fas fa-external-link-alt ms-1"></i>
+                                                </a>
+                                            </p>
+                                        }
+                                        else
+                                        {
+                                            <p class="takeoff-form-control-plaintext">
+                                                <span class="takeoff-text-muted">Not set</span>
+                                            </p>
+                                        }
+                                    </div>
+
+                                    <!-- Created Date -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Created</label>
+                                        <p class="takeoff-form-control-plaintext">@estimation.CreatedDate.ToString("MMM dd, yyyy 'at' HH:mm")</p>
+                                    </div>
+
+                                    <!-- Last Modified -->
+                                    <div class="takeoff-form-group">
+                                        <label class="takeoff-form-label">Last Modified</label>
+                                        <p class="takeoff-form-control-plaintext">@(estimation.ModifiedDate?.ToString("MMM dd, yyyy 'at' HH:mm") ?? "-")</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cost Summary -->
+                        @if (currentRevision != null)
+                        {
+                            <div class="takeoff-subsection">
+                                <h3 class="takeoff-subsection-title">
+                                    <i class="fas fa-chart-pie"></i>
+                                    Cost Summary (Rev @currentRevision.RevisionLetter)
+                                </h3>
+                                <div class="takeoff-subsection-body">
+                                    <div class="takeoff-form-grid two-column">
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Material Cost</label>
+                                            <p class="takeoff-form-control-plaintext">@currentRevision.TotalMaterialCost.ToString("C")</p>
+                                        </div>
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Labor Cost</label>
+                                            <p class="takeoff-form-control-plaintext">@currentRevision.TotalLaborCost.ToString("C")</p>
+                                        </div>
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Subtotal</label>
+                                            <p class="takeoff-form-control-plaintext fw-bold">@currentRevision.Subtotal.ToString("C")</p>
+                                        </div>
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Overhead (@currentRevision.OverheadPercentage%)</label>
+                                            <p class="takeoff-form-control-plaintext">@currentRevision.OverheadAmount.ToString("C")</p>
+                                        </div>
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label">Margin (@currentRevision.MarginPercentage%)</label>
+                                            <p class="takeoff-form-control-plaintext">@currentRevision.MarginAmount.ToString("C")</p>
+                                        </div>
+                                        <div class="takeoff-form-group">
+                                            <label class="takeoff-form-label"><strong>Total</strong></label>
+                                            <p class="takeoff-form-control-plaintext">
+                                                <strong class="h5 text-success">@currentRevision.TotalAmount.ToString("C")</strong>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div> <!-- End of General section content -->
+                </div> <!-- End of General section -->
+
+            </div> <!-- End of takeoff-sections -->
+        </div> <!-- End of takeoff-container -->
+
+    }
+    else
+    {
+        <!-- No Data State -->
+        <div class="takeoff-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>No estimation found</div>
+        </div>
+    }
+</div>
+

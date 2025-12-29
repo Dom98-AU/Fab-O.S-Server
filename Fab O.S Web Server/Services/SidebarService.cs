@@ -160,7 +160,12 @@ public class SidebarService
     /// </summary>
     public void ToggleModuleSelector()
     {
+        Console.WriteLine($"========================================");
+        Console.WriteLine($"[SidebarService] ⚡ ToggleModuleSelector called!");
+        Console.WriteLine($"[SidebarService] Current ShowModuleSelector: {ShowModuleSelector}");
         ShowModuleSelector = !ShowModuleSelector;
+        Console.WriteLine($"[SidebarService] New ShowModuleSelector: {ShowModuleSelector}");
+        Console.WriteLine($"========================================");
         OnStateChanged?.Invoke();
     }
 

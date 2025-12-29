@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Components;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Components.Authorization;
 using FabOS.WebServer.Components.Shared;
 using FabOS.WebServer.Components.Shared.Interfaces;
-using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models;
 using FabOS.WebServer.Models.Columns;
 using FabOS.WebServer.Models.ViewState;
+using FabOS.WebServer.Services.Interfaces;
+using System.Security.Claims;
 
 namespace FabOS.WebServer.Components.Pages;
 
@@ -16,14 +17,21 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
     [Parameter] public int TakeoffId { get; set; }
     [Parameter] public int? RevisionId { get; set; }
 
-    [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
+    [Inject] private ITakeoffCardService TakeoffService { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+    [Inject] private ILogger<TakeoffPackages> Logger { get; set; } = default!;
 
     private Takeoff? takeoff;
     private List<Package> packages = new();
     private List<Package> filteredPackages = new();
     private bool isLoading = true;
     private string searchTerm = "";
+    private string? errorMessage;
+
+    // Authentication state
+    private int currentUserId = 0;
+    private int currentCompanyId = 0;
 
     // View state
     private GenericViewSwitcher<Package>.ViewType currentView = GenericViewSwitcher<Package>.ViewType.Table;
@@ -45,6 +53,33 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
 
     protected override async Task OnInitializedAsync()
     {
+        // Validate authentication and get user context
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var userIdClaim = user.FindFirst("user_id") ?? user.FindFirst("UserId") ?? user.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+            {
+                currentUserId = userId;
+            }
+
+            var companyIdClaim = user.FindFirst("company_id") ?? user.FindFirst("CompanyId");
+            if (companyIdClaim != null && int.TryParse(companyIdClaim.Value, out var companyId))
+            {
+                currentCompanyId = companyId;
+            }
+        }
+
+        if (currentUserId == 0 || currentCompanyId == 0)
+        {
+            Logger.LogWarning("User is not authenticated or missing required claims for TakeoffPackages page");
+            errorMessage = "User is not authenticated. Please log in and try again.";
+            isLoading = false;
+            return;
+        }
+
         await LoadTakeoff();
         InitializeTableColumns();
         await LoadPackages();
@@ -54,12 +89,19 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
     {
         try
         {
-            takeoff = await DbContext.TraceDrawings
-                .FirstOrDefaultAsync(t => t.Id == TakeoffId);
+            // Use service for company-isolated access
+            takeoff = await TakeoffService.GetTakeoffByIdAsync(TakeoffId, currentCompanyId);
+
+            if (takeoff == null)
+            {
+                Logger.LogWarning("Takeoff {TakeoffId} not found or access denied for company {CompanyId}", TakeoffId, currentCompanyId);
+                errorMessage = "Takeoff not found or you don't have access.";
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading takeoff: {ex.Message}");
+            Logger.LogError(ex, "Error loading takeoff {TakeoffId} for company {CompanyId}", TakeoffId, currentCompanyId);
+            errorMessage = "Error loading takeoff. Please try again.";
         }
     }
 
@@ -125,24 +167,8 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
             isLoading = true;
             StateHasChanged();
 
-            if (RevisionId.HasValue)
-            {
-                // Filter by specific revision
-                packages = await DbContext.Packages
-                    .Where(p => !p.IsDeleted && p.RevisionId == RevisionId.Value)
-                    .OrderBy(p => p.PackageNumber)
-                    .ToListAsync();
-            }
-            else
-            {
-                // Show all packages for this takeoff (across all revisions)
-                packages = await DbContext.Packages
-                    .Where(p => !p.IsDeleted && p.RevisionId != null)
-                    .Where(p => DbContext.TakeoffRevisions
-                        .Any(r => r.Id == p.RevisionId && r.TakeoffId == TakeoffId))
-                    .OrderBy(p => p.PackageNumber)
-                    .ToListAsync();
-            }
+            // Use service for company-isolated package access
+            packages = await TakeoffService.GetPackagesByTakeoffAsync(TakeoffId, currentCompanyId, RevisionId);
 
             FilterPackages();
         }
@@ -233,14 +259,17 @@ public partial class TakeoffPackages : ComponentBase, IToolbarActionProvider, ID
         var selected = GetSelectedPackages();
         if (!selected.Any()) return;
 
-        foreach (var package in selected)
-        {
-            package.IsDeleted = true;
-            package.LastModified = DateTime.UtcNow;
-        }
+        var packageIds = selected.Select(p => p.Id).ToList();
+        var success = await TakeoffService.DeletePackagesAsync(packageIds, TakeoffId, currentCompanyId, currentUserId);
 
-        await DbContext.SaveChangesAsync();
-        await LoadPackages();
+        if (success)
+        {
+            await LoadPackages();
+        }
+        else
+        {
+            Logger.LogWarning("Failed to delete packages for takeoff {TakeoffId}", TakeoffId);
+        }
     }
 
     private List<Package> GetSelectedPackages()

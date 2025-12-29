@@ -3,6 +3,7 @@
 @using FabOS.WebServer.Components.Shared
 @inject SidebarService SidebarService
 @inject NavigationService NavService
+@implements IDisposable
 
 <div class="fabos-pinned-section">
     <div class="fabos-section-header">
@@ -42,3 +43,15 @@
         }
     </div>
 </div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        SidebarService.OnStateChanged += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        SidebarService.OnStateChanged -= StateHasChanged;
+    }
+}

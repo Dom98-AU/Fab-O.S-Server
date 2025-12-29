@@ -10,7 +10,7 @@ namespace FabOS.WebServer.Controllers.Api;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] // Requires authentication
+[Authorize(AuthenticationSchemes = "Bearer")]
 public class InvitationController : ControllerBase
 {
     private readonly IInvitationService _invitationService;

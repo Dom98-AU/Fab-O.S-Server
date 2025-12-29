@@ -3,6 +3,7 @@
 @using FabOS.WebServer.Components.Shared
 @inject SidebarService SidebarService
 @inject NavigationService NavService
+@implements IDisposable
 
 @if (SidebarService.ShowModuleSelector && !SidebarService.IsCollapsed)
 {
@@ -66,4 +67,16 @@
             </div>
         </div>
     </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        SidebarService.OnStateChanged += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        SidebarService.OnStateChanged -= StateHasChanged;
+    }
 }

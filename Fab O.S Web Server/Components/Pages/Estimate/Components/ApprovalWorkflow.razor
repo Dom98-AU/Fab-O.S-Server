@@ -1,0 +1,464 @@
+@*
+═══════════════════════════════════════════════════════════════
+COMPONENT
+═══════════════════════════════════════════════════════════════
+Component: ApprovalWorkflow
+Purpose: Display and manage revision approval workflow
+Features: Status display, action buttons, comments
+Module: Estimate
+Last Updated: 2025-12-09
+═══════════════════════════════════════════════════════════════
+*@
+@using FabOS.WebServer.Models.Entities
+
+<div class="approval-workflow-container">
+    <!-- Status Progress -->
+    <div class="approval-status-track mb-4">
+        <div class="d-flex justify-content-between align-items-center position-relative">
+            @foreach (var (status, index) in GetStatusFlow().Select((s, i) => (s, i)))
+            {
+                var isActive = GetStatusIndex(Revision?.Status) >= index;
+                var isCurrent = Revision?.Status == status.Key;
+
+                <div class="status-step @(isActive ? "active" : "") @(isCurrent ? "current" : "")" style="flex: 1;">
+                    <div class="status-icon">
+                        <i class="@status.Value.Icon"></i>
+                    </div>
+                    <div class="status-label">@status.Value.Label</div>
+                </div>
+
+                @if (index < GetStatusFlow().Count - 1)
+                {
+                    <div class="status-connector @(GetStatusIndex(Revision?.Status) > index ? "active" : "")"></div>
+                }
+            }
+        </div>
+    </div>
+
+    <!-- Current Status Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-info-circle me-2"></i>Current Status</span>
+            <span class="badge @GetStatusBadgeClass(Revision?.Status) fs-6">@(Revision?.Status ?? "Unknown")</span>
+        </div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                @if (Revision?.SubmittedDate.HasValue == true)
+                {
+                    <dt class="col-sm-4">Submitted</dt>
+                    <dd class="col-sm-8">@Revision.SubmittedDate.Value.ToString("MMM dd, yyyy 'at' HH:mm")</dd>
+                }
+
+                @if (Revision?.ReviewedDate.HasValue == true)
+                {
+                    <dt class="col-sm-4">Reviewed</dt>
+                    <dd class="col-sm-8">@Revision.ReviewedDate.Value.ToString("MMM dd, yyyy 'at' HH:mm")</dd>
+                }
+
+                @if (Revision?.ApprovedDate.HasValue == true)
+                {
+                    <dt class="col-sm-4">Approved</dt>
+                    <dd class="col-sm-8">@Revision.ApprovedDate.Value.ToString("MMM dd, yyyy 'at' HH:mm")</dd>
+                }
+
+                @if (Revision?.SentDate.HasValue == true)
+                {
+                    <dt class="col-sm-4">Sent to Customer</dt>
+                    <dd class="col-sm-8">@Revision.SentDate.Value.ToString("MMM dd, yyyy 'at' HH:mm")</dd>
+                }
+
+                @if (Revision?.CustomerResponseDate.HasValue == true)
+                {
+                    <dt class="col-sm-4">Customer Response</dt>
+                    <dd class="col-sm-8">@Revision.CustomerResponseDate.Value.ToString("MMM dd, yyyy 'at' HH:mm")</dd>
+                }
+
+                @if (!string.IsNullOrEmpty(Revision?.RejectionReason))
+                {
+                    <dt class="col-sm-4 text-danger">Rejection Reason</dt>
+                    <dd class="col-sm-8 text-danger">@Revision.RejectionReason</dd>
+                }
+
+                @if (!string.IsNullOrEmpty(Revision?.ApprovalComments))
+                {
+                    <dt class="col-sm-4">Approval Comments</dt>
+                    <dd class="col-sm-8">@Revision.ApprovalComments</dd>
+                }
+
+                @if (!string.IsNullOrEmpty(Revision?.CustomerComments))
+                {
+                    <dt class="col-sm-4">Customer Comments</dt>
+                    <dd class="col-sm-8">@Revision.CustomerComments</dd>
+                }
+            </dl>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    @if (!IsReadOnly)
+    {
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-tasks me-2"></i>Available Actions
+            </div>
+            <div class="card-body">
+                @switch (Revision?.Status)
+                {
+                    case "Draft":
+                        <p class="text-muted mb-3">This revision is a draft. You can edit it freely and submit for review when ready.</p>
+                        <button class="btn btn-primary" @onclick='() => ShowActionDialog("submit")'>
+                            <i class="fas fa-paper-plane me-1"></i>Submit for Review
+                        </button>
+                        break;
+
+                    case "SubmittedForReview":
+                        <p class="text-muted mb-3">This revision has been submitted and is awaiting review.</p>
+                        @if (CanApprove)
+                        {
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success" @onclick='() => ShowActionDialog("approve")'>
+                                    <i class="fas fa-check me-1"></i>Approve
+                                </button>
+                                <button class="btn btn-danger" @onclick='() => ShowActionDialog("reject")'>
+                                    <i class="fas fa-times me-1"></i>Reject
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-info mb-0">
+                                <i class="fas fa-clock me-2"></i>Waiting for reviewer approval
+                            </div>
+                        }
+                        break;
+
+                    case "InReview":
+                        <p class="text-muted mb-3">This revision is currently being reviewed.</p>
+                        @if (CanApprove)
+                        {
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success" @onclick='() => ShowActionDialog("approve")'>
+                                    <i class="fas fa-check me-1"></i>Approve
+                                </button>
+                                <button class="btn btn-danger" @onclick='() => ShowActionDialog("reject")'>
+                                    <i class="fas fa-times me-1"></i>Reject
+                                </button>
+                            </div>
+                        }
+                        break;
+
+                    case "Approved":
+                        <p class="text-muted mb-3">This revision has been approved. You can now send it to the customer.</p>
+                        <button class="btn btn-primary" @onclick='() => ShowActionDialog("send")'>
+                            <i class="fas fa-envelope me-1"></i>Send to Customer
+                        </button>
+                        break;
+
+                    case "Rejected":
+                        <p class="text-danger mb-3">This revision was rejected. You can make changes and resubmit.</p>
+                        <button class="btn btn-warning" @onclick='() => ShowActionDialog("resubmit")'>
+                            <i class="fas fa-redo me-1"></i>Resubmit for Review
+                        </button>
+                        break;
+
+                    case "Sent":
+                        <p class="text-muted mb-3">This revision has been sent to the customer. Record their response below.</p>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-success" @onclick='() => ShowActionDialog("accept")'>
+                                <i class="fas fa-thumbs-up me-1"></i>Customer Accepted
+                            </button>
+                            <button class="btn btn-danger" @onclick='() => ShowActionDialog("customer-reject")'>
+                                <i class="fas fa-thumbs-down me-1"></i>Customer Rejected
+                            </button>
+                        </div>
+                        break;
+
+                    case "Accepted":
+                        <div class="alert alert-success mb-0">
+                            <i class="fas fa-check-circle me-2"></i>This estimation has been accepted by the customer!
+                        </div>
+                        break;
+
+                    case "CustomerRejected":
+                        <p class="text-danger mb-3">The customer rejected this revision.</p>
+                        <button class="btn btn-primary" @onclick="OnCreateNewRevision">
+                            <i class="fas fa-plus me-1"></i>Create New Revision
+                        </button>
+                        break;
+
+                    case "Expired":
+                        <p class="text-warning mb-3">This revision has expired. Create a new revision to continue.</p>
+                        <button class="btn btn-primary" @onclick="OnCreateNewRevision">
+                            <i class="fas fa-plus me-1"></i>Create New Revision
+                        </button>
+                        break;
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Action Dialog -->
+@if (showActionDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="@GetActionIcon(currentAction) me-2"></i>@GetActionTitle(currentAction)
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showActionDialog = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (currentAction == "reject" || currentAction == "customer-reject")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Reason for Rejection <span class="text-danger">*</span></label>
+                            <textarea class="form-control" @bind="actionComment" rows="3" placeholder="Enter rejection reason..."></textarea>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Comments (Optional)</label>
+                            <textarea class="form-control" @bind="actionComment" rows="3" placeholder="Add any comments..."></textarea>
+                        </div>
+                    }
+
+                    @switch (currentAction)
+                    {
+                        case "submit":
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Submitting this revision will send it for review. You won't be able to make changes until it's approved or rejected.
+                            </div>
+                            break;
+                        case "approve":
+                            <div class="alert alert-success">
+                                <i class="fas fa-check-circle me-2"></i>
+                                Approving this revision will allow it to be sent to the customer.
+                            </div>
+                            break;
+                        case "reject":
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Rejecting this revision will return it to draft status for changes.
+                            </div>
+                            break;
+                        case "send":
+                            <div class="alert alert-info">
+                                <i class="fas fa-envelope me-2"></i>
+                                This will mark the revision as sent to the customer. You can record their response later.
+                            </div>
+                            break;
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showActionDialog = false">Cancel</button>
+                    <button type="button" class="btn @GetActionButtonClass(currentAction)" @onclick="ExecuteAction"
+                            disabled="@((currentAction is "reject" or "customer-reject") && string.IsNullOrWhiteSpace(actionComment))">
+                        <i class="@GetActionIcon(currentAction) me-1"></i>@GetActionButtonText(currentAction)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .approval-workflow-container {
+        padding: 0.5rem 0;
+    }
+
+    .approval-status-track {
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .status-step {
+        text-align: center;
+        position: relative;
+        z-index: 1;
+    }
+
+    .status-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #dee2e6;
+        color: #6c757d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.5rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .status-step.active .status-icon {
+        background: #0d6efd;
+        color: white;
+    }
+
+    .status-step.current .status-icon {
+        background: #198754;
+        color: white;
+        box-shadow: 0 0 0 4px rgba(25, 135, 84, 0.25);
+    }
+
+    .status-label {
+        font-size: 0.75rem;
+        color: #6c757d;
+        font-weight: 500;
+    }
+
+    .status-step.active .status-label {
+        color: #212529;
+    }
+
+    .status-connector {
+        flex: 1;
+        height: 3px;
+        background: #dee2e6;
+        margin: 0 -10px;
+        position: relative;
+        top: -20px;
+        z-index: 0;
+    }
+
+    .status-connector.active {
+        background: #0d6efd;
+    }
+</style>
+
+@code {
+    [Parameter] public EstimationRevision? Revision { get; set; }
+    [Parameter] public bool IsReadOnly { get; set; }
+    [Parameter] public bool CanApprove { get; set; }
+    [Parameter] public EventCallback<(string Action, string? Comment)> OnAction { get; set; }
+    [Parameter] public EventCallback OnCreateNewRevision { get; set; }
+
+    private bool showActionDialog = false;
+    private string currentAction = "";
+    private string actionComment = "";
+
+    private class StatusInfo
+    {
+        public string Label { get; set; } = "";
+        public string Icon { get; set; } = "";
+    }
+
+    private List<KeyValuePair<string, StatusInfo>> GetStatusFlow()
+    {
+        return new List<KeyValuePair<string, StatusInfo>>
+        {
+            new("Draft", new StatusInfo { Label = "Draft", Icon = "fas fa-edit" }),
+            new("SubmittedForReview", new StatusInfo { Label = "Submitted", Icon = "fas fa-paper-plane" }),
+            new("Approved", new StatusInfo { Label = "Approved", Icon = "fas fa-check" }),
+            new("Sent", new StatusInfo { Label = "Sent", Icon = "fas fa-envelope" }),
+            new("Accepted", new StatusInfo { Label = "Accepted", Icon = "fas fa-thumbs-up" })
+        };
+    }
+
+    private int GetStatusIndex(string? status)
+    {
+        return status switch
+        {
+            "Draft" => 0,
+            "SubmittedForReview" or "InReview" => 1,
+            "Approved" => 2,
+            "Rejected" => 1, // Show as submitted level
+            "Sent" => 3,
+            "Accepted" => 4,
+            "CustomerRejected" => 3, // Show as sent level
+            "Expired" => 3,
+            _ => 0
+        };
+    }
+
+    private string GetStatusBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "Draft" => "bg-secondary",
+            "SubmittedForReview" or "InReview" => "bg-warning text-dark",
+            "Approved" => "bg-success",
+            "Rejected" => "bg-danger",
+            "Sent" => "bg-info",
+            "Accepted" => "bg-success",
+            "CustomerRejected" => "bg-danger",
+            "Expired" => "bg-dark",
+            _ => "bg-secondary"
+        };
+    }
+
+    private void ShowActionDialog(string action)
+    {
+        currentAction = action;
+        actionComment = "";
+        showActionDialog = true;
+    }
+
+    private async Task ExecuteAction()
+    {
+        await OnAction.InvokeAsync((currentAction, actionComment));
+        showActionDialog = false;
+        actionComment = "";
+    }
+
+    private string GetActionIcon(string action)
+    {
+        return action switch
+        {
+            "submit" or "resubmit" => "fas fa-paper-plane",
+            "approve" => "fas fa-check",
+            "reject" => "fas fa-times",
+            "send" => "fas fa-envelope",
+            "accept" => "fas fa-thumbs-up",
+            "customer-reject" => "fas fa-thumbs-down",
+            _ => "fas fa-info"
+        };
+    }
+
+    private string GetActionTitle(string action)
+    {
+        return action switch
+        {
+            "submit" => "Submit for Review",
+            "resubmit" => "Resubmit for Review",
+            "approve" => "Approve Revision",
+            "reject" => "Reject Revision",
+            "send" => "Send to Customer",
+            "accept" => "Record Customer Acceptance",
+            "customer-reject" => "Record Customer Rejection",
+            _ => "Action"
+        };
+    }
+
+    private string GetActionButtonClass(string action)
+    {
+        return action switch
+        {
+            "approve" or "accept" => "btn-success",
+            "reject" or "customer-reject" => "btn-danger",
+            _ => "btn-primary"
+        };
+    }
+
+    private string GetActionButtonText(string action)
+    {
+        return action switch
+        {
+            "submit" => "Submit",
+            "resubmit" => "Resubmit",
+            "approve" => "Approve",
+            "reject" => "Reject",
+            "send" => "Mark as Sent",
+            "accept" => "Record Acceptance",
+            "customer-reject" => "Record Rejection",
+            _ => "Confirm"
+        };
+    }
+}

@@ -13,25 +13,60 @@ namespace FabOS.WebServer.Hubs
     /// - One-way broadcasts (Server → Client) - no timeout issues
     /// - YOU control connection behavior
     ///
-    /// IMPORTANT: AllowAnonymous is required because the C# HubConnection client runs server-side
-    /// and doesn't have access to the browser's authentication cookie
+    /// SECURITY NOTE: AllowAnonymous is required because the C# HubConnection client runs server-side
+    /// and doesn't have access to the browser's authentication cookie. However, we validate:
+    /// 1. Connection comes from same origin (localhost or known hosts)
+    /// 2. HTTP context exists and has valid request
     /// </summary>
     [AllowAnonymous]
     public class MeasurementHub : Hub
     {
         private readonly ILogger<MeasurementHub> _logger;
+        private readonly IConfiguration _configuration;
 
-        public MeasurementHub(ILogger<MeasurementHub> logger)
+        public MeasurementHub(ILogger<MeasurementHub> logger, IConfiguration configuration)
         {
             _logger = logger;
+            _configuration = configuration;
         }
 
         /// <summary>
         /// Called when a client connects to the hub
+        /// Validates the connection is from a trusted source
         /// </summary>
         public override async Task OnConnectedAsync()
         {
-            _logger.LogInformation("[MeasurementHub] ✓ Client connected: {ConnectionId}", Context.ConnectionId);
+            var httpContext = Context.GetHttpContext();
+
+            // Validate HTTP context exists
+            if (httpContext == null)
+            {
+                _logger.LogWarning("[MeasurementHub] ⚠️ Connection rejected: No HTTP context - ConnectionId: {ConnectionId}", Context.ConnectionId);
+                Context.Abort();
+                return;
+            }
+
+            // Get connection info for logging
+            var remoteIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var origin = httpContext.Request.Headers["Origin"].FirstOrDefault() ?? "no-origin";
+            var host = httpContext.Request.Host.ToString();
+
+            // For local development and same-origin requests, allow connections
+            // In production, you could add more restrictive checks here
+            var isLocalConnection = remoteIp == "::1" || remoteIp == "127.0.0.1" || remoteIp?.StartsWith("192.168.") == true;
+            var isSameOrigin = string.IsNullOrEmpty(origin) || origin == "no-origin" || origin.Contains(host);
+
+            if (!isLocalConnection && !isSameOrigin)
+            {
+                _logger.LogWarning("[MeasurementHub] ⚠️ Connection rejected: Cross-origin request from {Origin}, IP: {RemoteIp}, ConnectionId: {ConnectionId}",
+                    origin, remoteIp, Context.ConnectionId);
+                Context.Abort();
+                return;
+            }
+
+            _logger.LogInformation("[MeasurementHub] ✓ Client connected: {ConnectionId}, IP: {RemoteIp}, Origin: {Origin}",
+                Context.ConnectionId, remoteIp, origin);
+
             await base.OnConnectedAsync();
         }
 

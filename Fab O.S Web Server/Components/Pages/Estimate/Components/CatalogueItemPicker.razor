@@ -1,0 +1,224 @@
+@*
+═══════════════════════════════════════════════════════════════
+COMPONENT
+═══════════════════════════════════════════════════════════════
+Component: CatalogueItemPicker
+Purpose: Modal picker for selecting a CatalogueItem from the catalogue
+Features: Search, list display, selection callback
+Module: Estimate
+Last Updated: 2025-12-09
+═══════════════════════════════════════════════════════════════
+*@
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Services.Interfaces.Estimate
+@inject ICatalogueMatchingService MatchingService
+
+@if (IsVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-book me-2"></i>Select Catalogue Item
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Search Box -->
+                    <div class="mb-3">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" class="form-control"
+                                   placeholder="Search by description, profile, or item code..."
+                                   @bind="searchTerm"
+                                   @bind:event="oninput"
+                                   @onkeyup="OnSearchKeyUp" />
+                            @if (!string.IsNullOrEmpty(searchTerm))
+                            {
+                                <button class="btn btn-outline-secondary" type="button" @onclick="ClearSearch">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Context Info -->
+                    @if (!string.IsNullOrEmpty(MatchValue))
+                    {
+                        <div class="alert alert-info py-2">
+                            <small>
+                                <i class="fas fa-info-circle me-1"></i>
+                                Matching for: <strong>@MatchValue</strong>
+                            </small>
+                        </div>
+                    }
+
+                    <!-- Loading State -->
+                    @if (isLoading)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Searching...</span>
+                            </div>
+                        </div>
+                    }
+                    else if (items.Any())
+                    {
+                        <!-- Results List -->
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-hover table-sm mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Description</th>
+                                        <th>Profile</th>
+                                        <th>Category</th>
+                                        <th>Material</th>
+                                        <th style="width: 80px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in items)
+                                    {
+                                        <tr class="@(selectedItem?.Id == item.Id ? "table-primary" : "")"
+                                            @onclick="() => SelectItem(item)" style="cursor: pointer;">
+                                            <td>
+                                                <strong>@item.Description</strong>
+                                                @if (!string.IsNullOrEmpty(item.ItemCode))
+                                                {
+                                                    <br />
+                                                    <small class="text-muted">@item.ItemCode</small>
+                                                }
+                                            </td>
+                                            <td>@item.Profile</td>
+                                            <td><span class="badge bg-secondary">@item.Category</span></td>
+                                            <td>@item.Material</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary" @onclick="() => ConfirmSelection(item)" @onclick:stopPropagation="true">
+                                                    Select
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="text-muted small mt-2">
+                            Showing @items.Count items
+                            @if (items.Count >= 20)
+                            {
+                                <span>- refine your search for more specific results</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- No Results -->
+                        <div class="text-center py-5 text-muted">
+                            <i class="fas fa-search fa-3x mb-3"></i>
+                            <h5>No Items Found</h5>
+                            <p>Try a different search term or check your spelling.</p>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Close">Cancel</button>
+                    @if (selectedItem != null)
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="() => ConfirmSelection(selectedItem)">
+                            <i class="fas fa-check me-1"></i>Confirm Selection
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public int CompanyId { get; set; }
+    [Parameter] public string? MatchValue { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<CatalogueItem> OnItemSelected { get; set; }
+
+    private string searchTerm = "";
+    private bool isLoading = false;
+    private List<CatalogueItem> items = new();
+    private CatalogueItem? selectedItem;
+    private System.Timers.Timer? searchDebounceTimer;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && !string.IsNullOrEmpty(MatchValue) && string.IsNullOrEmpty(searchTerm))
+        {
+            searchTerm = MatchValue;
+            await Search();
+        }
+    }
+
+    private void OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        // Debounce search
+        searchDebounceTimer?.Stop();
+        searchDebounceTimer?.Dispose();
+
+        searchDebounceTimer = new System.Timers.Timer(300);
+        searchDebounceTimer.Elapsed += async (sender, args) =>
+        {
+            searchDebounceTimer?.Stop();
+            await InvokeAsync(async () =>
+            {
+                await Search();
+                StateHasChanged();
+            });
+        };
+        searchDebounceTimer.AutoReset = false;
+        searchDebounceTimer.Start();
+    }
+
+    private async Task Search()
+    {
+        isLoading = true;
+        selectedItem = null;
+
+        try
+        {
+            items = await MatchingService.SearchItemsAsync(CompanyId, searchTerm, 20);
+        }
+        catch (Exception)
+        {
+            items = new();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ClearSearch()
+    {
+        searchTerm = "";
+        items = new();
+        selectedItem = null;
+    }
+
+    private void SelectItem(CatalogueItem item)
+    {
+        selectedItem = item;
+    }
+
+    private async Task ConfirmSelection(CatalogueItem item)
+    {
+        await OnItemSelected.InvokeAsync(item);
+        await Close();
+    }
+
+    private async Task Close()
+    {
+        searchTerm = "";
+        items = new();
+        selectedItem = null;
+        await OnClose.InvokeAsync();
+    }
+}

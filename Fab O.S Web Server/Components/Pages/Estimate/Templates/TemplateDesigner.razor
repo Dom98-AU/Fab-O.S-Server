@@ -1,0 +1,422 @@
+@*
+═══════════════════════════════════════════════════════════════
+EDITOR-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: Editor
+Entity: EstimationWorksheetTemplate
+Features: Excel-like worksheet designer, drag-drop columns, sidebar
+Pattern: Designer
+Module: Estimate
+Last Updated: 2025-12-17
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/estimate/templates/{id:int}"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>@(template?.Name ?? "Template Designer") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" ShowSearch="false" PageType="PageType.Card" />
+
+<!-- Document Header Bar -->
+@if (template != null)
+{
+    <div class="document-header">
+        <div class="document-identity">
+            <i class="fas fa-file-alt document-icon"></i>
+            <input type="text"
+                   class="document-title-input"
+                   @bind="template.Name"
+                   @bind:event="oninput"
+                   @bind:after="MarkUnsaved"
+                   placeholder="Untitled Template"
+                   disabled="@(!isEditMode)" />
+            <div class="document-type-wrapper">
+                <button class="document-type-badge @GetTypeBadgeClass()" @onclick="ToggleTypeDropdown" disabled="@(!isEditMode)">
+                    @GetTypeDisplayName()
+                    @if (isEditMode)
+                    {
+                        <i class="fas fa-chevron-down ms-1" style="font-size: 0.65rem;"></i>
+                    }
+                </button>
+                @if (showTypeDropdown && isEditMode)
+                {
+                    <div class="type-dropdown">
+                        <button class="type-option @(template.WorksheetType == "MaterialCosts" ? "selected" : "")"
+                                @onclick="@(() => SelectType("MaterialCosts"))">
+                            <span class="type-dot material"></span> Material Costs
+                        </button>
+                        <button class="type-option @(template.WorksheetType == "LaborCosts" ? "selected" : "")"
+                                @onclick="@(() => SelectType("LaborCosts"))">
+                            <span class="type-dot labor"></span> Labor Costs
+                        </button>
+                        <button class="type-option @(template.WorksheetType == "WeldingCosts" ? "selected" : "")"
+                                @onclick="@(() => SelectType("WeldingCosts"))">
+                            <span class="type-dot welding"></span> Welding Costs
+                        </button>
+                        <button class="type-option @(template.WorksheetType == "Equipment" ? "selected" : "")"
+                                @onclick="@(() => SelectType("Equipment"))">
+                            <span class="type-dot equipment"></span> Equipment
+                        </button>
+                        <button class="type-option @(template.WorksheetType == "Custom" ? "selected" : "")"
+                                @onclick="@(() => SelectType("Custom"))">
+                            <span class="type-dot custom"></span> Custom
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="document-status">
+            @if (hasUnsavedChanges)
+            {
+                <span class="unsaved-indicator">
+                    <i class="fas fa-circle"></i> Unsaved
+                </span>
+            }
+            else
+            {
+                <span class="saved-indicator">
+                    <i class="fas fa-check-circle"></i> Saved
+                </span>
+            }
+        </div>
+    </div>
+}
+
+<!-- Designer Layout with Sidebar -->
+<div class="template-designer-layout">
+    <!-- Column Sidebar -->
+    <TemplateColumnSidebar @ref="columnSidebar"
+                          IsVisible="@sidebarVisible"
+                          IsVisibleChanged="@((visible) => { sidebarVisible = visible; StateHasChanged(); })"
+                          OnFieldDragStart="@HandleSidebarFieldDragStart"
+                          OnFieldDragEnd="@HandleSidebarFieldDragEnd" />
+
+    <!-- Main Content Area -->
+    <div class="designer-main @(sidebarVisible ? "sidebar-open" : "")">
+        @if (isLoading)
+        {
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <p>Loading template...</p>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-warning m-3">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                @errorMessage
+            </div>
+        }
+        else if (template != null)
+        {
+            <!-- Designer Toolbar (simplified - name/type moved to document header) -->
+            <div class="designer-toolbar">
+                <div class="toolbar-left">
+                    <button class="btn btn-sm btn-outline-secondary sidebar-toggle"
+                            @onclick="ToggleSidebar" title="@(sidebarVisible ? "Hide Columns Panel" : "Show Columns Panel")">
+                        <i class="fas @(sidebarVisible ? "fa-chevron-left" : "fa-columns")"></i>
+                        @if (!sidebarVisible)
+                        {
+                            <span class="ms-1">Columns</span>
+                        }
+                    </button>
+                </div>
+                <div class="toolbar-right">
+                    <span class="column-count">
+                        <i class="fas fa-columns me-1"></i>@columns.Count columns
+                    </span>
+                </div>
+            </div>
+
+            <!-- Spreadsheet Container -->
+            <div class="spreadsheet-wrapper">
+                <div class="spreadsheet-container"
+                     @ondragover="HandleDragOver"
+                     @ondragover:preventDefault
+                     @ondrop="HandleDrop"
+                     @ondrop:preventDefault>
+
+                    <!-- Spreadsheet Grid -->
+                    <div class="spreadsheet-grid">
+                        <!-- Column Headers Row -->
+                        <div class="spreadsheet-header">
+                            <!-- Row number header -->
+                            <div class="row-number-header">#</div>
+
+                            @foreach (var column in columns.OrderBy(c => c.DisplayOrder))
+                            {
+                                <div class="column-header @(selectedColumnId == column.Id ? "selected" : "") @(column.IsFrozen ? "frozen" : "") @(draggingColumnId == column.Id ? "dragging" : "")"
+                                     style="min-width: @(column.Width)px;"
+                                     draggable="true"
+                                     @ondragstart="(e) => HandleColumnDragStart(e, column)"
+                                     @ondragend="HandleColumnDragEnd"
+                                     @onclick="async () => await SelectColumn(column)"
+                                     @ondblclick="async () => await EditColumnInline(column)"
+                                     data-column-id="@column.Id"
+                                     data-display-order="@column.DisplayOrder">
+                                    <div class="column-header-content">
+                                        <span class="column-icon">
+                                            <i class="@GetColumnIcon(column)"></i>
+                                        </span>
+                                        <span class="column-name" title="@column.DisplayName">@column.DisplayName</span>
+                                        @if (column.IsRequired)
+                                        {
+                                            <span class="required-marker">*</span>
+                                        }
+                                        @if (column.LinkToCatalogue)
+                                        {
+                                            <span class="catalogue-marker" title="Linked to Catalogue">
+                                                <i class="fas fa-book"></i>
+                                            </span>
+                                        }
+                                    </div>
+                                    <div class="column-type">@column.DataType</div>
+                                    <!-- Resize handle -->
+                                    <div class="column-resize-handle" @onmousedown="(e) => StartColumnResize(e, column)" @onmousedown:stopPropagation></div>
+                                </div>
+                            }
+
+                            <!-- Add Column Drop Zone -->
+                            <div class="column-add-zone @(isDraggingFromSidebar || isDraggingColumn ? "active" : "")"
+                                 @ondragover="HandleAddZoneDragOver"
+                                 @ondragover:preventDefault
+                                 @ondrop="HandleAddZoneDrop"
+                                 @ondrop:preventDefault>
+                                <i class="fas fa-plus"></i>
+                                <span>Drop here</span>
+                            </div>
+                        </div>
+
+                        <!-- Sample Data Rows -->
+                        <div class="spreadsheet-body">
+                            @for (int rowIndex = 0; rowIndex < sampleRowCount; rowIndex++)
+                            {
+                                var row = rowIndex;
+                                <div class="spreadsheet-row @(row % 2 == 1 ? "alt-row" : "")">
+                                    <!-- Row number -->
+                                    <div class="row-number">@(row + 1)</div>
+
+                                    @foreach (var column in columns.OrderBy(c => c.DisplayOrder))
+                                    {
+                                        <div class="spreadsheet-cell @(selectedColumnId == column.Id ? "column-selected" : "") @(column.IsFrozen ? "frozen" : "")"
+                                             style="min-width: @(column.Width)px;">
+                                            @RenderCellPreview(column, row)
+                                        </div>
+                                    }
+
+                                    <!-- Empty cell for add zone alignment -->
+                                    <div class="spreadsheet-cell add-zone-spacer"></div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Column Properties Panel (slides in from right when column selected) -->
+            @if (selectedColumnId.HasValue && selectedColumn != null)
+            {
+                <div class="column-properties-panel @(showPropertiesPanel ? "visible" : "")">
+                    <div class="properties-header">
+                        <h4>
+                            <i class="fas fa-sliders-h me-2"></i>Column Properties
+                        </h4>
+                        <button class="btn-close-panel" @onclick="ClosePropertiesPanel">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="properties-body">
+                        @if (selectedColumn.LinkToCatalogue)
+                        {
+                            <div class="catalogue-column-notice">
+                                <i class="fas fa-info-circle"></i>
+                                <span>Catalogue column - only position and width can be changed</span>
+                            </div>
+                        }
+                        <div class="property-group">
+                            <label class="property-label">Display Name</label>
+                            <input type="text" class="form-control" @bind="selectedColumn.DisplayName" @bind:event="oninput" @bind:after="MarkUnsaved" disabled="@selectedColumn.LinkToCatalogue" />
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Position</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="number" class="form-control" style="width: 80px;"
+                                       value="@(selectedColumn.DisplayOrder + 1)"
+                                       min="1" max="@columns.Count"
+                                       @onchange="HandlePositionChange" />
+                                <small class="text-muted">of @columns.Count</small>
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Column Key</label>
+                            <code class="column-key">@selectedColumn.ColumnKey</code>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Data Type</label>
+                            <select class="form-select" @bind="selectedColumn.DataType" @bind:after="MarkUnsaved" disabled="@selectedColumn.LinkToCatalogue">
+                                <optgroup label="Text">
+                                    <option value="Text">Text</option>
+                                    <option value="MultilineText">Multiline Text</option>
+                                </optgroup>
+                                <optgroup label="Numbers">
+                                    <option value="Number">Number</option>
+                                    <option value="Currency">Currency</option>
+                                    <option value="Computed">Computed</option>
+                                </optgroup>
+                                <optgroup label="Selection">
+                                    <option value="Choice">Choice</option>
+                                    <option value="MultiChoice">Multi-Choice</option>
+                                    <option value="Checkbox">Checkbox</option>
+                                </optgroup>
+                                <optgroup label="Date/Time">
+                                    <option value="Date">Date</option>
+                                    <option value="DateTime">Date & Time</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Width (px)</label>
+                            <input type="number" class="form-control" @bind="selectedColumn.Width" @bind:after="MarkUnsaved" min="50" max="500" />
+                        </div>
+
+                        @if (selectedColumn.DataType is "Number" or "Currency" or "Computed" && !selectedColumn.LinkToCatalogue)
+                        {
+                            <div class="property-group">
+                                <label class="property-label">Formula</label>
+                                <input type="text"
+                                       class="form-control font-monospace @(isFormulaFieldFocused ? "formula-active" : "")"
+                                       @bind="selectedColumn.Formula"
+                                       @bind:event="oninput"
+                                       @bind:after="MarkUnsaved"
+                                       @onfocus="OnFormulaFocus"
+                                       @onblur="OnFormulaBlur"
+                                       placeholder="e.g., qty * unit_cost" />
+                                <small class="text-muted">
+                                    @if (isFormulaFieldFocused)
+                                    {
+                                        <span class="text-primary"><i class="fas fa-mouse-pointer me-1"></i>Click a column to insert its key</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Click here, then click columns to add them</span>
+                                    }
+                                </small>
+                            </div>
+                        }
+
+                        @if (selectedColumn.DataType is "Choice" or "MultiChoice" && !selectedColumn.LinkToCatalogue)
+                        {
+                            <div class="property-group">
+                                <label class="property-label">Options (comma-separated)</label>
+                                <input type="text" class="form-control" @bind="selectedColumn.SelectOptions" @bind:after="MarkUnsaved" placeholder="Option 1, Option 2" />
+                            </div>
+                        }
+
+                        @if (selectedColumn.DataType is "Number" or "Currency" or "Computed")
+                        {
+                            <div class="property-group">
+                                <label class="property-label">Decimal Places</label>
+                                <input type="number" class="form-control" @bind="selectedColumn.DecimalPlaces" @bind:after="MarkUnsaved" min="0" max="6" disabled="@selectedColumn.LinkToCatalogue" />
+                            </div>
+                        }
+
+                        <div class="property-group flags-group">
+                            <label class="property-label">Flags</label>
+                            <div class="flag-toggles">
+                                <label class="flag-toggle">
+                                    <input type="checkbox" @bind="selectedColumn.IsRequired" @bind:after="MarkUnsaved" disabled="@selectedColumn.LinkToCatalogue" />
+                                    <span class="flag-label">Required</span>
+                                </label>
+                                <label class="flag-toggle">
+                                    <input type="checkbox" @bind="selectedColumn.IsFrozen" @bind:after="MarkUnsaved" disabled="@selectedColumn.LinkToCatalogue" />
+                                    <span class="flag-label">Frozen</span>
+                                </label>
+                                <label class="flag-toggle">
+                                    <input type="checkbox" @bind="selectedColumn.IsVisible" @bind:after="MarkUnsaved" disabled="@selectedColumn.LinkToCatalogue" />
+                                    <span class="flag-label">Visible</span>
+                                </label>
+                                <label class="flag-toggle">
+                                    <input type="checkbox" @bind="selectedColumn.IsEditable" @bind:after="MarkUnsaved" disabled="@selectedColumn.LinkToCatalogue" />
+                                    <span class="flag-label">Editable</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        @if (selectedColumn.LinkToCatalogue)
+                        {
+                            <div class="property-group catalogue-info">
+                                <label class="property-label">
+                                    <i class="fas fa-book text-success me-1"></i>Catalogue Link
+                                </label>
+                                <div class="catalogue-field-display">
+                                    <span class="badge bg-success">@selectedColumn.CatalogueField</span>
+                                    <small class="text-muted d-block mt-1">Auto-populates from matched catalogue items</small>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="properties-footer">
+                        <button class="btn btn-danger btn-sm" @onclick="DeleteSelectedColumn">
+                            <i class="fas fa-trash me-1"></i>Delete Column
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<!-- Formula Help Dialog -->
+@if (showFormulaHelp)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" @onclick="() => showFormulaHelp = false">
+        <div class="modal-dialog modal-lg" @onclick:stopPropagation>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-question-circle me-2"></i>Formula Reference</h5>
+                    <button type="button" class="btn-close" @onclick="() => showFormulaHelp = false"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Column References</h6>
+                    <p class="text-muted">Use column keys to reference values in the same row:</p>
+                    <pre class="bg-light p-2 rounded">qty * unit_cost</pre>
+
+                    <h6 class="mt-3">Aggregate Functions</h6>
+                    <p class="text-muted">Calculate across all rows:</p>
+                    <ul>
+                        <li><code>SUM(column_key)</code> - Sum all values</li>
+                        <li><code>AVG(column_key)</code> - Average</li>
+                        <li><code>MIN(column_key)</code> - Minimum value</li>
+                        <li><code>MAX(column_key)</code> - Maximum value</li>
+                        <li><code>COUNT(column_key)</code> - Count non-empty</li>
+                    </ul>
+
+                    <h6 class="mt-3">Conditional Logic</h6>
+                    <pre class="bg-light p-2 rounded">IF(qty > 10, qty * 0.95, qty)</pre>
+
+                    <h6 class="mt-3">Cross-Worksheet References</h6>
+                    <pre class="bg-light p-2 rounded">=MaterialCosts.SUM(total_cost)</pre>
+
+                    <h6 class="mt-3">Math Functions</h6>
+                    <ul>
+                        <li><code>ROUND(value, decimals)</code></li>
+                        <li><code>ABS(value)</code></li>
+                        <li><code>CEILING(value)</code></li>
+                        <li><code>FLOOR(value)</code></li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showFormulaHelp = false">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+

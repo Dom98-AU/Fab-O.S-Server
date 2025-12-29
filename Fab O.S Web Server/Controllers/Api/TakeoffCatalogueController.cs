@@ -6,7 +6,7 @@ using System.Security.Claims;
 
 namespace FabOS.WebServer.Controllers.Api
 {
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Bearer")]
     [ApiController]
     [Route("api/takeoff/catalogue")]
     public class TakeoffCatalogueController : ControllerBase

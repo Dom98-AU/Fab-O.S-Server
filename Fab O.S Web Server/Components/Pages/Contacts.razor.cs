@@ -69,6 +69,13 @@ public partial class Contacts : ComponentBase, IToolbarActionProvider, IDisposab
         {
             new GenericTableView<CustomerContact>.TableColumn<CustomerContact>
             {
+                Header = "Contact Number",
+                PropertyName = "ContactNumber",
+                ValueSelector = c => c.ContactNumber ?? "-",
+                IsSortable = true
+            },
+            new GenericTableView<CustomerContact>.TableColumn<CustomerContact>
+            {
                 Header = "Name",
                 PropertyName = "FirstName",
                 ValueSelector = c => $"{c.FirstName} {c.LastName}",

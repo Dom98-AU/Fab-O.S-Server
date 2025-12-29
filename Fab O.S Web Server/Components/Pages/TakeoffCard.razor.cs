@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.EntityFrameworkCore;
 using FabOS.WebServer.Components.Shared.Interfaces;
@@ -8,6 +9,7 @@ using FabOS.WebServer.Models;
 using FabOS.WebServer.Services.Interfaces;
 using FabOS.WebServer.Services;
 using FabOS.WebServer.Components.Shared;
+using System.Security.Claims;
 
 namespace FabOS.WebServer.Components.Pages;
 
@@ -31,11 +33,17 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
     [Parameter] public string? TenantSlug { get; set; }
     [Parameter] public int Id { get; set; }
 
-    [Inject] private ApplicationDbContext DbContext { get; set; } = default!;
+    [Inject] private ITakeoffCardService TakeoffService { get; set; } = default!;
+    [Inject] private IDbContextFactory<ApplicationDbContext> DbContextFactory { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private ISharePointService? SharePointService { get; set; }
     [Inject] private ILogger<TakeoffCard> Logger { get; set; } = default!;
     [Inject] private NumberSeriesService NumberSeriesService { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+
+    // Authentication state
+    private int currentUserId = 0;
+    private int currentCompanyId = 0;
 
     private Takeoff? takeoff = null;
     private bool isLoading = true;
@@ -87,6 +95,33 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
     protected override async Task OnInitializedAsync()
     {
+        // Validate authentication and get user context
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var userIdClaim = user.FindFirst("user_id") ?? user.FindFirst("UserId") ?? user.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+            {
+                currentUserId = userId;
+            }
+
+            var companyIdClaim = user.FindFirst("company_id") ?? user.FindFirst("CompanyId");
+            if (companyIdClaim != null && int.TryParse(companyIdClaim.Value, out var companyId))
+            {
+                currentCompanyId = companyId;
+            }
+        }
+
+        if (currentUserId == 0 || currentCompanyId == 0)
+        {
+            Logger.LogWarning("User is not authenticated or missing required claims for TakeoffCard page");
+            errorMessage = "User is not authenticated. Please log in and try again.";
+            isLoading = false;
+            return;
+        }
+
         await LoadData();
         LoadSampleFiles();
     }
@@ -104,7 +139,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             // Load or create takeoff
             if (Id == 0)
             {
-                // Create new takeoff
+                // Create new takeoff with authenticated user's company
                 takeoff = new Takeoff
                 {
                     Id = 0,
@@ -112,9 +147,9 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                     FileType = "pdf",
                     ProcessingStatus = "Draft",
                     Status = "Planning",
-                    UploadedBy = 2,
-                    CompanyId = 1,
-                    ProjectId = 1,
+                    UploadedBy = currentUserId,
+                    CompanyId = currentCompanyId,
+                    ProjectId = null,
                     BlobUrl = "https://placeholder.blob.url",
                     CreatedDate = DateTime.UtcNow,
                     UploadDate = DateTime.UtcNow,
@@ -130,13 +165,13 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             }
             else
             {
-                // Load existing takeoff
-                takeoff = await DbContext.TraceDrawings
-                    .FirstOrDefaultAsync(t => t.Id == Id);
+                // Load existing takeoff using service for company-isolated access
+                takeoff = await TakeoffService.GetTakeoffByIdAsync(Id, currentCompanyId);
 
                 if (takeoff == null)
                 {
-                    errorMessage = $"Takeoff with ID {Id} not found.";
+                    Logger.LogWarning("Takeoff {TakeoffId} not found or access denied for company {CompanyId}", Id, currentCompanyId);
+                    errorMessage = $"Takeoff with ID {Id} not found or you don't have access.";
                 }
                 else
                 {
@@ -146,8 +181,8 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                         try
                         {
                             takeoff.TakeoffNumber = await NumberSeriesService.GetNextNumberAsync("Takeoff", takeoff.CompanyId);
-                            DbContext.TraceDrawings.Update(takeoff);
-                            await DbContext.SaveChangesAsync();
+                            // Update via service
+                            await TakeoffService.UpdateTakeoffAsync(takeoff, currentCompanyId, currentUserId);
                             Logger.LogInformation($"Generated takeoff number {takeoff.TakeoffNumber} for existing takeoff ID {Id}");
                         }
                         catch (Exception ex)
@@ -159,8 +194,8 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
                     if (takeoff.CustomerId != null)
                     {
-                        // Load customer contacts if customer is selected
-                        await LoadCustomerContacts(takeoff.CustomerId.Value);
+                        // Load customer contacts using service
+                        customerContacts = await TakeoffService.GetCustomerContactsAsync(takeoff.CustomerId.Value, currentCompanyId);
 
                         // Load selected contact if exists
                         if (takeoff.ContactId != null)
@@ -173,12 +208,15 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
                             }
                         }
 
-                        // Load selected customer details
-                        selectedCustomer = await DbContext.Customers
-                            .FirstOrDefaultAsync(c => c.Id == takeoff.CustomerId.Value);
+                        // Load selected customer details using DbContextFactory for read-only data
+                        await using var context = await DbContextFactory.CreateDbContextAsync();
+                        selectedCustomer = await context.Customers
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(c => c.Id == takeoff.CustomerId.Value && c.CompanyId == currentCompanyId);
                         if (selectedCustomer != null)
                         {
-                            selectedAddress = await DbContext.CustomerAddresses
+                            selectedAddress = await context.CustomerAddresses
+                                .AsNoTracking()
                                 .FirstOrDefaultAsync(a => a.CustomerId == selectedCustomer.Id && a.IsPrimary);
                         }
                     }
@@ -203,11 +241,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
     private async Task LoadCustomerContacts(int customerId)
     {
-        customerContacts = await DbContext.CustomerContacts
-            .Where(c => c.CustomerId == customerId && c.IsActive)
-            .OrderBy(c => c.FirstName)
-            .ThenBy(c => c.LastName)
-            .ToListAsync();
+        customerContacts = await TakeoffService.GetCustomerContactsAsync(customerId, currentCompanyId);
     }
 
     private async Task OnCustomerIdChanged(int? customerId)
@@ -240,7 +274,9 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
         selectedCustomer = customer;
         if (customer != null)
         {
-            selectedAddress = await DbContext.CustomerAddresses
+            await using var context = await DbContextFactory.CreateDbContextAsync();
+            selectedAddress = await context.CustomerAddresses
+                .AsNoTracking()
                 .FirstOrDefaultAsync(a => a.CustomerId == customer.Id && a.IsPrimary);
 
             // Address field has been removed from Takeoff entity
@@ -346,8 +382,7 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
         {
             try
             {
-                DbContext.TraceDrawings.Update(takeoff);
-                await DbContext.SaveChangesAsync();
+                await TakeoffService.UpdateTakeoffAsync(takeoff, currentCompanyId, currentUserId);
                 Logger.LogInformation($"Saved changes to takeoff {takeoff.Id}");
             }
             catch (Exception ex)
@@ -568,14 +603,14 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
             if (takeoff.Id == 0)
             {
-                DbContext.TraceDrawings.Add(takeoff);
+                // Create new takeoff via service
+                takeoff = await TakeoffService.CreateTakeoffAsync(takeoff, currentCompanyId, currentUserId);
             }
             else
             {
-                DbContext.TraceDrawings.Update(takeoff);
+                // Update existing takeoff via service
+                await TakeoffService.UpdateTakeoffAsync(takeoff, currentCompanyId, currentUserId);
             }
-
-            await DbContext.SaveChangesAsync();
 
             if (takeoff.Id != 0)
             {
@@ -635,9 +670,15 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
             // In a real application, you'd want to show a confirmation dialog
             try
             {
-                DbContext.TraceDrawings.Remove(takeoff);
-                await DbContext.SaveChangesAsync();
-                Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs");
+                var success = await TakeoffService.DeleteTakeoffAsync(takeoff.Id, currentCompanyId, currentUserId);
+                if (success)
+                {
+                    Navigation.NavigateTo($"/{TenantSlug}/trace/takeoffs");
+                }
+                else
+                {
+                    errorMessage = "Failed to delete takeoff. Please try again.";
+                }
             }
             catch (Exception ex)
             {
@@ -684,14 +725,15 @@ public partial class TakeoffCard : ComponentBase, IToolbarActionProvider, IDispo
 
             if (takeoff.Id == 0)
             {
-                DbContext.TraceDrawings.Add(takeoff);
+                // Create new takeoff via service
+                takeoff = await TakeoffService.CreateTakeoffAsync(takeoff, currentCompanyId, currentUserId);
             }
             else
             {
-                DbContext.TraceDrawings.Update(takeoff);
+                // Update existing takeoff via service
+                await TakeoffService.UpdateTakeoffAsync(takeoff, currentCompanyId, currentUserId);
             }
 
-            await DbContext.SaveChangesAsync();
             hasUnsavedChanges = false;
 
             // If this was a new takeoff, update the ID and URL

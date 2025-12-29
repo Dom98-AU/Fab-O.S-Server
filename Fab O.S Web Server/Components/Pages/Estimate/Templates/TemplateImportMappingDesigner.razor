@@ -1,0 +1,558 @@
+@*
+===============================================================
+EDITOR-TYPE PAGE
+===============================================================
+Page Type: Editor
+Entity: TemplateImportMapping
+Features: Drag-drop column mapping, file upload, preview
+Pattern: Designer
+Module: Estimate
+Last Updated: 2025-12-20
+===============================================================
+*@
+@page "/{tenantSlug}/estimate/templates/{id:int}/import-mapping"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models
+@using FabOS.WebServer.Services.Interfaces
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Text.Json
+@using ToolbarAction = FabOS.WebServer.Components.Shared.Interfaces.ToolbarAction
+@implements IToolbarActionProvider
+@inject ApplicationDbContext DbContext
+@inject IImportMappingService ImportMappingService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Import Mapping - @(template?.Name ?? "Template") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" ShowSearch="false" PageType="PageType.Card" />
+
+<div class="import-mapping-designer">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading template...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger m-3">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            @errorMessage
+        </div>
+    }
+    else if (template == null)
+    {
+        <div class="alert alert-warning m-3">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Template not found
+        </div>
+    }
+    else
+    {
+        <!-- Header -->
+        <div class="mapping-header">
+            <div class="header-left">
+                <h3><i class="fas fa-file-import me-2"></i>Import Mapping Configuration</h3>
+                <p class="text-muted mb-0">Configure how imported files map to template columns</p>
+            </div>
+            <div class="header-right">
+                @if (hasUnsavedChanges)
+                {
+                    <span class="unsaved-badge"><i class="fas fa-circle text-warning me-1"></i>Unsaved</span>
+                }
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="mapping-content">
+            <!-- Left Panel: Source File -->
+            <div class="source-panel">
+                <div class="panel-header">
+                    <h5><i class="fas fa-file-excel me-2"></i>Source File</h5>
+                </div>
+                <div class="panel-body">
+                    @if (sourceColumns.Count == 0)
+                    {
+                        <label class="upload-zone">
+                            <InputFile accept=".xlsx,.xls,.csv" OnChange="OnFileSelected" style="display: none;" />
+                            <div class="upload-content">
+                                <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
+                                <h5>Upload Sample File</h5>
+                                <p class="text-muted">Drop an Excel (.xlsx, .xls) or CSV file here<br/>or click to browse</p>
+                                @if (isUploading)
+                                {
+                                    <div class="mt-2">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                        <span class="ms-2">Processing file...</span>
+                                    </div>
+                                }
+                            </div>
+                        </label>
+                    }
+                    else
+                    {
+                        <div class="file-info mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong><i class="fas fa-file me-2"></i>@uploadedFileName</strong>
+                                    <span class="badge bg-secondary ms-2">@sourceColumns.Count columns</span>
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearUpload">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        @if (sheetNames.Count > 1)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Sheet</label>
+                                <select class="form-select form-select-sm" @bind="selectedSheetName" @bind:after="OnSheetChanged">
+                                    @foreach (var sheet in sheetNames)
+                                    {
+                                        <option value="@sheet">@sheet</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label">Header Row</label>
+                                <input type="number" class="form-control form-control-sm" @bind="headerRowIndex" @bind:after="OnSettingsChanged" min="0" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Data Starts</label>
+                                <input type="number" class="form-control form-control-sm" @bind="dataStartRowIndex" @bind:after="OnSettingsChanged" min="1" />
+                            </div>
+                        </div>
+
+                        <div class="source-columns-list">
+                            <label class="form-label">Source Columns</label>
+                            @foreach (var col in sourceColumns)
+                            {
+                                <div class="source-column-item @(GetMappingForSource(col.Index) != null ? "mapped" : "")"
+                                     draggable="true"
+                                     @ondragstart="() => StartDrag(col)"
+                                     @ondragend="EndDrag">
+                                    <div class="column-drag-handle">
+                                        <i class="fas fa-grip-vertical"></i>
+                                    </div>
+                                    <div class="column-info">
+                                        <span class="column-name">@col.Name</span>
+                                        <span class="column-type">@col.DetectedDataType</span>
+                                    </div>
+                                    @if (GetMappingForSource(col.Index) != null)
+                                    {
+                                        <div class="mapping-indicator">
+                                            <i class="fas fa-link text-success"></i>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Connection Zone (Visual connectors) -->
+            <div class="connection-zone">
+                <svg class="connection-lines" viewBox="0 0 100 @(Math.Max(sourceColumns.Count, templateColumns.Count) * 50)">
+                    @foreach (var mapping in columnMappings)
+                    {
+                        var sourceY = GetSourceColumnY(mapping.SourceColumnIndex);
+                        var targetY = GetTargetColumnY(mapping.TargetColumnKey);
+                        <line x1="0" y1="@sourceY" x2="100" y2="@targetY" class="mapping-line" />
+                    }
+                </svg>
+            </div>
+
+            <!-- Right Panel: Template Columns -->
+            <div class="target-panel">
+                <div class="panel-header">
+                    <h5><i class="fas fa-columns me-2"></i>Template Columns</h5>
+                </div>
+                <div class="panel-body">
+                    <div class="target-columns-list">
+                        @foreach (var col in templateColumns)
+                        {
+                            var existingMapping = GetMappingForTarget(col.ColumnKey);
+                            <div class="target-column-item @(existingMapping != null ? "mapped" : "") @(isDragging ? "drop-target" : "")"
+                                 @ondragover:preventDefault
+                                 @ondrop="() => OnDrop(col)">
+                                <div class="column-info">
+                                    <span class="column-name">@col.DisplayName</span>
+                                    <span class="column-key">@col.ColumnKey</span>
+                                </div>
+                                @if (existingMapping != null)
+                                {
+                                    <div class="mapping-source-info">
+                                        <span class="badge bg-primary">@existingMapping.SourceColumnName</span>
+                                        <button class="btn btn-sm btn-link text-danger p-0 ms-2" @onclick="() => RemoveMapping(existingMapping)" title="Remove mapping">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="drop-hint">
+                                        <i class="fas fa-plus-circle"></i> Drop source column here
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview Section -->
+        @if (previewRows.Any())
+        {
+            <div class="preview-section">
+                <div class="preview-header">
+                    <h5><i class="fas fa-eye me-2"></i>Preview</h5>
+                    <span class="text-muted">Showing first @previewRows.Count rows</span>
+                </div>
+                <div class="preview-table-wrapper">
+                    <table class="table table-sm table-bordered preview-table">
+                        <thead>
+                            <tr>
+                                @foreach (var mapping in columnMappings)
+                                {
+                                    <th>
+                                        <div class="preview-header-cell">
+                                            <span class="source-name">@mapping.SourceColumnName</span>
+                                            <i class="fas fa-arrow-right mx-2"></i>
+                                            <span class="target-name">@mapping.TargetColumnName</span>
+                                        </div>
+                                    </th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in previewRows)
+                            {
+                                <tr>
+                                    @foreach (var mapping in columnMappings)
+                                    {
+                                        var sourceCol = sourceColumns.FirstOrDefault(c => c.Index == mapping.SourceColumnIndex);
+                                        var value = row.TryGetValue(sourceCol?.Name ?? "", out var v) ? v?.ToString() : "";
+                                        <td>@value</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string TenantSlug { get; set; } = string.Empty;
+    [Parameter] public int Id { get; set; }
+
+    private EstimationWorksheetTemplate? template;
+    private List<EstimationWorksheetColumn> templateColumns = new();
+    private List<SourceColumnInfo> sourceColumns = new();
+    private List<ColumnMappingDto> columnMappings = new();
+    private List<Dictionary<string, object>> previewRows = new();
+    private List<string> sheetNames = new();
+
+    private bool isLoading = true;
+    private bool isUploading = false;
+    private bool hasUnsavedChanges = false;
+    private string uploadedFileName = "";
+    private string selectedSheetName = "";
+    private int headerRowIndex = 0;
+    private int dataStartRowIndex = 1;
+    private byte[]? uploadedFileBytes;
+    private string? errorMessage;
+
+    private bool isDragging = false;
+    private SourceColumnInfo? draggedColumn;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTemplateAsync();
+    }
+
+    private async Task LoadTemplateAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            // First load template with columns only (ImportMappings table may not exist yet)
+            template = await DbContext.EstimationWorksheetTemplates
+                .Include(t => t.Columns.Where(c => !c.IsDeleted).OrderBy(c => c.DisplayOrder))
+                .FirstOrDefaultAsync(t => t.Id == Id);
+
+            if (template != null)
+            {
+                templateColumns = template.Columns.ToList();
+
+                // Try to load import mappings separately (table may not exist)
+                try
+                {
+                    var existingMapping = await DbContext.TemplateImportMappings
+                        .Where(m => m.WorksheetTemplateId == Id && !m.IsDeleted && m.IsDefault)
+                        .FirstOrDefaultAsync();
+
+                    if (existingMapping != null)
+                    {
+                        uploadedFileName = existingMapping.SampleFileName ?? "";
+                        selectedSheetName = existingMapping.SheetName ?? "";
+                        headerRowIndex = existingMapping.HeaderRowIndex;
+                        dataStartRowIndex = existingMapping.DataStartRowIndex;
+                        columnMappings = JsonSerializer.Deserialize<List<ColumnMappingDto>>(existingMapping.ColumnMappingsJson) ?? new();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Table might not exist yet - that's OK, we'll create mappings from scratch
+                    Console.WriteLine($"ImportMappings table may not exist: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading template: {ex.Message}";
+            Console.WriteLine($"Error in LoadTemplateAsync: {ex}");
+        }
+
+        isLoading = false;
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        isUploading = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            // Read file into memory (max 10MB)
+            const long maxFileSize = 10 * 1024 * 1024;
+            if (file.Size > maxFileSize)
+            {
+                errorMessage = "File size exceeds 10MB limit.";
+                isUploading = false;
+                return;
+            }
+
+            using var memoryStream = new MemoryStream();
+            await file.OpenReadStream(maxFileSize).CopyToAsync(memoryStream);
+            uploadedFileBytes = memoryStream.ToArray();
+            uploadedFileName = file.Name;
+
+            // Get sheet names for Excel files
+            if (file.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) ||
+                file.Name.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
+            {
+                using var sheetStream = new MemoryStream(uploadedFileBytes);
+                sheetNames = await ImportMappingService.GetExcelSheetNamesAsync(sheetStream, file.Name);
+                selectedSheetName = sheetNames.FirstOrDefault() ?? "";
+            }
+            else
+            {
+                sheetNames.Clear();
+                selectedSheetName = "";
+            }
+
+            // Parse the file to get columns and preview
+            await ParseUploadedFile();
+
+            hasUnsavedChanges = true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error reading file: {ex.Message}";
+            Console.WriteLine($"File upload error: {ex}");
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ParseUploadedFile()
+    {
+        if (uploadedFileBytes == null) return;
+
+        try
+        {
+            using var stream = new MemoryStream(uploadedFileBytes);
+            var result = await ImportMappingService.ParseFilePreviewAsync(
+                stream, uploadedFileName, headerRowIndex, dataStartRowIndex, 5, selectedSheetName);
+
+            if (result.Success)
+            {
+                sourceColumns = result.Columns;
+                previewRows = result.PreviewRows;
+            }
+            else
+            {
+                errorMessage = result.ErrorMessage ?? "Failed to parse file.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error parsing file: {ex.Message}";
+            Console.WriteLine($"Parse error: {ex}");
+        }
+    }
+
+    private void ClearUpload()
+    {
+        sourceColumns.Clear();
+        previewRows.Clear();
+        columnMappings.Clear();
+        uploadedFileName = "";
+        uploadedFileBytes = null;
+        sheetNames.Clear();
+        hasUnsavedChanges = true;
+    }
+
+    private async Task OnSheetChanged()
+    {
+        await ParseUploadedFile();
+        hasUnsavedChanges = true;
+    }
+
+    private async Task OnSettingsChanged()
+    {
+        await ParseUploadedFile();
+        hasUnsavedChanges = true;
+    }
+
+    private void StartDrag(SourceColumnInfo col)
+    {
+        isDragging = true;
+        draggedColumn = col;
+    }
+
+    private void EndDrag()
+    {
+        isDragging = false;
+        draggedColumn = null;
+    }
+
+    private void OnDrop(EstimationWorksheetColumn targetCol)
+    {
+        if (draggedColumn == null) return;
+
+        // Remove existing mapping for this source or target
+        columnMappings.RemoveAll(m => m.SourceColumnIndex == draggedColumn.Index || m.TargetColumnKey == targetCol.ColumnKey);
+
+        // Add new mapping
+        columnMappings.Add(new ColumnMappingDto
+        {
+            SourceColumnIndex = draggedColumn.Index,
+            SourceColumnName = draggedColumn.Name,
+            TargetColumnKey = targetCol.ColumnKey,
+            TargetColumnName = targetCol.DisplayName,
+            TransformType = "none"
+        });
+
+        hasUnsavedChanges = true;
+        isDragging = false;
+        draggedColumn = null;
+    }
+
+    private void RemoveMapping(ColumnMappingDto mapping)
+    {
+        columnMappings.Remove(mapping);
+        hasUnsavedChanges = true;
+    }
+
+    private ColumnMappingDto? GetMappingForSource(int sourceIndex)
+    {
+        return columnMappings.FirstOrDefault(m => m.SourceColumnIndex == sourceIndex);
+    }
+
+    private ColumnMappingDto? GetMappingForTarget(string targetKey)
+    {
+        return columnMappings.FirstOrDefault(m => m.TargetColumnKey == targetKey);
+    }
+
+    private int GetSourceColumnY(int sourceIndex)
+    {
+        var index = sourceColumns.FindIndex(c => c.Index == sourceIndex);
+        return index * 50 + 25;
+    }
+
+    private int GetTargetColumnY(string targetKey)
+    {
+        var index = templateColumns.FindIndex(c => c.ColumnKey == targetKey);
+        return index * 50 + 25;
+    }
+
+    private async Task SaveMapping()
+    {
+        if (template == null) return;
+
+        var mappingDto = new TemplateImportMappingDto
+        {
+            Name = "Default",
+            SampleFileName = uploadedFileName,
+            SampleFileType = Path.GetExtension(uploadedFileName).TrimStart('.'),
+            HeaderRowIndex = headerRowIndex,
+            DataStartRowIndex = dataStartRowIndex,
+            SheetName = selectedSheetName,
+            ColumnMappings = columnMappings,
+            IsDefault = true
+        };
+
+        await ImportMappingService.SaveMappingAsync(Id, mappingDto);
+        hasUnsavedChanges = false;
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo($"/{TenantSlug}/estimate/templates/{Id}");
+    }
+
+    // IToolbarActionProvider implementation
+    public ToolbarActionGroup GetActions()
+    {
+        return new ToolbarActionGroup
+        {
+            PrimaryActions = new List<ToolbarAction>
+            {
+                new()
+                {
+                    Label = "Back",
+                    Text = "Back",
+                    Icon = "fas fa-arrow-left",
+                    ActionFunc = async () => { GoBack(); await Task.CompletedTask; },
+                    Style = ToolbarActionStyle.Secondary
+                },
+                new()
+                {
+                    Label = "Save",
+                    Text = "Save Mapping",
+                    Icon = "fas fa-save",
+                    ActionFunc = SaveMapping,
+                    Style = ToolbarActionStyle.Primary,
+                    IsDisabled = !hasUnsavedChanges
+                }
+            }
+        };
+    }
+}

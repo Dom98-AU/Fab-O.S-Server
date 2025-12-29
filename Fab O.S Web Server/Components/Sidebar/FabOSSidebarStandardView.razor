@@ -3,6 +3,7 @@
 @using FabOS.WebServer.Components.Shared
 @inject SidebarService SidebarService
 @inject NavigationService NavService
+@implements IDisposable
 
 @if (_navItems == null)
 {
@@ -31,6 +32,24 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        SidebarService.OnStateChanged += OnStateChanged;
+        await LoadNavigationItems();
+    }
+
+    private async Task LoadNavigationItems()
+    {
         _navItems = await NavService.GetModuleItemsAsync(SidebarService.CurrentModule);
+        StateHasChanged();
+    }
+
+    private void OnStateChanged()
+    {
+        _ = LoadNavigationItems();
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        SidebarService.OnStateChanged -= OnStateChanged;
     }
 }

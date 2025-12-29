@@ -1,0 +1,153 @@
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: EstimationWorksheet
+Views: Table, List, Card
+Features: ViewPreferences, ColumnManagement, Search, Selection, Sorting, Filtering
+Pattern: Standard
+Modern UI: Yes
+Last Updated: 2025-12-17
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/estimate/packages/{packageId:int}/worksheets"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities
+@using FabOS.WebServer.Models
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Worksheets - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search worksheets..." PageType="PageType.List" />
+
+<!-- Content -->
+<div class="takeoff-worksheets-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading worksheets...</p>
+        </div>
+    }
+    else if (package == null)
+    {
+        <div class="error-container">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Package not found</h3>
+            <p>The requested package could not be found.</p>
+            <button class="fabos-btn fabos-btn-primary" @onclick="NavigateToEstimations">
+                <i class="fas fa-arrow-left"></i>
+                Back to Estimations
+            </button>
+        </div>
+    }
+    else
+    {
+        <!-- Unified View Toolbar -->
+        <TableViewToolbar TItem="EstimationWorksheet"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="EstimationWorksheet"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
+
+        <!-- Views -->
+        @if (filteredWorksheets.Any())
+        {
+            @if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationWorksheet>.ViewType.Table)
+            {
+                <GenericTableView TItem="EstimationWorksheet"
+                                 Items="@filteredWorksheets"
+                                 AllItems="@allWorksheets"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 ShowCheckboxes="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleRowClick"
+                                 OnRowDoubleClick="@HandleRowDoubleClick"
+                                 EnableAdvancedFeatures="true"
+                                 EnableColumnManagement="true"
+                                 EnableFiltering="true"
+                                 EnableViewPreferences="true"
+                                 EntityType="EstimationWorksheet" />
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationWorksheet>.ViewType.List)
+            {
+                <GenericListView TItem="EstimationWorksheet"
+                                Items="@filteredWorksheets"
+                                OnItemClick="@HandleRowClick"
+                                OnItemDoubleClick="@HandleRowDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedListItems"
+                                SelectedItemsChanged="@HandleListSelectionChanged">
+                    <ItemTitle Context="worksheet">
+                        <span>@worksheet.Name</span>
+                    </ItemTitle>
+                    <ItemStatus Context="worksheet">
+                        <span class="badge @GetWorksheetTypeBadgeClass(worksheet.WorksheetType)">@worksheet.WorksheetType</span>
+                    </ItemStatus>
+                    <ItemSubtitle Context="worksheet">
+                        <span>@(worksheet.Description ?? "No description")</span>
+                    </ItemSubtitle>
+                    <ItemDetails Context="worksheet">
+                        <div class="d-flex gap-3">
+                            <span>
+                                <i class="fas fa-list"></i>
+                                @(worksheet.Rows?.Count(r => !r.IsDeleted && !r.IsGroupHeader) ?? 0) Rows
+                            </span>
+                            <span>
+                                <i class="fas fa-dollar-sign"></i>
+                                Material: @worksheet.TotalMaterialCost.ToString("C")
+                            </span>
+                            <span>
+                                <i class="fas fa-tools"></i>
+                                Labor: @worksheet.TotalLaborCost.ToString("C")
+                            </span>
+                            <span>
+                                <i class="fas fa-calculator"></i>
+                                Total: @worksheet.TotalCost.ToString("C")
+                            </span>
+                        </div>
+                    </ItemDetails>
+                </GenericListView>
+            }
+            else if (currentView == FabOS.WebServer.Components.Shared.GenericViewSwitcher<FabOS.WebServer.Models.Entities.EstimationWorksheet>.ViewType.Card)
+            {
+                <GenericCardView TItem="EstimationWorksheet"
+                                Items="@filteredWorksheets"
+                                TitleSelector="@(item => item.Name)"
+                                SubtitleSelector="@(item => item.Description ?? "No description")"
+                                DescriptionSelector="@(item => $"Material: {item.TotalMaterialCost:C} • Labor: {item.TotalLaborCost:C}")"
+                                StatusSelector="@(item => item.TotalCost.ToString("C"))"
+                                BadgeSelector="@(item => item.WorksheetType)"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<EstimationWorksheet>>(this, HandleCardSelectionChanged))"
+                                OnItemClick="@(EventCallback.Factory.Create<EstimationWorksheet>(this, (item) => NavigateToWorksheet(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<EstimationWorksheet>(this, (item) => NavigateToWorksheet(item.Id)))" />
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-table"></i>
+                </div>
+                <h3>No worksheets found</h3>
+                <p>@(string.IsNullOrEmpty(searchTerm) ? "This package doesn't have any worksheets yet. Use the 'New' button above to create your first worksheet." : $"No worksheets match \"{searchTerm}\". Try adjusting your search.")</p>
+            </div>
+        }
+    }
+</div>

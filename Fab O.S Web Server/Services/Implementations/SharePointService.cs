@@ -1246,43 +1246,50 @@ public class SharePointService : ISharePointService
     {
         var pathParts = folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
         DriveItem? currentFolder = null;
+        string? parentFolderId = "root"; // Start at root
         string currentPath = "";
+
+        _logger.LogInformation("Creating folder hierarchy: {FolderPath} with {PartCount} parts", folderPath, pathParts.Length);
 
         foreach (var part in pathParts)
         {
             currentPath = string.IsNullOrEmpty(currentPath) ? part : $"{currentPath}/{part}";
+            _logger.LogInformation("Processing folder part: {Part}, currentPath: {CurrentPath}, parentId: {ParentId}", part, currentPath, parentFolderId);
 
             try
             {
-                // Try to get the folder first
+                // Try to get the folder first by path
                 currentFolder = await client.Drives[driveId].Root
                     .ItemWithPath(currentPath)
                     .GetAsync();
+
+                _logger.LogInformation("Folder exists: {CurrentPath}, Id: {FolderId}", currentPath, currentFolder?.Id);
             }
-            catch
+            catch (Exception ex)
             {
-                // Folder doesn't exist, create it
+                _logger.LogInformation("Folder doesn't exist, creating: {Part} under parent {ParentId}. Error was: {Error}", part, parentFolderId, ex.Message);
+
+                // Folder doesn't exist, create it under the parent using ID
                 var newFolder = new DriveItem
                 {
                     Name = part,
                     Folder = new Folder()
                 };
 
-                if (string.IsNullOrEmpty(currentPath) || currentPath == part)
+                try
                 {
-                    // Create at root
-                    currentFolder = await client.Drives[driveId].Items["root"].Children.PostAsync(newFolder);
+                    currentFolder = await client.Drives[driveId].Items[parentFolderId].Children.PostAsync(newFolder);
+                    _logger.LogInformation("Created folder: {Part}, Id: {FolderId}", part, currentFolder?.Id);
                 }
-                else
+                catch (Exception createEx)
                 {
-                    // Create under parent path
-                    var parentPath = currentPath.Substring(0, currentPath.LastIndexOf('/'));
-                    currentFolder = await client.Drives[driveId].Root
-                        .ItemWithPath(parentPath)
-                        .Children
-                        .PostAsync(newFolder);
+                    _logger.LogError(createEx, "Failed to create folder {Part} under parent {ParentId}", part, parentFolderId);
+                    throw;
                 }
             }
+
+            // Update parent ID for next iteration
+            parentFolderId = currentFolder?.Id ?? throw new InvalidOperationException($"Failed to get folder ID for {part}");
         }
 
         return currentFolder ?? throw new InvalidOperationException("Failed to create folder hierarchy");
@@ -1297,7 +1304,13 @@ public class SharePointService : ISharePointService
             throw new InvalidOperationException($"SharePoint not configured for company {_tenantService.GetCurrentCompanyId()}");
         }
 
-        return $"{settings.TakeoffsRootFolder}/{takeoffNumber}/{revisionCode}/PKG-{packageNumber}";
+        // Remove PKG- prefix if already present to avoid duplication
+        var cleanPackageNumber = packageNumber.StartsWith("PKG-", StringComparison.OrdinalIgnoreCase)
+            ? packageNumber
+            : $"PKG-{packageNumber}";
+        return string.IsNullOrEmpty(settings.TakeoffsRootFolder)
+            ? $"{takeoffNumber}/{revisionCode}/{cleanPackageNumber}"
+            : $"{settings.TakeoffsRootFolder}/{takeoffNumber}/{revisionCode}/{cleanPackageNumber}";
     }
 
     public async Task<SharePointFolderInfo> EnsurePackageFolderExistsAsync(string takeoffNumber, string revisionCode, string packageNumber)
@@ -1333,7 +1346,16 @@ public class SharePointService : ISharePointService
             }
 
             // Build the complete folder path including package level
-            var folderPath = $"{settings.TakeoffsRootFolder}/{takeoffNumber}/{revisionCode}/PKG-{packageNumber}";
+            // Remove PKG- prefix if already present to avoid duplication
+            var cleanPackageNumber = packageNumber.StartsWith("PKG-", StringComparison.OrdinalIgnoreCase)
+                ? packageNumber
+                : $"PKG-{packageNumber}";
+            var folderPath = string.IsNullOrEmpty(settings.TakeoffsRootFolder)
+                ? $"{takeoffNumber}/{revisionCode}/{cleanPackageNumber}"
+                : $"{settings.TakeoffsRootFolder}/{takeoffNumber}/{revisionCode}/{cleanPackageNumber}";
+
+            _logger.LogInformation("Attempting to create folder path: {FolderPath} in library {Library} (drive: {DriveId})",
+                folderPath, settings.DocumentLibrary, drive.Id);
 
             // Try to get the folder first
             try
@@ -1348,7 +1370,7 @@ public class SharePointService : ISharePointService
                     return new SharePointFolderInfo
                     {
                         Id = existingFolder.Id ?? string.Empty,
-                        Name = $"PKG-{packageNumber}",
+                        Name = cleanPackageNumber,
                         WebUrl = existingFolder.WebUrl ?? string.Empty,
                         Path = folderPath,
                         CreatedDateTime = existingFolder.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
@@ -1370,7 +1392,7 @@ public class SharePointService : ISharePointService
             return new SharePointFolderInfo
             {
                 Id = createdFolder.Id ?? string.Empty,
-                Name = $"PKG-{packageNumber}",
+                Name = cleanPackageNumber,
                 WebUrl = createdFolder.WebUrl ?? string.Empty,
                 Path = folderPath,
                 CreatedDateTime = createdFolder.CreatedDateTime?.DateTime ?? DateTime.UtcNow,
@@ -1379,7 +1401,7 @@ public class SharePointService : ISharePointService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to ensure package folder exists for {TakeoffNumber}/{RevisionCode}/PKG-{PackageNumber} in company {CompanyId}",
+            _logger.LogError(ex, "Failed to ensure package folder exists for takeoff {TakeoffNumber}/{RevisionCode}/{PackageNumber} in company {CompanyId}",
                 takeoffNumber, revisionCode, packageNumber, _tenantService.GetCurrentCompanyId());
             throw;
         }

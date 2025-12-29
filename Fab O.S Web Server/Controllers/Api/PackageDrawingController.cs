@@ -10,7 +10,7 @@ namespace FabOS.WebServer.Controllers.Api;
 
 [ApiController]
 [Route("api/packagedrawings")]
-[Authorize]
+[Authorize(AuthenticationSchemes = "Bearer")]
 public class PackageDrawingController : ControllerBase
 {
     private readonly IPackageDrawingService _drawingService;

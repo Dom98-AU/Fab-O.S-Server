@@ -33,6 +33,12 @@
     --catalogue-sidebar-expanded: 480px;
     --catalogue-sidebar-full: calc(100vw - var(--main-sidebar-width) - 40px);
 
+    /* Template Column Sidebar Widths */
+    --template-sidebar-width: 320px;
+
+    /* Properties Panel Width (right side) */
+    --properties-panel-width: 320px;
+
     /* Legacy variable names (kept for backward compatibility) */
     --fabos-sidebar-width: 280px;
     --fabos-sidebar-collapsed-width: 64px;
@@ -58,6 +64,55 @@ body.sidebar-collapsed {
 /* Main sidebar expanded state */
 body.sidebar-expanded {
     --main-sidebar-width: 420px;
+}
+
+/* ==========================================
+   TEMPLATE SIDEBAR STATE MANAGEMENT
+   Body classes update main content positioning when template sidebar is open
+   ========================================== */
+
+/* When template sidebar is open - shift main content */
+body.template-sidebar-open .fabos-main-content {
+    margin-left: calc(var(--main-sidebar-width) + var(--template-sidebar-width)) !important;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Template sidebar with collapsed main sidebar */
+body.template-sidebar-open.sidebar-collapsed .fabos-main-content {
+    margin-left: calc(var(--main-sidebar-collapsed) + var(--template-sidebar-width)) !important;
+}
+
+/* Template sidebar with expanded main sidebar */
+body.template-sidebar-open.sidebar-expanded .fabos-main-content {
+    margin-left: calc(var(--main-sidebar-expanded) + var(--template-sidebar-width)) !important;
+}
+
+/* ==========================================
+   PROPERTIES PANEL STATE MANAGEMENT
+   Body classes update main content positioning when properties panel (right side) is open
+   ========================================== */
+
+/* When properties panel is open - add right margin to main content */
+body.properties-panel-open .fabos-main-content {
+    margin-right: var(--properties-panel-width) !important;
+    transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* When both template sidebar AND properties panel are open */
+body.template-sidebar-open.properties-panel-open .fabos-main-content {
+    margin-left: calc(var(--main-sidebar-width) + var(--template-sidebar-width)) !important;
+    margin-right: var(--properties-panel-width) !important;
+}
+
+/* Properties panel with collapsed main sidebar */
+body.properties-panel-open.sidebar-collapsed .fabos-main-content {
+    margin-right: var(--properties-panel-width) !important;
+}
+
+/* All three states: template sidebar + properties panel + collapsed main sidebar */
+body.template-sidebar-open.properties-panel-open.sidebar-collapsed .fabos-main-content {
+    margin-left: calc(var(--main-sidebar-collapsed) + var(--template-sidebar-width)) !important;
+    margin-right: var(--properties-panel-width) !important;
 }
 
 /* Global App Container */

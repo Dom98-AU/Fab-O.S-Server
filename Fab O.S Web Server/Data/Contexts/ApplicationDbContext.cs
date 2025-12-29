@@ -56,6 +56,17 @@ public class ApplicationDbContext : DbContext
     public DbSet<EstimationPackage> EstimationPackages { get; set; }
     public DbSet<Order> Orders { get; set; }
 
+    // Estimation Worksheet System (Revision → Package → Worksheet → Row)
+    public DbSet<EstimationRevision> EstimationRevisions { get; set; }
+    public DbSet<EstimationRevisionPackage> EstimationRevisionPackages { get; set; }
+    public DbSet<EstimationWorksheetTemplate> EstimationWorksheetTemplates { get; set; }
+    public DbSet<TemplateImportMapping> TemplateImportMappings { get; set; }
+    public DbSet<EstimationWorksheetColumn> EstimationWorksheetColumns { get; set; }
+    public DbSet<EstimationWorksheet> EstimationWorksheets { get; set; }
+    public DbSet<EstimationWorksheetInstanceColumn> EstimationWorksheetInstanceColumns { get; set; }
+    public DbSet<EstimationWorksheetRow> EstimationWorksheetRows { get; set; }
+    public DbSet<EstimationWorksheetChange> EstimationWorksheetChanges { get; set; }
+
     // FabMate Module: Order → WorkPackage → WorkOrder
     public DbSet<WorkPackage> WorkPackages { get; set; }
     public DbSet<WorkOrder> WorkOrders { get; set; }
@@ -154,6 +165,12 @@ public class ApplicationDbContext : DbContext
 
     // Asset Module: Locations (Physical Sites, Job Sites, Vehicles)
     public DbSet<Location> Locations { get; set; }
+
+    // Asset Module: Label Templates (Customizable label configurations)
+    public DbSet<LabelTemplate> LabelTemplates { get; set; }
+
+    // Asset Module: Equipment Attachments (Photos, Documents, Certificates)
+    public DbSet<EquipmentAttachment> EquipmentAttachments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -421,25 +438,38 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<CatalogueItem>()
             .Property(ci => ci.CreatedDate)
             .HasDefaultValueSql("getutcdate()");
-            
+
         modelBuilder.Entity<CatalogueItem>()
             .HasIndex(ci => ci.ItemCode)
             .IsUnique();
-            
+
         modelBuilder.Entity<CatalogueItem>()
             .HasIndex(ci => ci.Category);
-            
+
         modelBuilder.Entity<CatalogueItem>()
             .HasIndex(ci => ci.Material);
-            
+
         modelBuilder.Entity<CatalogueItem>()
             .HasIndex(ci => ci.Profile);
-            
+
         modelBuilder.Entity<CatalogueItem>()
             .HasIndex(ci => ci.Grade);
-            
+
         modelBuilder.Entity<CatalogueItem>()
             .HasIndex(ci => ci.Finish);
+
+        // Composite indexes for optimized catalogue queries (used by TakeoffCatalogueService)
+        modelBuilder.Entity<CatalogueItem>()
+            .HasIndex(ci => new { ci.CompanyId, ci.Category })
+            .HasDatabaseName("IX_CatalogueItems_CompanyId_Category");
+
+        modelBuilder.Entity<CatalogueItem>()
+            .HasIndex(ci => new { ci.CompanyId, ci.Material })
+            .HasDatabaseName("IX_CatalogueItems_CompanyId_Material");
+
+        modelBuilder.Entity<CatalogueItem>()
+            .HasIndex(ci => new { ci.CompanyId, ci.Material, ci.Category })
+            .HasDatabaseName("IX_CatalogueItems_CompanyId_Material_Category");
 
         // GratingSpecification configurations
         modelBuilder.Entity<GratingSpecification>()
@@ -1605,5 +1635,461 @@ public class ApplicationDbContext : DbContext
             .WithMany(l => l.Kits)
             .HasForeignKey(ek => ek.LocationId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // LabelTemplate configurations (Customizable label templates)
+        modelBuilder.Entity<LabelTemplate>()
+            .Property(lt => lt.CreatedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<LabelTemplate>()
+            .Property(lt => lt.IsDeleted)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<LabelTemplate>()
+            .Property(lt => lt.IsDefault)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<LabelTemplate>()
+            .Property(lt => lt.IsSystemTemplate)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<LabelTemplate>()
+            .Property(lt => lt.WidthMm)
+            .HasColumnType("decimal(8,2)");
+
+        modelBuilder.Entity<LabelTemplate>()
+            .Property(lt => lt.HeightMm)
+            .HasColumnType("decimal(8,2)");
+
+        modelBuilder.Entity<LabelTemplate>()
+            .Property(lt => lt.MarginMm)
+            .HasColumnType("decimal(8,2)");
+
+        // Unique index: Template name must be unique per company (NULL CompanyId for system templates)
+        modelBuilder.Entity<LabelTemplate>()
+            .HasIndex(lt => new { lt.CompanyId, lt.Name })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
+
+        // Index for filtering system templates
+        modelBuilder.Entity<LabelTemplate>()
+            .HasIndex(lt => lt.IsSystemTemplate);
+
+        // Index for finding default template by company and entity type
+        modelBuilder.Entity<LabelTemplate>()
+            .HasIndex(lt => new { lt.CompanyId, lt.EntityType, lt.IsDefault })
+            .HasFilter("[IsDeleted] = 0");
+
+        modelBuilder.Entity<LabelTemplate>()
+            .HasOne(lt => lt.Company)
+            .WithMany()
+            .HasForeignKey(lt => lt.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ==========================================
+        // ESTIMATION WORKSHEET SYSTEM CONFIGURATIONS
+        // ==========================================
+
+        // EstimationRevision configurations
+        modelBuilder.Entity<EstimationRevision>()
+            .Property(er => er.CreatedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<EstimationRevision>()
+            .Property(er => er.Status)
+            .HasDefaultValue("Draft");
+
+        modelBuilder.Entity<EstimationRevision>()
+            .Property(er => er.RevisionLetter)
+            .HasDefaultValue("A");
+
+        modelBuilder.Entity<EstimationRevision>()
+            .Property(er => er.IsDeleted)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationRevision>()
+            .Property(er => er.OverheadPercentage)
+            .HasDefaultValue(15.00m);
+
+        modelBuilder.Entity<EstimationRevision>()
+            .Property(er => er.MarginPercentage)
+            .HasDefaultValue(20.00m);
+
+        modelBuilder.Entity<EstimationRevision>()
+            .HasIndex(er => new { er.EstimationId, er.RevisionLetter })
+            .IsUnique();
+
+        modelBuilder.Entity<EstimationRevision>()
+            .HasIndex(er => er.Status);
+
+        modelBuilder.Entity<EstimationRevision>()
+            .HasIndex(er => new { er.CompanyId, er.Status });
+
+        modelBuilder.Entity<EstimationRevision>()
+            .HasOne(er => er.Estimation)
+            .WithMany(e => e.Revisions)
+            .HasForeignKey(er => er.EstimationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<EstimationRevision>()
+            .HasOne(er => er.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(er => er.CreatedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<EstimationRevision>()
+            .HasOne(er => er.SubmittedByUser)
+            .WithMany()
+            .HasForeignKey(er => er.SubmittedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<EstimationRevision>()
+            .HasOne(er => er.ReviewedByUser)
+            .WithMany()
+            .HasForeignKey(er => er.ReviewedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<EstimationRevision>()
+            .HasOne(er => er.ApprovedByUser)
+            .WithMany()
+            .HasForeignKey(er => er.ApprovedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // EstimationRevisionPackage configurations
+        modelBuilder.Entity<EstimationRevisionPackage>()
+            .Property(erp => erp.CreatedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<EstimationRevisionPackage>()
+            .Property(erp => erp.IsDeleted)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationRevisionPackage>()
+            .HasIndex(erp => erp.RevisionId);
+
+        modelBuilder.Entity<EstimationRevisionPackage>()
+            .HasIndex(erp => erp.SortOrder);
+
+        modelBuilder.Entity<EstimationRevisionPackage>()
+            .HasOne(erp => erp.Revision)
+            .WithMany(er => er.Packages)
+            .HasForeignKey(erp => erp.RevisionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<EstimationRevisionPackage>()
+            .HasOne(erp => erp.SourceTakeoffPackage)
+            .WithMany()
+            .HasForeignKey(erp => erp.SourceTakeoffPackageId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // EstimationWorksheetTemplate configurations
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .Property(ewt => ewt.CreatedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .Property(ewt => ewt.WorksheetType)
+            .HasDefaultValue("Custom");
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .Property(ewt => ewt.IsSystemTemplate)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .Property(ewt => ewt.IsCompanyDefault)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .Property(ewt => ewt.IsPublished)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .Property(ewt => ewt.AllowColumnReorder)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .Property(ewt => ewt.AllowAddRows)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .Property(ewt => ewt.AllowDeleteRows)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .Property(ewt => ewt.ShowRowNumbers)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .Property(ewt => ewt.ShowColumnTotals)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .HasIndex(ewt => new { ewt.CompanyId, ewt.Name })
+            .IsUnique();
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .HasIndex(ewt => ewt.WorksheetType);
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .HasIndex(ewt => ewt.IsSystemTemplate);
+
+        modelBuilder.Entity<EstimationWorksheetTemplate>()
+            .HasOne(ewt => ewt.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(ewt => ewt.CreatedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // EstimationWorksheetColumn configurations
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .Property(ewc => ewc.DataType)
+            .HasDefaultValue("Text");
+
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .Property(ewc => ewc.Width)
+            .HasDefaultValue(100);
+
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .Property(ewc => ewc.IsVisible)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .Property(ewc => ewc.IsRequired)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .Property(ewc => ewc.IsEditable)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .Property(ewc => ewc.IsFrozen)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .Property(ewc => ewc.ShowColumnTotal)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .Property(ewc => ewc.LinkToCatalogue)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .Property(ewc => ewc.AutoPopulateFromCatalogue)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .HasIndex(ewc => new { ewc.WorksheetTemplateId, ewc.ColumnKey })
+            .IsUnique();
+
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .HasIndex(ewc => ewc.DisplayOrder);
+
+        modelBuilder.Entity<EstimationWorksheetColumn>()
+            .HasOne(ewc => ewc.WorksheetTemplate)
+            .WithMany(ewt => ewt.Columns)
+            .HasForeignKey(ewc => ewc.WorksheetTemplateId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // EstimationWorksheet configurations
+        modelBuilder.Entity<EstimationWorksheet>()
+            .Property(ew => ew.CreatedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<EstimationWorksheet>()
+            .Property(ew => ew.WorksheetType)
+            .HasDefaultValue("Custom");
+
+        modelBuilder.Entity<EstimationWorksheet>()
+            .Property(ew => ew.IsDeleted)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheet>()
+            .HasIndex(ew => ew.PackageId);
+
+        modelBuilder.Entity<EstimationWorksheet>()
+            .HasIndex(ew => ew.TemplateId);
+
+        modelBuilder.Entity<EstimationWorksheet>()
+            .HasIndex(ew => ew.SortOrder);
+
+        modelBuilder.Entity<EstimationWorksheet>()
+            .HasOne(ew => ew.Package)
+            .WithMany(erp => erp.Worksheets)
+            .HasForeignKey(ew => ew.PackageId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<EstimationWorksheet>()
+            .HasOne(ew => ew.Template)
+            .WithMany()
+            .HasForeignKey(ew => ew.TemplateId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // EstimationWorksheetRow configurations
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .Property(ewr => ewr.CreatedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .Property(ewr => ewr.RowData)
+            .HasDefaultValue("{}");
+
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .Property(ewr => ewr.IsGroupHeader)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .Property(ewr => ewr.IsExpanded)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .Property(ewr => ewr.IsDeleted)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .HasIndex(ewr => ewr.WorksheetId);
+
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .HasIndex(ewr => ewr.SortOrder);
+
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .HasIndex(ewr => ewr.CatalogueItemId);
+
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .HasIndex(ewr => new { ewr.WorksheetId, ewr.IsDeleted });
+
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .HasOne(ewr => ewr.Worksheet)
+            .WithMany(ew => ew.Rows)
+            .HasForeignKey(ewr => ewr.WorksheetId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .HasOne(ewr => ewr.CatalogueItem)
+            .WithMany()
+            .HasForeignKey(ewr => ewr.CatalogueItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<EstimationWorksheetRow>()
+            .HasOne(ewr => ewr.ParentRow)
+            .WithMany(ewr => ewr.ChildRows)
+            .HasForeignKey(ewr => ewr.ParentRowId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // EstimationWorksheetChange configurations
+        modelBuilder.Entity<EstimationWorksheetChange>()
+            .Property(ewc => ewc.ChangedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<EstimationWorksheetChange>()
+            .HasIndex(ewc => ewc.WorksheetId);
+
+        modelBuilder.Entity<EstimationWorksheetChange>()
+            .HasIndex(ewc => ewc.ChangedDate);
+
+        modelBuilder.Entity<EstimationWorksheetChange>()
+            .HasIndex(ewc => new { ewc.WorksheetId, ewc.ChangedDate });
+
+        modelBuilder.Entity<EstimationWorksheetChange>()
+            .HasOne(ewc => ewc.Worksheet)
+            .WithMany(ew => ew.Changes)
+            .HasForeignKey(ewc => ewc.WorksheetId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<EstimationWorksheetChange>()
+            .HasOne(ewc => ewc.User)
+            .WithMany()
+            .HasForeignKey(ewc => ewc.ChangedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // EstimationWorksheetInstanceColumn configurations
+        modelBuilder.Entity<EstimationWorksheetInstanceColumn>()
+            .Property(ewic => ewic.IsDeleted)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EstimationWorksheetInstanceColumn>()
+            .HasIndex(ewic => ewic.WorksheetId);
+
+        modelBuilder.Entity<EstimationWorksheetInstanceColumn>()
+            .HasOne(ewic => ewic.Worksheet)
+            .WithMany(ew => ew.Columns)
+            .HasForeignKey(ewic => ewic.WorksheetId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // EquipmentAttachment configurations (Photos, Documents, Certificates)
+        modelBuilder.Entity<EquipmentAttachment>()
+            .Property(ea => ea.UploadedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<EquipmentAttachment>()
+            .Property(ea => ea.IsDeleted)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<EquipmentAttachment>()
+            .Property(ea => ea.IsPrimaryPhoto)
+            .HasDefaultValue(false);
+
+        // Index for finding attachments by equipment
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasIndex(ea => new { ea.EquipmentId, ea.Type })
+            .HasFilter("[IsDeleted] = 0");
+
+        // Index for finding primary photo
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasIndex(ea => new { ea.EquipmentId, ea.IsPrimaryPhoto })
+            .HasFilter("[IsDeleted] = 0 AND [Type] = 0");  // Type = 0 is Photo
+
+        // Index for company isolation
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasIndex(ea => ea.CompanyId);
+
+        // Index for certificate expiry tracking
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasIndex(ea => ea.ExpiryDate)
+            .HasFilter("[Type] = 2 AND [IsDeleted] = 0");  // Type = 2 is Certificate
+
+        // Index for kit attachments
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasIndex(ea => ea.EquipmentKitId)
+            .HasFilter("[EquipmentKitId] IS NOT NULL");
+
+        // Index for location attachments
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasIndex(ea => ea.LocationId)
+            .HasFilter("[LocationId] IS NOT NULL");
+
+        // Index for maintenance record attachments
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasIndex(ea => ea.MaintenanceRecordId)
+            .HasFilter("[MaintenanceRecordId] IS NOT NULL");
+
+        // Relationships
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasOne(ea => ea.Company)
+            .WithMany()
+            .HasForeignKey(ea => ea.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasOne(ea => ea.Equipment)
+            .WithMany(e => e.Attachments)
+            .HasForeignKey(ea => ea.EquipmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasOne(ea => ea.EquipmentKit)
+            .WithMany()
+            .HasForeignKey(ea => ea.EquipmentKitId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasOne(ea => ea.Location)
+            .WithMany()
+            .HasForeignKey(ea => ea.LocationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<EquipmentAttachment>()
+            .HasOne(ea => ea.MaintenanceRecord)
+            .WithMany()
+            .HasForeignKey(ea => ea.MaintenanceRecordId)
+            .OnDelete(DeleteBehavior.NoAction);  // Avoid multiple cascade paths
     }
 }

@@ -2,6 +2,7 @@
 @using FabOS.WebServer.Services
 @using FabOS.WebServer.Components.Shared
 @inject SidebarService SidebarService
+@implements IDisposable
 
 <div class="fabos-sidebar-footer">
     @if (!SidebarService.IsCollapsed)
@@ -82,8 +83,18 @@
 @code {
     private bool showDropdown = false;
 
+    protected override void OnInitialized()
+    {
+        SidebarService.OnStateChanged += StateHasChanged;
+    }
+
     private void ToggleDropdown()
     {
         showDropdown = !showDropdown;
+    }
+
+    public void Dispose()
+    {
+        SidebarService.OnStateChanged -= StateHasChanged;
     }
 }

@@ -174,8 +174,14 @@ public class DrawingPart
     [Key]
     public int Id { get; set; }
 
-    [Required]
-    public int DrawingId { get; set; }
+    // Nullable to allow manual parts that aren't linked to any drawing
+    public int? DrawingId { get; set; }
+
+    // For manual parts, track which order they belong to
+    public int? OrderId { get; set; }
+
+    // Flag to distinguish manual entries from CAD-imported parts
+    public bool IsManualEntry { get; set; } = false;
 
     public int? DrawingRevisionId { get; set; } // Which revision this part belongs to (optional)
 
@@ -288,7 +294,10 @@ public class DrawingPart
 
     // Navigation
     [ForeignKey("DrawingId")]
-    public virtual QDocsDrawing Drawing { get; set; } = null!;
+    public virtual QDocsDrawing? Drawing { get; set; }
+
+    [ForeignKey("OrderId")]
+    public virtual Order? Order { get; set; }
 
     [ForeignKey("DrawingRevisionId")]
     public virtual DrawingRevision? DrawingRevision { get; set; }

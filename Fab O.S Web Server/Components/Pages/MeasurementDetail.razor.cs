@@ -51,13 +51,13 @@ public partial class MeasurementDetail : ComponentBase, IToolbarActionProvider, 
         var user = authState.User;
         if (user.Identity?.IsAuthenticated == true)
         {
-            var userIdClaim = user.FindFirst("UserId") ?? user.FindFirst(ClaimTypes.NameIdentifier);
+            var userIdClaim = user.FindFirst("user_id") ?? user.FindFirst("UserId") ?? user.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
             {
                 currentUserId = userId;
             }
 
-            var companyIdClaim = user.FindFirst("CompanyId");
+            var companyIdClaim = user.FindFirst("company_id") ?? user.FindFirst("CompanyId");
             if (companyIdClaim != null && int.TryParse(companyIdClaim.Value, out var companyId))
             {
                 currentCompanyId = companyId;

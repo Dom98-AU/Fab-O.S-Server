@@ -8,7 +8,7 @@ namespace FabOS.WebServer.Controllers.Api
     /// API controller for Nutrient DWS authentication
     /// Provides session tokens for browser-based PDF viewing
     /// </summary>
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Cookies,Bearer")]
     [ApiController]
     [Route("api/[controller]")]
     public class NutrientAuthController : ControllerBase
