@@ -1,4 +1,4 @@
-using FabOS.WebServer.Models.Dto.Signup;
+using FabOS.WebServer.Models.DTOs.Signup;
 
 namespace FabOS.WebServer.Services.Interfaces;
 

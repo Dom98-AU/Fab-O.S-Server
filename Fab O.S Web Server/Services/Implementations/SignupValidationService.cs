@@ -1,5 +1,5 @@
 using Dapper;
-using FabOS.WebServer.Models.Dto.Signup;
+using FabOS.WebServer.Models.DTOs.Signup;
 using FabOS.WebServer.Services.Interfaces;
 using Microsoft.Data.SqlClient;
 
