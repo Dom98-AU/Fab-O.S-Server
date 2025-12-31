@@ -1,4 +1,4 @@
-using FabOS.WebServer.Models.Dto.Signup;
+using FabOS.WebServer.Models.DTOs.Signup;
 using FabOS.WebServer.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

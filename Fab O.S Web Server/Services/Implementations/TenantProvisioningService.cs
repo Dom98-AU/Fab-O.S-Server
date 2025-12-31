@@ -1,6 +1,6 @@
 using FabOS.WebServer.Authentication;
 using FabOS.WebServer.Data.Contexts;
-using FabOS.WebServer.Models.Dto.Signup;
+using FabOS.WebServer.Models.DTOs.Signup;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
