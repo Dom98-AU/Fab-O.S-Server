@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using FabOS.WebServer.Models.DTOs;
+using FabOS.WebServer.Models.DTOs.QDocs;
 using FabOS.WebServer.Services.Interfaces;
 
 namespace FabOS.WebServer.Services;

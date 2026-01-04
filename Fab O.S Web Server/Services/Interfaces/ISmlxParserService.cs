@@ -1,4 +1,5 @@
 using FabOS.WebServer.Models.DTOs;
+using FabOS.WebServer.Models.DTOs.QDocs;
 
 namespace FabOS.WebServer.Services.Interfaces;
 

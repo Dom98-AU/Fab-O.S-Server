@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using FabOS.WebServer.Data.Contexts;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models.DTOs;
+using FabOS.WebServer.Models.DTOs.QDocs;
 using FabOS.WebServer.Services;
 using FabOS.WebServer.Services.Interfaces;
 using System.ComponentModel.DataAnnotations;

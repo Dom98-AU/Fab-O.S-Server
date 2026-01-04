@@ -1,6 +1,7 @@
 using FabOS.WebServer.Services.Interfaces;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models.DTOs;
+using FabOS.WebServer.Models.DTOs.Trace;
 using FabOS.WebServer.Data.Contexts;
 using Microsoft.EntityFrameworkCore;
 

@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Xml.Linq;
 using FabOS.WebServer.Models.DTOs;
+using FabOS.WebServer.Models.DTOs.QDocs;
 using FabOS.WebServer.Services.Interfaces;
 
 namespace FabOS.WebServer.Services;

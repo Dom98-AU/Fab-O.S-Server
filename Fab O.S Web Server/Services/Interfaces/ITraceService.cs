@@ -1,5 +1,6 @@
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models.DTOs;
+using FabOS.WebServer.Models.DTOs.Trace;
 
 namespace FabOS.WebServer.Services.Interfaces
 {
