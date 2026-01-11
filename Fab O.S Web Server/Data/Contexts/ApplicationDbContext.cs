@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using FabOS.WebServer.Models.Entities;
 using FabOS.WebServer.Models.Entities.Assets;
+using FabOS.WebServer.Models.Entities.Forms;
 using FabOS.WebServer.Models.ViewState;
 using FabOS.WebServer.Models.Calibration;
 
@@ -171,6 +172,14 @@ public class ApplicationDbContext : DbContext
 
     // Asset Module: Equipment Attachments (Photos, Documents, Certificates)
     public DbSet<EquipmentAttachment> EquipmentAttachments { get; set; }
+
+    // Forms Module: Cross-module forms system (Estimate, FabMate, QDocs, Assets)
+    public DbSet<FormTemplate> FormTemplates { get; set; }
+    public DbSet<FormTemplateSection> FormTemplateSections { get; set; }
+    public DbSet<FormTemplateField> FormTemplateFields { get; set; }
+    public DbSet<FormInstance> FormInstances { get; set; }
+    public DbSet<FormInstanceValue> FormInstanceValues { get; set; }
+    public DbSet<FormInstanceAttachment> FormInstanceAttachments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -2091,5 +2100,273 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(ea => ea.MaintenanceRecordId)
             .OnDelete(DeleteBehavior.NoAction);  // Avoid multiple cascade paths
+
+        // ==========================================
+        // FORMS MODULE CONFIGURATIONS
+        // ==========================================
+
+        // FormTemplate configurations
+        modelBuilder.Entity<FormTemplate>()
+            .Property(ft => ft.CreatedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<FormTemplate>()
+            .Property(ft => ft.IsSystemTemplate)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<FormTemplate>()
+            .Property(ft => ft.IsCompanyDefault)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<FormTemplate>()
+            .Property(ft => ft.IsPublished)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<FormTemplate>()
+            .Property(ft => ft.Version)
+            .HasDefaultValue(1);
+
+        modelBuilder.Entity<FormTemplate>()
+            .Property(ft => ft.ShowSectionHeaders)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<FormTemplate>()
+            .Property(ft => ft.AllowNotes)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<FormTemplate>()
+            .Property(ft => ft.IsDeleted)
+            .HasDefaultValue(false);
+
+        // Composite index for finding templates by company and module
+        modelBuilder.Entity<FormTemplate>()
+            .HasIndex(ft => new { ft.CompanyId, ft.ModuleContext })
+            .HasDatabaseName("IX_FormTemplates_CompanyId_ModuleContext");
+
+        // Unique name per company
+        modelBuilder.Entity<FormTemplate>()
+            .HasIndex(ft => new { ft.CompanyId, ft.Name })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
+
+        // Index for system templates
+        modelBuilder.Entity<FormTemplate>()
+            .HasIndex(ft => ft.IsSystemTemplate);
+
+        modelBuilder.Entity<FormTemplate>()
+            .HasOne(ft => ft.Company)
+            .WithMany()
+            .HasForeignKey(ft => ft.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FormTemplate>()
+            .HasOne(ft => ft.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(ft => ft.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FormTemplate>()
+            .HasOne(ft => ft.ModifiedByUser)
+            .WithMany()
+            .HasForeignKey(ft => ft.ModifiedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // FormTemplateField configurations
+        modelBuilder.Entity<FormTemplateField>()
+            .Property(ftf => ftf.DataType)
+            .HasDefaultValue(FormFieldDataType.Text);
+
+        modelBuilder.Entity<FormTemplateField>()
+            .Property(ftf => ftf.Width)
+            .HasDefaultValue("full");
+
+        modelBuilder.Entity<FormTemplateField>()
+            .Property(ftf => ftf.IsRequired)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<FormTemplateField>()
+            .Property(ftf => ftf.IsVisible)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<FormTemplateField>()
+            .Property(ftf => ftf.IsReadOnly)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<FormTemplateField>()
+            .Property(ftf => ftf.RequirePhotoLocation)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<FormTemplateField>()
+            .Property(ftf => ftf.IsDeleted)
+            .HasDefaultValue(false);
+
+        // Unique field key per template
+        modelBuilder.Entity<FormTemplateField>()
+            .HasIndex(ftf => new { ftf.FormTemplateId, ftf.FieldKey })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
+
+        // Index for display order
+        modelBuilder.Entity<FormTemplateField>()
+            .HasIndex(ftf => new { ftf.FormTemplateId, ftf.SectionOrder, ftf.DisplayOrder });
+
+        modelBuilder.Entity<FormTemplateField>()
+            .HasOne(ftf => ftf.FormTemplate)
+            .WithMany(ft => ft.Fields)
+            .HasForeignKey(ftf => ftf.FormTemplateId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<FormTemplateField>()
+            .HasOne(ftf => ftf.LinkedWorksheetTemplate)
+            .WithMany()
+            .HasForeignKey(ftf => ftf.LinkedWorksheetTemplateId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // FormInstance configurations
+        modelBuilder.Entity<FormInstance>()
+            .Property(fi => fi.CreatedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<FormInstance>()
+            .Property(fi => fi.Status)
+            .HasDefaultValue(FormInstanceStatus.Draft);
+
+        modelBuilder.Entity<FormInstance>()
+            .Property(fi => fi.IsDeleted)
+            .HasDefaultValue(false);
+
+        // Unique form number per company
+        modelBuilder.Entity<FormInstance>()
+            .HasIndex(fi => new { fi.CompanyId, fi.FormNumber })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
+
+        // Index for finding instances by template
+        modelBuilder.Entity<FormInstance>()
+            .HasIndex(fi => fi.FormTemplateId);
+
+        // Index for finding instances by status
+        modelBuilder.Entity<FormInstance>()
+            .HasIndex(fi => new { fi.CompanyId, fi.Status });
+
+        // Index for finding instances by linked entity
+        modelBuilder.Entity<FormInstance>()
+            .HasIndex(fi => new { fi.LinkedEntityType, fi.LinkedEntityId })
+            .HasFilter("[LinkedEntityType] IS NOT NULL");
+
+        modelBuilder.Entity<FormInstance>()
+            .HasOne(fi => fi.Company)
+            .WithMany()
+            .HasForeignKey(fi => fi.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FormInstance>()
+            .HasOne(fi => fi.FormTemplate)
+            .WithMany(ft => ft.Instances)
+            .HasForeignKey(fi => fi.FormTemplateId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FormInstance>()
+            .HasOne(fi => fi.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(fi => fi.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FormInstance>()
+            .HasOne(fi => fi.ModifiedByUser)
+            .WithMany()
+            .HasForeignKey(fi => fi.ModifiedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FormInstance>()
+            .HasOne(fi => fi.SubmittedByUser)
+            .WithMany()
+            .HasForeignKey(fi => fi.SubmittedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FormInstance>()
+            .HasOne(fi => fi.ReviewedByUser)
+            .WithMany()
+            .HasForeignKey(fi => fi.ReviewedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FormInstance>()
+            .HasOne(fi => fi.ApprovedByUser)
+            .WithMany()
+            .HasForeignKey(fi => fi.ApprovedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // FormInstanceValue configurations
+        modelBuilder.Entity<FormInstanceValue>()
+            .Property(fiv => fiv.NumberValue)
+            .HasPrecision(18, 6);
+
+        // Unique field per instance
+        modelBuilder.Entity<FormInstanceValue>()
+            .HasIndex(fiv => new { fiv.FormInstanceId, fiv.FieldKey })
+            .IsUnique();
+
+        modelBuilder.Entity<FormInstanceValue>()
+            .HasOne(fiv => fiv.FormInstance)
+            .WithMany(fi => fi.Values)
+            .HasForeignKey(fiv => fiv.FormInstanceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<FormInstanceValue>()
+            .HasOne(fiv => fiv.FormTemplateField)
+            .WithMany(ftf => ftf.Values)
+            .HasForeignKey(fiv => fiv.FormTemplateFieldId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FormInstanceValue>()
+            .HasOne(fiv => fiv.ModifiedByUser)
+            .WithMany()
+            .HasForeignKey(fiv => fiv.ModifiedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // FormInstanceAttachment configurations
+        modelBuilder.Entity<FormInstanceAttachment>()
+            .Property(fia => fia.UploadedDate)
+            .HasDefaultValueSql("getutcdate()");
+
+        modelBuilder.Entity<FormInstanceAttachment>()
+            .Property(fia => fia.IsDeleted)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<FormInstanceAttachment>()
+            .Property(fia => fia.Latitude)
+            .HasPrecision(10, 7);
+
+        modelBuilder.Entity<FormInstanceAttachment>()
+            .Property(fia => fia.Longitude)
+            .HasPrecision(10, 7);
+
+        // Index for finding attachments by instance
+        modelBuilder.Entity<FormInstanceAttachment>()
+            .HasIndex(fia => fia.FormInstanceId)
+            .HasFilter("[IsDeleted] = 0");
+
+        // Index for finding attachments by field value
+        modelBuilder.Entity<FormInstanceAttachment>()
+            .HasIndex(fia => fia.FormInstanceValueId)
+            .HasFilter("[FormInstanceValueId] IS NOT NULL");
+
+        modelBuilder.Entity<FormInstanceAttachment>()
+            .HasOne(fia => fia.FormInstance)
+            .WithMany(fi => fi.Attachments)
+            .HasForeignKey(fia => fia.FormInstanceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<FormInstanceAttachment>()
+            .HasOne(fia => fia.FormInstanceValue)
+            .WithMany(fiv => fiv.Attachments)
+            .HasForeignKey(fia => fia.FormInstanceValueId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FormInstanceAttachment>()
+            .HasOne(fia => fia.UploadedByUser)
+            .WithMany()
+            .HasForeignKey(fia => fia.UploadedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

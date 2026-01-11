@@ -1,0 +1,586 @@
+@namespace FabOS.WebServer.Components.Pages.Forms
+@using FabOS.WebServer.Models.DTOs.Forms
+@using FabOS.WebServer.Models.Entities.Forms
+
+@* FieldPropertiesPanel - Slide-out panel for editing field properties *@
+
+@if (Field != null)
+{
+    <div class="field-properties-panel @(IsVisible ? "visible" : "")">
+        <div class="panel-header">
+            <h4>
+                <i class="fas fa-edit"></i>
+                Field Properties
+            </h4>
+            <button class="btn-close-panel" @onclick="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="panel-body">
+            @* Basic Info Section *@
+            <div class="property-section">
+                <div class="section-title" @onclick="() => showBasicInfo = !showBasicInfo">
+                    <i class="fas @(showBasicInfo ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                    <span>Basic Info</span>
+                </div>
+                @if (showBasicInfo)
+                {
+                    <div class="section-content">
+                        <div class="property-group">
+                            <label>Field Key</label>
+                            <input type="text"
+                                   class="form-control"
+                                   @bind="editedField.FieldKey"
+                                   @bind:event="oninput"
+                                   placeholder="field_key" />
+                        </div>
+                        <div class="property-group">
+                            <label>Display Name</label>
+                            <input type="text"
+                                   class="form-control"
+                                   @bind="editedField.DisplayName"
+                                   @bind:event="oninput"
+                                   placeholder="Display Name" />
+                        </div>
+                        <div class="property-group">
+                            <label>Data Type</label>
+                            <div class="data-type-badge">
+                                <i class="@GetDataTypeIcon(editedField.DataType)"></i>
+                                <span>@editedField.DataType.ToString()</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @* Layout & Size Section *@
+            <div class="property-section">
+                <div class="section-title" @onclick="() => showLayout = !showLayout">
+                    <i class="fas @(showLayout ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                    <span>Layout & Size</span>
+                </div>
+                @if (showLayout)
+                {
+                    <div class="section-content">
+                        @* Width *@
+                        <div class="property-row">
+                            <label>Width</label>
+                            <div class="width-buttons">
+                                <button class="width-btn @(editedField.Width == "full" ? "active" : "")"
+                                        @onclick="@(() => SetWidth("full"))"
+                                        title="Full width">
+                                    <i class="fas fa-arrows-alt-h"></i>
+                                    Full
+                                </button>
+                                <button class="width-btn @(editedField.Width == "half" ? "active" : "")"
+                                        @onclick="@(() => SetWidth("half"))"
+                                        title="Half width">
+                                    <i class="fas fa-grip-lines-vertical"></i>
+                                    Half
+                                </button>
+                                <button class="width-btn @(editedField.Width == "third" ? "active" : "")"
+                                        @onclick="@(() => SetWidth("third"))"
+                                        title="Third width">
+                                    <i class="fas fa-th"></i>
+                                    Third
+                                </button>
+                            </div>
+                        </div>
+
+                        @* Height *@
+                        <div class="property-row">
+                            <label>Height</label>
+                            <div class="height-control">
+                                <select class="form-control height-select"
+                                        @bind="heightMode">
+                                    <option value="auto">Auto</option>
+                                    <option value="fixed">Fixed</option>
+                                </select>
+                                @if (heightMode == "fixed")
+                                {
+                                    <div class="number-input-group-with-arrows">
+                                        <input type="number"
+                                               @bind="editedField.FixedHeight"
+                                               min="20"
+                                               max="500"
+                                               class="number-input" />
+                                        <div class="arrow-buttons">
+                                            <button class="arrow-btn" @onclick="IncrementFixedHeight" title="+1px">
+                                                <i class="fas fa-chevron-up"></i>
+                                            </button>
+                                            <button class="arrow-btn" @onclick="DecrementFixedHeight" title="-1px">
+                                                <i class="fas fa-chevron-down"></i>
+                                            </button>
+                                        </div>
+                                        <span class="unit">px</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="style-divider"></div>
+
+                        @* Text Alignment *@
+                        <div class="property-row">
+                            <label>Text Alignment</label>
+                            <div class="alignment-buttons">
+                                <button class="align-btn @(editedField.TextAlign == "left" || string.IsNullOrEmpty(editedField.TextAlign) ? "active" : "")"
+                                        @onclick="@(() => SetTextAlign("left"))"
+                                        title="Left align">
+                                    <i class="fas fa-align-left"></i>
+                                </button>
+                                <button class="align-btn @(editedField.TextAlign == "center" ? "active" : "")"
+                                        @onclick="@(() => SetTextAlign("center"))"
+                                        title="Center align">
+                                    <i class="fas fa-align-center"></i>
+                                </button>
+                                <button class="align-btn @(editedField.TextAlign == "right" ? "active" : "")"
+                                        @onclick="@(() => SetTextAlign("right"))"
+                                        title="Right align">
+                                    <i class="fas fa-align-right"></i>
+                                </button>
+                                <button class="align-btn @(editedField.TextAlign == "justify" ? "active" : "")"
+                                        @onclick="@(() => SetTextAlign("justify"))"
+                                        title="Justify">
+                                    <i class="fas fa-align-justify"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @* Spacing Section *@
+            <div class="property-section">
+                <div class="section-title" @onclick="() => showSpacing = !showSpacing">
+                    <i class="fas @(showSpacing ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                    <span>Spacing</span>
+                </div>
+                @if (showSpacing)
+                {
+                    <div class="section-content">
+                        @* Padding *@
+                        <div class="spacing-label">Padding</div>
+                        <div class="spacing-grid">
+                            <div class="spacing-row">
+                                <label>Top</label>
+                                <div class="number-input-group-with-arrows">
+                                    <input type="number"
+                                           @bind="editedField.PaddingTop"
+                                           min="0"
+                                           max="100"
+                                           class="number-input" />
+                                    <div class="arrow-buttons">
+                                        <button class="arrow-btn" @onclick="IncrementPaddingTop" title="+1px">
+                                            <i class="fas fa-chevron-up"></i>
+                                        </button>
+                                        <button class="arrow-btn" @onclick="DecrementPaddingTop" title="-1px">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                    <span class="unit">px</span>
+                                </div>
+                            </div>
+                            <div class="spacing-row">
+                                <label>Right</label>
+                                <div class="number-input-group-with-arrows">
+                                    <input type="number"
+                                           @bind="editedField.PaddingRight"
+                                           min="0"
+                                           max="100"
+                                           class="number-input" />
+                                    <div class="arrow-buttons">
+                                        <button class="arrow-btn" @onclick="IncrementPaddingRight" title="+1px">
+                                            <i class="fas fa-chevron-up"></i>
+                                        </button>
+                                        <button class="arrow-btn" @onclick="DecrementPaddingRight" title="-1px">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                    <span class="unit">px</span>
+                                </div>
+                            </div>
+                            <div class="spacing-row">
+                                <label>Bottom</label>
+                                <div class="number-input-group-with-arrows">
+                                    <input type="number"
+                                           @bind="editedField.PaddingBottom"
+                                           min="0"
+                                           max="100"
+                                           class="number-input" />
+                                    <div class="arrow-buttons">
+                                        <button class="arrow-btn" @onclick="IncrementPaddingBottom" title="+1px">
+                                            <i class="fas fa-chevron-up"></i>
+                                        </button>
+                                        <button class="arrow-btn" @onclick="DecrementPaddingBottom" title="-1px">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                    <span class="unit">px</span>
+                                </div>
+                            </div>
+                            <div class="spacing-row">
+                                <label>Left</label>
+                                <div class="number-input-group-with-arrows">
+                                    <input type="number"
+                                           @bind="editedField.PaddingLeft"
+                                           min="0"
+                                           max="100"
+                                           class="number-input" />
+                                    <div class="arrow-buttons">
+                                        <button class="arrow-btn" @onclick="IncrementPaddingLeft" title="+1px">
+                                            <i class="fas fa-chevron-up"></i>
+                                        </button>
+                                        <button class="arrow-btn" @onclick="DecrementPaddingLeft" title="-1px">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                    <span class="unit">px</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="style-divider"></div>
+
+                        @* Margin *@
+                        <div class="spacing-label">Margin</div>
+                        <div class="spacing-grid margin-grid">
+                            <div class="spacing-row">
+                                <label>Top</label>
+                                <div class="number-input-group-with-arrows">
+                                    <input type="number"
+                                           @bind="editedField.MarginTop"
+                                           min="0"
+                                           max="100"
+                                           class="number-input" />
+                                    <div class="arrow-buttons">
+                                        <button class="arrow-btn" @onclick="IncrementMarginTop" title="+1px">
+                                            <i class="fas fa-chevron-up"></i>
+                                        </button>
+                                        <button class="arrow-btn" @onclick="DecrementMarginTop" title="-1px">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                    <span class="unit">px</span>
+                                </div>
+                            </div>
+                            <div class="spacing-row">
+                                <label>Bottom</label>
+                                <div class="number-input-group-with-arrows">
+                                    <input type="number"
+                                           @bind="editedField.MarginBottom"
+                                           min="0"
+                                           max="100"
+                                           class="number-input" />
+                                    <div class="arrow-buttons">
+                                        <button class="arrow-btn" @onclick="IncrementMarginBottom" title="+1px">
+                                            <i class="fas fa-chevron-up"></i>
+                                        </button>
+                                        <button class="arrow-btn" @onclick="DecrementMarginBottom" title="-1px">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                    <span class="unit">px</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @* Content Section *@
+            <div class="property-section">
+                <div class="section-title" @onclick="() => showContent = !showContent">
+                    <i class="fas @(showContent ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                    <span>Content</span>
+                </div>
+                @if (showContent)
+                {
+                    <div class="section-content">
+                        <div class="property-group">
+                            <label>Placeholder</label>
+                            <input type="text"
+                                   class="form-control"
+                                   @bind="editedField.Placeholder"
+                                   @bind:event="oninput"
+                                   placeholder="Enter placeholder text..." />
+                        </div>
+                        <div class="property-group">
+                            <label>Help Text</label>
+                            <textarea class="form-control"
+                                      @bind="editedField.HelpText"
+                                      @bind:event="oninput"
+                                      rows="2"
+                                      placeholder="Help text for users..."></textarea>
+                        </div>
+                        <div class="property-group">
+                            <label>Default Value</label>
+                            <input type="text"
+                                   class="form-control"
+                                   @bind="editedField.DefaultValue"
+                                   @bind:event="oninput"
+                                   placeholder="Default value..." />
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @* Validation Section *@
+            <div class="property-section">
+                <div class="section-title" @onclick="() => showValidation = !showValidation">
+                    <i class="fas @(showValidation ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                    <span>Validation</span>
+                </div>
+                @if (showValidation)
+                {
+                    <div class="section-content">
+                        <div class="property-check">
+                            <input type="checkbox" id="required_@(Field.Id)" @bind="editedField.IsRequired" />
+                            <label for="required_@(Field.Id)">Required</label>
+                        </div>
+                        <div class="property-check">
+                            <input type="checkbox" id="readonly_@(Field.Id)" @bind="editedField.IsReadOnly" />
+                            <label for="readonly_@(Field.Id)">Read Only</label>
+                        </div>
+                        <div class="property-check">
+                            <input type="checkbox" id="visible_@(Field.Id)" @bind="editedField.IsVisible" />
+                            <label for="visible_@(Field.Id)">Visible</label>
+                        </div>
+
+                        @if (ShowNumericValidation)
+                        {
+                            <div class="style-divider"></div>
+                            <div class="property-row">
+                                <label>Min Value</label>
+                                <input type="number"
+                                       class="form-control"
+                                       @bind="editedField.MinValue"
+                                       step="any" />
+                            </div>
+                            <div class="property-row">
+                                <label>Max Value</label>
+                                <input type="number"
+                                       class="form-control"
+                                       @bind="editedField.MaxValue"
+                                       step="any" />
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="panel-footer">
+            <button class="btn btn-secondary" @onclick="Cancel">
+                Cancel
+            </button>
+            <button class="btn btn-primary" @onclick="Save">
+                <i class="fas fa-save"></i>
+                Save Changes
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// The field being edited
+    /// </summary>
+    [Parameter]
+    public FormTemplateFieldDto? Field { get; set; }
+
+    /// <summary>
+    /// Whether the panel is visible
+    /// </summary>
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    /// <summary>
+    /// Callback when visibility changes
+    /// </summary>
+    [Parameter]
+    public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    /// <summary>
+    /// Callback when field is updated
+    /// </summary>
+    [Parameter]
+    public EventCallback<UpdateFormTemplateFieldRequest> OnFieldUpdated { get; set; }
+
+    private EditableFieldDto editedField = new();
+    private bool showBasicInfo = true;
+    private bool showLayout = true;
+    private bool showSpacing = false;
+    private bool showContent = true;
+    private bool showValidation = false;
+    private string heightMode = "auto";
+
+    private bool ShowNumericValidation => editedField.DataType is FormFieldDataType.Number
+        or FormFieldDataType.Currency
+        or FormFieldDataType.Percentage;
+
+    protected override void OnParametersSet()
+    {
+        if (Field != null && IsVisible)
+        {
+            // Copy field properties to editable object
+            editedField = new EditableFieldDto
+            {
+                Id = Field.Id,
+                FieldKey = Field.FieldKey,
+                DisplayName = Field.DisplayName,
+                DataType = Field.DataType,
+                Width = Field.Width ?? "full",
+                PaddingTop = Field.PaddingTop,
+                PaddingRight = Field.PaddingRight,
+                PaddingBottom = Field.PaddingBottom,
+                PaddingLeft = Field.PaddingLeft,
+                MarginTop = Field.MarginTop,
+                MarginBottom = Field.MarginBottom,
+                TextAlign = Field.TextAlign,
+                FixedHeight = Field.FixedHeight,
+                IsRequired = Field.IsRequired,
+                IsVisible = Field.IsVisible,
+                IsReadOnly = Field.IsReadOnly,
+                DefaultValue = Field.DefaultValue,
+                Placeholder = Field.Placeholder,
+                HelpText = Field.HelpText,
+                MinValue = Field.MinValue,
+                MaxValue = Field.MaxValue
+            };
+
+            heightMode = editedField.FixedHeight.HasValue ? "fixed" : "auto";
+        }
+    }
+
+    // Width setter
+    private void SetWidth(string width) => editedField.Width = width;
+
+    // Text align setter
+    private void SetTextAlign(string align) => editedField.TextAlign = align;
+
+    // Fixed height increment/decrement
+    private void IncrementFixedHeight()
+    {
+        editedField.FixedHeight = Math.Min(500, (editedField.FixedHeight ?? 40) + 1);
+    }
+
+    private void DecrementFixedHeight()
+    {
+        editedField.FixedHeight = Math.Max(20, (editedField.FixedHeight ?? 40) - 1);
+    }
+
+    // Padding increment/decrement
+    private void IncrementPaddingTop() => editedField.PaddingTop = Math.Min(100, (editedField.PaddingTop ?? 0) + 1);
+    private void DecrementPaddingTop() => editedField.PaddingTop = Math.Max(0, (editedField.PaddingTop ?? 0) - 1);
+    private void IncrementPaddingRight() => editedField.PaddingRight = Math.Min(100, (editedField.PaddingRight ?? 0) + 1);
+    private void DecrementPaddingRight() => editedField.PaddingRight = Math.Max(0, (editedField.PaddingRight ?? 0) - 1);
+    private void IncrementPaddingBottom() => editedField.PaddingBottom = Math.Min(100, (editedField.PaddingBottom ?? 0) + 1);
+    private void DecrementPaddingBottom() => editedField.PaddingBottom = Math.Max(0, (editedField.PaddingBottom ?? 0) - 1);
+    private void IncrementPaddingLeft() => editedField.PaddingLeft = Math.Min(100, (editedField.PaddingLeft ?? 0) + 1);
+    private void DecrementPaddingLeft() => editedField.PaddingLeft = Math.Max(0, (editedField.PaddingLeft ?? 0) - 1);
+
+    // Margin increment/decrement
+    private void IncrementMarginTop() => editedField.MarginTop = Math.Min(100, (editedField.MarginTop ?? 0) + 1);
+    private void DecrementMarginTop() => editedField.MarginTop = Math.Max(0, (editedField.MarginTop ?? 0) - 1);
+    private void IncrementMarginBottom() => editedField.MarginBottom = Math.Min(100, (editedField.MarginBottom ?? 0) + 1);
+    private void DecrementMarginBottom() => editedField.MarginBottom = Math.Max(0, (editedField.MarginBottom ?? 0) - 1);
+
+    private string GetDataTypeIcon(FormFieldDataType dataType) => dataType switch
+    {
+        FormFieldDataType.Text => "fas fa-font",
+        FormFieldDataType.MultilineText => "fas fa-align-left",
+        FormFieldDataType.Number => "fas fa-hashtag",
+        FormFieldDataType.Currency => "fas fa-dollar-sign",
+        FormFieldDataType.Percentage => "fas fa-percent",
+        FormFieldDataType.Date => "fas fa-calendar",
+        FormFieldDataType.DateTime => "fas fa-calendar-alt",
+        FormFieldDataType.Checkbox => "fas fa-check-square",
+        FormFieldDataType.Choice => "fas fa-list",
+        FormFieldDataType.MultiChoice => "fas fa-list-ul",
+        FormFieldDataType.Signature => "fas fa-signature",
+        FormFieldDataType.Photo => "fas fa-camera",
+        FormFieldDataType.Location => "fas fa-map-marker-alt",
+        FormFieldDataType.PassFail => "fas fa-check-circle",
+        FormFieldDataType.Computed => "fas fa-calculator",
+        FormFieldDataType.PageNumber => "fas fa-file-alt",
+        FormFieldDataType.CompanyLogo => "fas fa-building",
+        FormFieldDataType.DocumentTitle => "fas fa-heading",
+        FormFieldDataType.CurrentDate => "fas fa-calendar-day",
+        FormFieldDataType.FormNumber => "fas fa-hashtag",
+        FormFieldDataType.DecorativeIcon => "fas fa-icons",
+        FormFieldDataType.DecorativeBanner => "fas fa-minus",
+        FormFieldDataType.DecorativeImage => "fas fa-image",
+        _ => "fas fa-question"
+    };
+
+    private async Task Close()
+    {
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+
+    private async Task Cancel()
+    {
+        await Close();
+    }
+
+    private async Task Save()
+    {
+        var request = new UpdateFormTemplateFieldRequest
+        {
+            Id = editedField.Id,
+            FieldKey = editedField.FieldKey,
+            DisplayName = editedField.DisplayName,
+            DataType = editedField.DataType,
+            Width = editedField.Width,
+            PaddingTop = editedField.PaddingTop,
+            PaddingRight = editedField.PaddingRight,
+            PaddingBottom = editedField.PaddingBottom,
+            PaddingLeft = editedField.PaddingLeft,
+            MarginTop = editedField.MarginTop,
+            MarginBottom = editedField.MarginBottom,
+            TextAlign = editedField.TextAlign,
+            FixedHeight = heightMode == "fixed" ? editedField.FixedHeight : null,
+            IsRequired = editedField.IsRequired,
+            IsVisible = editedField.IsVisible,
+            IsReadOnly = editedField.IsReadOnly,
+            DefaultValue = editedField.DefaultValue,
+            Placeholder = editedField.Placeholder,
+            HelpText = editedField.HelpText,
+            MinValue = editedField.MinValue,
+            MaxValue = editedField.MaxValue
+        };
+
+        await OnFieldUpdated.InvokeAsync(request);
+        await Close();
+    }
+
+    /// <summary>
+    /// Internal editable DTO
+    /// </summary>
+    private class EditableFieldDto
+    {
+        public int Id { get; set; }
+        public string FieldKey { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public FormFieldDataType DataType { get; set; }
+        public string Width { get; set; } = "full";
+        public int? PaddingTop { get; set; }
+        public int? PaddingRight { get; set; }
+        public int? PaddingBottom { get; set; }
+        public int? PaddingLeft { get; set; }
+        public int? MarginTop { get; set; }
+        public int? MarginBottom { get; set; }
+        public string? TextAlign { get; set; }
+        public int? FixedHeight { get; set; }
+        public bool IsRequired { get; set; }
+        public bool IsVisible { get; set; } = true;
+        public bool IsReadOnly { get; set; }
+        public string? DefaultValue { get; set; }
+        public string? Placeholder { get; set; }
+        public string? HelpText { get; set; }
+        public decimal? MinValue { get; set; }
+        public decimal? MaxValue { get; set; }
+    }
+}

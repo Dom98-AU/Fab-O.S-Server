@@ -1,0 +1,1305 @@
+@*
+═══════════════════════════════════════════════════════════════
+EDITOR-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: Editor
+Entity: FormTemplate
+Features: Form field designer, drag-drop fields, properties panel
+Pattern: Designer
+Module: Forms (cross-module)
+Last Updated: 2026-01-04
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/estimate/forms/templates/{id:int}/design"
+@page "/{tenantSlug}/fabmate/forms/templates/{id:int}/design"
+@page "/{tenantSlug}/qdocs/forms/templates/{id:int}/design"
+@page "/{tenantSlug}/assets/forms/templates/{id:int}/design"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities.Forms
+@using FabOS.WebServer.Models.DTOs.Forms
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>@(template?.Name ?? "Form Designer") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" ShowSearch="false" PageType="PageType.Card" />
+
+@if (isLoading)
+{
+    <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <p>Loading template...</p>
+    </div>
+}
+else if (template == null)
+{
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Template not found.
+    </div>
+}
+else
+{
+    <!-- Document Header Bar -->
+    <div class="document-header">
+        <div class="document-identity">
+            <i class="fas fa-drafting-compass document-icon"></i>
+            <input type="text"
+                   class="document-title-input"
+                   @bind="template.Name"
+                   @bind:event="oninput"
+                   @bind:after="MarkUnsaved"
+                   placeholder="Untitled Form Template"
+                   disabled="@(!isEditMode)" />
+            <div class="document-badges">
+                @if (template.IsSystemTemplate)
+                {
+                    <span class="badge bg-info">System</span>
+                }
+                @if (template.IsPublished)
+                {
+                    <span class="badge bg-success">Published</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary">Draft</span>
+                }
+            </div>
+        </div>
+        <div class="document-controls">
+            <!-- Page size info display -->
+            <span class="page-size-info">
+                <i class="fas fa-file-alt"></i>
+                @GetCurrentPageSizeDisplay() @template?.PageWidthMm×@template?.PageHeightMm mm
+            </span>
+            <!-- Margin toggle button -->
+            <button class="btn-margin-toggle @(showMarginControls ? "active" : "")"
+                    @onclick="ToggleMarginControls"
+                    title="Page Margins">
+                <i class="fas fa-ruler-combined"></i>
+                <span>Margins</span>
+            </button>
+            <!-- Zoom controls -->
+            <div class="zoom-controls">
+                <button class="btn-zoom" @onclick="ZoomOut" disabled="@(zoomLevel <= ZoomMin)" title="Zoom Out">
+                    <i class="fas fa-search-minus"></i>
+                </button>
+                <span class="zoom-level">@((int)(zoomLevel * 100))%</span>
+                <button class="btn-zoom" @onclick="ZoomIn" disabled="@(zoomLevel >= ZoomMax)" title="Zoom In">
+                    <i class="fas fa-search-plus"></i>
+                </button>
+                <button class="btn-zoom" @onclick="ResetZoom" title="Reset to 100%">
+                    <i class="fas fa-compress-arrows-alt"></i>
+                </button>
+            </div>
+        </div>
+        <div class="document-status">
+            @if (hasUnsavedChanges)
+            {
+                <span class="unsaved-indicator">
+                    <i class="fas fa-circle"></i> Unsaved
+                </span>
+            }
+            else
+            {
+                <span class="saved-indicator">
+                    <i class="fas fa-check-circle"></i> Saved
+                </span>
+            }
+        </div>
+    </div>
+
+    <!-- Page Margins Control Panel -->
+    @if (showMarginControls)
+    {
+        <div class="margin-controls-panel">
+            <div class="margin-control-group">
+                <label><i class="fas fa-arrow-up"></i> Top</label>
+                <div class="margin-input-wrapper">
+                    <input type="number" class="margin-input"
+                           value="@template?.MarginTopMm"
+                           @onchange="@(e => UpdateMargin("top", e))"
+                           min="0" max="100" step="1" />
+                    <span class="margin-unit">mm</span>
+                </div>
+            </div>
+            <div class="margin-control-group">
+                <label><i class="fas fa-arrow-right"></i> Right</label>
+                <div class="margin-input-wrapper">
+                    <input type="number" class="margin-input"
+                           value="@template?.MarginRightMm"
+                           @onchange="@(e => UpdateMargin("right", e))"
+                           min="0" max="100" step="1" />
+                    <span class="margin-unit">mm</span>
+                </div>
+            </div>
+            <div class="margin-control-group">
+                <label><i class="fas fa-arrow-down"></i> Bottom</label>
+                <div class="margin-input-wrapper">
+                    <input type="number" class="margin-input"
+                           value="@template?.MarginBottomMm"
+                           @onchange="@(e => UpdateMargin("bottom", e))"
+                           min="0" max="100" step="1" />
+                    <span class="margin-unit">mm</span>
+                </div>
+            </div>
+            <div class="margin-control-group">
+                <label><i class="fas fa-arrow-left"></i> Left</label>
+                <div class="margin-input-wrapper">
+                    <input type="number" class="margin-input"
+                           value="@template?.MarginLeftMm"
+                           @onchange="@(e => UpdateMargin("left", e))"
+                           min="0" max="100" step="1" />
+                    <span class="margin-unit">mm</span>
+                </div>
+            </div>
+            <button class="btn-apply-margins" @onclick="ToggleMarginControls" title="Close">
+                <i class="fas fa-check"></i>
+            </button>
+        </div>
+    }
+
+    <!-- Designer Layout -->
+    <div class="form-designer-layout @(sidebarVisible ? "sidebar-visible" : "")">
+        <!-- Field Palette Sidebar (Component) -->
+        <FormFieldSidebar @ref="fieldSidebar"
+                          IsVisible="@sidebarVisible"
+                          IsVisibleChanged="@HandleSidebarVisibilityChanged"
+                          OnFieldDragStart="@HandleSidebarDragStart"
+                          OnFieldDragEnd="@HandleSidebarDragEnd"
+                          OnSectionDragStart="@HandleSectionDragStart"
+                          OnSectionDragEnd="@HandleSectionDragEnd"
+                          PageWidthMm="@GetCurrentPageWidthMm()"
+                          HasHeader="@HasHeader"
+                          HasFooter="@HasFooter" />
+
+        <!-- Form Canvas -->
+        <div class="form-canvas-wrapper">
+            <!-- Ruler Corner -->
+            <div class="ruler-corner">
+                <i class="fas fa-ruler-combined"></i>
+            </div>
+
+            <!-- Top Ruler -->
+            <div class="ruler-horizontal" style="@GetHorizontalRulerStyle()">
+                @for (int mm = 0; mm <= (int)(template?.PageWidthMm ?? 210); mm += 10)
+                {
+                    var isMajor = mm % 50 == 0;
+                    <div class="ruler-mark @(isMajor ? "major" : "")" style="left: @(mm * 3)px;">
+                        @if (isMajor)
+                        {
+                            <span class="ruler-label">@mm</span>
+                        }
+                    </div>
+                }
+                <!-- Margin indicators on ruler -->
+                <div class="ruler-margin-indicator left" style="left: @((template?.MarginLeftMm ?? 15) * 3)px;" title="Left Margin"></div>
+                <div class="ruler-margin-indicator right" style="left: @(((template?.PageWidthMm ?? 210) - (template?.MarginRightMm ?? 15)) * 3)px;" title="Right Margin"></div>
+            </div>
+
+            <!-- Left Ruler -->
+            <div class="ruler-vertical" style="@GetVerticalRulerStyle()">
+                @for (int mm = 0; mm <= (int)(template?.PageHeightMm ?? 297); mm += 10)
+                {
+                    var isMajor = mm % 50 == 0;
+                    <div class="ruler-mark @(isMajor ? "major" : "")" style="top: @(mm * 3)px;">
+                        @if (isMajor)
+                        {
+                            <span class="ruler-label">@mm</span>
+                        }
+                    </div>
+                }
+                <!-- Margin indicators on ruler -->
+                <div class="ruler-margin-indicator top" style="top: @((template?.MarginTopMm ?? 20) * 3)px;" title="Top Margin"></div>
+                <div class="ruler-margin-indicator bottom" style="top: @(((template?.PageHeightMm ?? 297) - (template?.MarginBottomMm ?? 20)) * 3)px;" title="Bottom Margin"></div>
+            </div>
+
+            <div class="form-canvas @(isDraggingSectionFromSidebar ? "section-drop-zone-active" : "") @(isDraggingFromSidebar ? "field-drop-zone-active" : "")"
+                 @ondragover="HandleCanvasDragOver" @ondragover:preventDefault @ondrop="HandleCanvasDrop">
+
+                <!-- Paper representation - sized to match page dimensions -->
+                @* Using @key to force re-render when page size changes *@
+                <div class="form-paper" @key="@($"paper-{template?.PageWidthMm}-{template?.PageHeightMm}-{template?.MarginTopMm}-{template?.MarginRightMm}")" style="@GetPaperStyle() @GetZoomStyle()">
+
+                    <!-- Margin Guides (visual dashed lines showing printable area) -->
+                    <div class="margin-guides" style="@GetMarginGuideStyle()">
+                        <div class="margin-guide top"></div>
+                        <div class="margin-guide right"></div>
+                        <div class="margin-guide bottom"></div>
+                        <div class="margin-guide left"></div>
+                    </div>
+
+                    <!-- Section Drop Zone Indicator -->
+                    @if (isDraggingSectionFromSidebar)
+                    {
+                        <div class="section-drop-indicator">
+                            <i class="fas fa-layer-group"></i>
+                            <span>Drop section layout here</span>
+                        </div>
+                    }
+
+                    @if (!sections.Any())
+                    {
+                        <div class="empty-canvas">
+                            <i class="fas fa-layer-group fa-3x text-muted mb-3"></i>
+                            <h5>Start by adding a section</h5>
+                            <p class="text-muted">Drag a section layout from the sidebar to define your form structure</p>
+                            <p class="text-muted small">Then drag field types into the section columns</p>
+                        </div>
+                    }
+                    else
+                    {
+                <!-- Section-based layout -->
+                @foreach (var sec in sections.OrderBy(s => s.DisplayOrder))
+                {
+                    <div class="form-template-section @(selectedSection?.Id == sec.Id ? "selected" : "") @(sec.IsHeader ? "header-section" : "") @(sec.IsFooter ? "footer-section" : "")"
+                         style="@GetSectionStyles(sec)">
+                        <!-- Section Header -->
+                        <div class="section-header-bar @(sec.IsHeader ? "header-bar" : "") @(sec.IsFooter ? "footer-bar" : "")" @onclick="() => SelectSection(sec)">
+                            <div class="section-drag-handle">
+                                <i class="fas fa-grip-horizontal"></i>
+                            </div>
+                            <div class="section-title-area">
+                                @if (sec.IsHeader)
+                                {
+                                    <span class="section-type-badge header-badge">
+                                        <i class="fas fa-arrow-up"></i> HEADER
+                                    </span>
+                                }
+                                else if (sec.IsFooter)
+                                {
+                                    <span class="section-type-badge footer-badge">
+                                        <i class="fas fa-arrow-down"></i> FOOTER
+                                    </span>
+                                }
+                                <span class="section-name">@(sec.Name)</span>
+                                <span class="section-layout-badge">@GetLayoutDisplayName(sec.LayoutType)</span>
+                            </div>
+                            <div class="section-actions">
+                                @if (!sec.IsHeader && !sec.IsFooter)
+                                {
+                                    <button class="btn-section-action" @onclick="() => MoveSectionUp(sec)" @onclick:stopPropagation title="Move Up"
+                                            disabled="@(!CanMoveSectionUp(sec))">
+                                        <i class="fas fa-chevron-up"></i>
+                                    </button>
+                                    <button class="btn-section-action" @onclick="() => MoveSectionDown(sec)" @onclick:stopPropagation title="Move Down"
+                                            disabled="@(!CanMoveSectionDown(sec))">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </button>
+                                }
+                                <button class="btn-section-action" @onclick="() => SelectSection(sec)" @onclick:stopPropagation title="Settings">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                                <button class="btn-section-action btn-danger" @onclick="() => DeleteSection(sec)" @onclick:stopPropagation title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Section Content Grid -->
+                        <div class="section-content-grid" style="grid-template-columns: @GetSectionGridTemplateColumns(sec);">
+                            @for (int col = 0; col < GetSectionColumnCount(sec); col++)
+                            {
+                                var columnIndex = col;
+                                var isDropTarget = dropTargetSectionId == sec.Id && dropTargetColumnIndex == columnIndex;
+
+                                <div class="section-column @(isDropTarget ? "drag-over" : "") @(isDraggingFromSidebar ? "accepting-drops" : "")"
+                                     @ondragover="() => HandleColumnDragOver(sec.Id, columnIndex)"
+                                     @ondragover:preventDefault
+                                     @ondragleave="HandleColumnDragLeave"
+                                     @ondrop="() => HandleColumnDrop(sec.Id, columnIndex)"
+                                     @ondrop:stopPropagation>
+
+                                    @foreach (var field in GetFieldsInColumn(sec, columnIndex))
+                                    {
+                                        <div class="form-field @(selectedField?.Id == field.Id ? "selected" : "")"
+                                             @onclick="() => SelectField(field, sec)"
+                                             @onclick:stopPropagation
+                                             draggable="true"
+                                             @ondragstart="() => StartDragField(field)"
+                                             @ondragend="HandleFieldDragEnd">
+                                            <div class="field-header">
+                                                <span class="field-icon">
+                                                    <i class="@GetFieldIcon(field.DataType)"></i>
+                                                </span>
+                                                <span class="field-name">@field.DisplayName</span>
+                                                @if (field.IsRequired)
+                                                {
+                                                    <span class="text-danger">*</span>
+                                                }
+                                                <button class="btn btn-link btn-sm p-0 ms-auto text-danger"
+                                                        @onclick="() => DeleteField(field)" @onclick:stopPropagation>
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                            <div class="field-preview">
+                                                @RenderFieldPreview(field)
+                                            </div>
+                                        </div>
+                                    }
+
+                                    @if (!GetFieldsInColumn(sec, columnIndex).Any())
+                                    {
+                                        <div class="column-placeholder">
+                                            <i class="fas fa-plus-circle"></i>
+                                            <span>Drop field here</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                    <!-- Add Section Button -->
+                    <div class="add-section-area">
+                        <button class="btn btn-outline-primary btn-sm" @onclick="OpenAddSectionDialog">
+                            <i class="fas fa-plus me-1"></i> Add Section
+                        </button>
+                        <span class="add-section-hint">or drag a section layout from the sidebar</span>
+                    </div>
+                }
+                </div> <!-- End form-paper -->
+            </div> <!-- End form-canvas -->
+        </div> <!-- End form-canvas-wrapper -->
+
+        <!-- Properties Panel -->
+        <div class="properties-panel @(selectedField != null ? "" : "collapsed")">
+            @if (selectedField != null)
+            {
+                <div class="panel-header">
+                    <h6 class="m-0">Field Properties</h6>
+                    <button class="btn btn-link btn-sm p-0" @onclick="() => selectedField = null">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="panel-content">
+                    <div class="mb-3">
+                        <label class="form-label">Field Key</label>
+                        <input type="text" class="form-control form-control-sm" @bind="selectedField.FieldKey" @bind:after="MarkUnsaved" />
+                        <small class="text-muted">Unique identifier for this field</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Display Name</label>
+                        <input type="text" class="form-control form-control-sm" @bind="selectedField.DisplayName" @bind:after="MarkUnsaved" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Section</label>
+                        <input type="text" class="form-control form-control-sm" @bind="selectedField.SectionName" @bind:after="MarkUnsaved" placeholder="General" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Width</label>
+                        <select class="form-select form-select-sm" @bind="selectedField.Width" @bind:after="MarkUnsaved">
+                            <option value="full">Full Width</option>
+                            <option value="half">Half Width</option>
+                            <option value="third">Third Width</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Placeholder</label>
+                        <input type="text" class="form-control form-control-sm" @bind="selectedField.Placeholder" @bind:after="MarkUnsaved" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Help Text</label>
+                        <textarea class="form-control form-control-sm" @bind="selectedField.HelpText" @bind:after="MarkUnsaved" rows="2"></textarea>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input type="checkbox" class="form-check-input" id="fieldRequired" @bind="selectedField.IsRequired" @bind:after="MarkUnsaved" />
+                        <label class="form-check-label" for="fieldRequired">Required</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input type="checkbox" class="form-check-input" id="fieldReadOnly" @bind="selectedField.IsReadOnly" @bind:after="MarkUnsaved" />
+                        <label class="form-check-label" for="fieldReadOnly">Read Only</label>
+                    </div>
+
+                    @if (selectedField.DataType == FormFieldDataType.Choice || selectedField.DataType == FormFieldDataType.MultiChoice)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Options (one per line)</label>
+                            <textarea class="form-control form-control-sm" rows="4"
+                                      @bind="selectOptionsText" @bind:after="UpdateSelectOptions"></textarea>
+                        </div>
+                    }
+
+                    @if (selectedField.DataType == FormFieldDataType.Number || selectedField.DataType == FormFieldDataType.Currency)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Decimal Places</label>
+                            <input type="number" class="form-control form-control-sm" @bind="selectedField.DecimalPlaces" @bind:after="MarkUnsaved" min="0" max="6" />
+                        </div>
+                    }
+
+                    @if (selectedField.DataType == FormFieldDataType.Photo)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Max Photos</label>
+                            <input type="number" class="form-control form-control-sm" @bind="selectedField.MaxPhotos" @bind:after="MarkUnsaved" min="1" max="10" />
+                        </div>
+                        <div class="form-check mb-2">
+                            <input type="checkbox" class="form-check-input" id="requireLocation" @bind="selectedField.RequirePhotoLocation" @bind:after="MarkUnsaved" />
+                            <label class="form-check-label" for="requireLocation">Require GPS Location</label>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<!-- Add Section Dialog -->
+@if (showAddSectionDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-layer-group me-2"></i>Add Section
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showAddSectionDialog = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-4">
+                        <label class="form-label fw-medium">Section Name</label>
+                        <input type="text" class="form-control" @bind="newSectionName" placeholder="e.g., Inspection Details" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Column Layout</label>
+                        <div class="layout-picker">
+                            <div class="layout-option @(newSectionLayout == "1-col" ? "selected" : "")"
+                                 @onclick='() => newSectionLayout = "1-col"'>
+                                <div class="layout-preview layout-1">
+                                    <div class="layout-col"></div>
+                                </div>
+                                <span class="layout-name">Single</span>
+                                <span class="layout-desc">100%</span>
+                            </div>
+                            <div class="layout-option @(newSectionLayout == "2-col-equal" ? "selected" : "")"
+                                 @onclick='() => newSectionLayout = "2-col-equal"'>
+                                <div class="layout-preview layout-2">
+                                    <div class="layout-col"></div>
+                                    <div class="layout-col"></div>
+                                </div>
+                                <span class="layout-name">Two Equal</span>
+                                <span class="layout-desc">50% / 50%</span>
+                            </div>
+                            <div class="layout-option @(newSectionLayout == "2-col-left" ? "selected" : "")"
+                                 @onclick='() => newSectionLayout = "2-col-left"'>
+                                <div class="layout-preview layout-2-left">
+                                    <div class="layout-col wide"></div>
+                                    <div class="layout-col"></div>
+                                </div>
+                                <span class="layout-name">Wide Left</span>
+                                <span class="layout-desc">66% / 33%</span>
+                            </div>
+                            <div class="layout-option @(newSectionLayout == "2-col-right" ? "selected" : "")"
+                                 @onclick='() => newSectionLayout = "2-col-right"'>
+                                <div class="layout-preview layout-2-right">
+                                    <div class="layout-col"></div>
+                                    <div class="layout-col wide"></div>
+                                </div>
+                                <span class="layout-name">Wide Right</span>
+                                <span class="layout-desc">33% / 66%</span>
+                            </div>
+                            <div class="layout-option @(newSectionLayout == "3-col-equal" ? "selected" : "")"
+                                 @onclick='() => newSectionLayout = "3-col-equal"'>
+                                <div class="layout-preview layout-3">
+                                    <div class="layout-col"></div>
+                                    <div class="layout-col"></div>
+                                    <div class="layout-col"></div>
+                                </div>
+                                <span class="layout-name">Three Equal</span>
+                                <span class="layout-desc">33% each</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showAddSectionDialog = false">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="CreateSection" disabled="@string.IsNullOrWhiteSpace(newSectionName)">
+                        <i class="fas fa-plus me-1"></i>Add Section
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Section Properties Panel (Right Side) -->
+@if (showSectionPropertiesPanel && selectedSection != null)
+{
+    <SectionPropertiesPanel Section="@selectedSection"
+                            IsVisible="@showSectionPropertiesPanel"
+                            IsVisibleChanged="@((visible) => { showSectionPropertiesPanel = visible; if (!visible) selectedSection = null; })"
+                            PageWidthMm="@GetCurrentPageWidthMm()"
+                            OnSectionUpdated="@HandleSectionUpdated" />
+}
+
+<style>
+    .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 400px;
+    }
+
+    .loading-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid #e9ecef;
+        border-top-color: #0d6efd;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Document Header */
+    .document-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        gap: 1rem;
+    }
+
+    .document-identity {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .document-icon {
+        font-size: 1.25rem;
+        color: #6c757d;
+    }
+
+    .document-title-input {
+        border: none;
+        background: transparent;
+        font-size: 1.1rem;
+        font-weight: 500;
+        min-width: 250px;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    .document-title-input:focus {
+        outline: none;
+        background: white;
+        border: 1px solid #0d6efd;
+    }
+
+    .document-badges {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .document-controls {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .page-size-info {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        font-size: 0.813rem;
+        color: #6b7280;
+        white-space: nowrap;
+        padding: 0.25rem 0.5rem;
+        background: #f3f4f6;
+        border-radius: 4px;
+    }
+
+    .page-size-info i {
+        color: #9ca3af;
+    }
+
+    .page-size-locked {
+        color: #6b7280;
+        font-size: 0.75rem;
+    }
+
+    /* Margin Toggle Button */
+    .btn-margin-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.375rem 0.75rem;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        font-size: 0.813rem;
+        color: #6b7280;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-margin-toggle:hover {
+        background: #e5e7eb;
+        color: #374151;
+    }
+
+    .btn-margin-toggle.active {
+        background: #7c3aed;
+        border-color: #7c3aed;
+        color: #ffffff;
+    }
+
+    /* Margin Controls Panel */
+    .margin-controls-panel {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem 1rem;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .margin-control-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .margin-control-group label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #6b7280;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        min-width: 55px;
+    }
+
+    .margin-control-group label i {
+        font-size: 0.625rem;
+        color: #9ca3af;
+    }
+
+    .margin-input-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .margin-input {
+        width: 50px;
+        padding: 0.25rem 0.375rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 0.813rem;
+        text-align: right;
+        outline: none;
+    }
+
+    .margin-input:focus {
+        border-color: #7c3aed;
+        box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+    }
+
+    .margin-unit {
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+
+    .btn-apply-margins {
+        background: #10b981;
+        border: none;
+        border-radius: 4px;
+        padding: 0.375rem 0.5rem;
+        color: #ffffff;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-apply-margins:hover {
+        background: #059669;
+    }
+
+    /* Rulers */
+    .ruler-corner {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 24px;
+        height: 24px;
+        background: #e5e7eb;
+        border-right: 1px solid #d1d5db;
+        border-bottom: 1px solid #d1d5db;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+
+    .ruler-corner i {
+        font-size: 0.625rem;
+        color: #9ca3af;
+    }
+
+    .ruler-horizontal {
+        position: absolute;
+        top: 0;
+        left: 24px;
+        height: 24px;
+        background: #f3f4f6;
+        border-bottom: 1px solid #d1d5db;
+        z-index: 10;
+        overflow: hidden;
+    }
+
+    .ruler-vertical {
+        position: absolute;
+        top: 24px;
+        left: 0;
+        width: 24px;
+        background: #f3f4f6;
+        border-right: 1px solid #d1d5db;
+        z-index: 10;
+        overflow: hidden;
+    }
+
+    .ruler-mark {
+        position: absolute;
+        width: 1px;
+        background: #d1d5db;
+    }
+
+    .ruler-horizontal .ruler-mark {
+        height: 6px;
+        bottom: 0;
+    }
+
+    .ruler-horizontal .ruler-mark.major {
+        height: 12px;
+        background: #9ca3af;
+    }
+
+    .ruler-vertical .ruler-mark {
+        width: 6px;
+        right: 0;
+    }
+
+    .ruler-vertical .ruler-mark.major {
+        width: 12px;
+        background: #9ca3af;
+    }
+
+    .ruler-label {
+        position: absolute;
+        font-size: 0.5rem;
+        color: #6b7280;
+        white-space: nowrap;
+    }
+
+    .ruler-horizontal .ruler-label {
+        left: 2px;
+        top: 2px;
+    }
+
+    .ruler-vertical .ruler-label {
+        left: 2px;
+        top: 2px;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        transform: rotate(180deg);
+    }
+
+    .ruler-margin-indicator {
+        position: absolute;
+        background: #7c3aed;
+        z-index: 5;
+    }
+
+    .ruler-horizontal .ruler-margin-indicator {
+        width: 2px;
+        height: 100%;
+        top: 0;
+    }
+
+    .ruler-vertical .ruler-margin-indicator {
+        height: 2px;
+        width: 100%;
+        left: 0;
+    }
+
+    /* Margin Guides on Paper */
+    .margin-guides {
+        position: absolute;
+        pointer-events: none;
+        z-index: 1;
+    }
+
+    .margin-guide {
+        position: absolute;
+        border: 1px dashed rgba(124, 58, 237, 0.3);
+    }
+
+    .margin-guide.top {
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 0;
+    }
+
+    .margin-guide.bottom {
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 0;
+    }
+
+    .margin-guide.left {
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 0;
+    }
+
+    .margin-guide.right {
+        top: 0;
+        bottom: 0;
+        right: 0;
+        width: 0;
+    }
+
+    /* Zoom Controls */
+    .zoom-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        background: #f3f4f6;
+        border-radius: 6px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .btn-zoom {
+        background: transparent;
+        border: none;
+        padding: 0.375rem 0.5rem;
+        color: #6b7280;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 0.875rem;
+        transition: all 0.15s;
+    }
+
+    .btn-zoom:hover:not(:disabled) {
+        background: #e5e7eb;
+        color: #374151;
+    }
+
+    .btn-zoom:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .zoom-level {
+        font-size: 0.75rem;
+        color: #6b7280;
+        min-width: 40px;
+        text-align: center;
+        font-weight: 500;
+    }
+
+    .unsaved-indicator {
+        color: #ffc107;
+    }
+
+    .saved-indicator {
+        color: #28a745;
+    }
+
+    /* Designer Layout */
+    .form-designer-layout {
+        display: flex;
+        height: calc(100vh - 180px);
+        background: transparent;
+        transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .form-designer-layout.sidebar-visible {
+        margin-left: var(--form-sidebar-width, 320px);
+    }
+
+    /* Form Canvas Wrapper - contains the scrollable area */
+    .form-canvas-wrapper {
+        flex: 1;
+        overflow: auto;
+        padding: 2rem;
+        padding-top: calc(24px + 2rem); /* Account for horizontal ruler */
+        padding-left: calc(24px + 2rem); /* Account for vertical ruler */
+        display: flex;
+        justify-content: center;
+        background: #f5f5f5;  /* Light gray canvas background */
+        position: relative;
+    }
+
+    /* Form Canvas - the drop target area */
+    .form-canvas {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        min-height: 100%;
+        position: relative;
+        transition: all 0.2s ease;
+    }
+
+    /* Form Paper - visual representation of the page */
+    .form-paper {
+        /* Width/min-height set via inline style based on template dimensions */
+        /* Scale: 3px per mm (A4 Portrait = 210x297mm = 630x891px) */
+        background: white;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);  /* Subtle shadow for depth */
+        border: none;
+        outline: none;
+        border-radius: 2px;
+        padding: 24px;
+        position: relative;
+        transition: width 0.3s ease, min-height 0.3s ease, transform 0.2s ease;
+        flex-shrink: 0;
+    }
+
+    /* Section Drop Zone - applied to form-paper when dragging sections */
+    /* Note: Only background tint, no outline - the section-drop-indicator bar handles visual feedback */
+    .form-canvas.section-drop-zone-active .form-paper {
+        background: rgba(124, 58, 237, 0.02);
+    }
+
+    .form-canvas.field-drop-zone-active .form-paper {
+        background: rgba(25, 118, 210, 0.02);
+    }
+
+    .section-drop-indicator {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(109, 40, 217, 0.1) 100%);
+        border-bottom: 2px dashed #7c3aed;
+        padding: 0.75rem;
+        margin: -24px -24px 24px -24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        color: #7c3aed;
+        font-weight: 500;
+        animation: pulse 1.5s ease-in-out infinite;
+        border-radius: 2px 2px 0 0;
+    }
+
+    @@keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(4px); }
+    }
+
+    @@keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    .empty-canvas {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 300px;
+        height: 100%;
+        color: #6c757d;
+        text-align: center;
+    }
+
+    /* Section Template Styles */
+    .form-template-section {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+        overflow: hidden;
+        border: 2px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .form-template-section:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    .form-template-section.selected {
+        border-color: #7c3aed;
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+    }
+
+    .section-header-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.625rem 1rem;
+        background: linear-gradient(135deg, #f8f9fa 0%, #f3f4f6 100%);
+        border-bottom: 1px solid #e5e7eb;
+        cursor: pointer;
+    }
+
+    .section-drag-handle {
+        color: #9ca3af;
+        cursor: grab;
+    }
+
+    .section-drag-handle:active {
+        cursor: grabbing;
+    }
+
+    .section-title-area {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-name {
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: #374151;
+    }
+
+    .section-layout-badge {
+        font-size: 0.625rem;
+        background: #e5e7eb;
+        color: #6b7280;
+        padding: 0.125rem 0.375rem;
+        border-radius: 4px;
+        text-transform: uppercase;
+    }
+
+    .section-actions {
+        display: flex;
+        gap: 0.25rem;
+    }
+
+    .btn-section-action {
+        background: transparent;
+        border: none;
+        padding: 0.375rem;
+        color: #9ca3af;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.15s;
+    }
+
+    .btn-section-action:hover {
+        background: #e5e7eb;
+        color: #374151;
+    }
+
+    .btn-section-action.btn-danger:hover {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .btn-section-action:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    /* Section Content Grid */
+    .section-content-grid {
+        display: grid;
+        gap: 1rem;
+        padding: 1rem;
+        min-height: 80px;
+    }
+
+    .section-column {
+        min-height: 60px;
+        padding: 0.5rem;
+        border: 2px dashed transparent;
+        border-radius: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        transition: all 0.15s ease;
+    }
+
+    .section-column.accepting-drops {
+        border-color: #d1d5db;
+        background: #f9fafb;
+    }
+
+    .section-column.drag-over {
+        border-color: #1976d2;
+        background: rgba(25, 118, 210, 0.05);
+    }
+
+    .column-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+        padding: 1rem;
+        color: #9ca3af;
+        font-size: 0.75rem;
+        text-align: center;
+    }
+
+    .column-placeholder i {
+        font-size: 1.25rem;
+    }
+
+    /* Form Field */
+    .form-field {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 0.75rem;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .form-field:hover {
+        border-color: #0d6efd;
+    }
+
+    .form-field.selected {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+    }
+
+    .field-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .field-icon {
+        color: #6c757d;
+    }
+
+    .field-name {
+        font-weight: 500;
+        font-size: 0.875rem;
+    }
+
+    .field-preview {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+
+    /* Add Section Area */
+    .add-section-area {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1.5rem;
+    }
+
+    .add-section-hint {
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+
+    /* Properties Panel */
+    .properties-panel {
+        width: 280px;
+        background: white;
+        border-left: 1px solid #dee2e6;
+        display: flex;
+        flex-direction: column;
+        transition: width 0.2s;
+    }
+
+    .properties-panel.collapsed {
+        width: 0;
+        overflow: hidden;
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .panel-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+    }
+
+    /* Layout Picker in Dialog */
+    .layout-picker {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 0.75rem;
+    }
+
+    .layout-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.75rem 0.5rem;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s;
+        background: #f9fafb;
+    }
+
+    .layout-option:hover {
+        border-color: #7c3aed;
+        background: white;
+    }
+
+    .layout-option.selected {
+        border-color: #7c3aed;
+        background: #ede9fe;
+    }
+
+    .layout-preview {
+        display: flex;
+        gap: 2px;
+        width: 100%;
+        height: 24px;
+    }
+
+    .layout-col {
+        background: #d1d5db;
+        border-radius: 2px;
+        flex: 1;
+    }
+
+    .layout-col.wide {
+        flex: 2;
+    }
+
+    .layout-option.selected .layout-col {
+        background: #7c3aed;
+    }
+
+    .layout-name {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #374151;
+    }
+
+    .layout-desc {
+        font-size: 0.625rem;
+        color: #9ca3af;
+    }
+</style>

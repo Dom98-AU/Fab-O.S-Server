@@ -316,6 +316,11 @@ builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.ILocationService,
 builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.ILabelTemplateService, FabOS.WebServer.Services.Implementations.Assets.LabelTemplateService>();
 builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.IEquipmentAttachmentService, FabOS.WebServer.Services.Implementations.Assets.EquipmentAttachmentService>();
 
+// Register Forms Module Services (Cross-module forms for Estimate, FabMate, QDocs, Assets)
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.Forms.IFormTemplateService, FabOS.WebServer.Services.Implementations.Forms.FormTemplateService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.Forms.IFormInstanceService, FabOS.WebServer.Services.Implementations.Forms.FormInstanceService>();
+builder.Services.AddScoped<FabOS.WebServer.Services.Interfaces.Forms.IFormPdfService, FabOS.WebServer.Services.Implementations.Forms.FormPdfService>();
+
 // Add MVC services (includes controllers, views, and all necessary services)
 builder.Services.AddMvc();
 

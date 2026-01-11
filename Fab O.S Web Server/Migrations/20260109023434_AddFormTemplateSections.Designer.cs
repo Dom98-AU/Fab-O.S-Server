@@ -4,6 +4,7 @@ using FabOS.WebServer.Data.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FabOS.WebServer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260109023434_AddFormTemplateSections")]
+    partial class AddFormTemplateSections
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4061,26 +4064,6 @@ namespace FabOS.WebServer.Migrations
                     b.Property<decimal>("PageWidthMm")
                         .HasColumnType("decimal(8,2)");
 
-                    b.Property<decimal>("MarginTopMm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(8,2)")
-                        .HasDefaultValue(20m);
-
-                    b.Property<decimal>("MarginRightMm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(8,2)")
-                        .HasDefaultValue(15m);
-
-                    b.Property<decimal>("MarginBottomMm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(8,2)")
-                        .HasDefaultValue(20m);
-
-                    b.Property<decimal>("MarginLeftMm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(8,2)")
-                        .HasDefaultValue(15m);
-
                     b.Property<bool>("ShowSectionHeaders")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -4232,31 +4215,6 @@ namespace FabOS.WebServer.Migrations
                         .HasColumnType("nvarchar(20)")
                         .HasDefaultValue("full");
 
-                    b.Property<int?>("PaddingTop")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingRight")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingBottom")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingLeft")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MarginTop")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MarginBottom")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TextAlign")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int?>("FixedHeight")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
 
                     b.HasIndex("FormTemplateSectionId");
@@ -4323,12 +4281,6 @@ namespace FabOS.WebServer.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsFooter")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsHeader")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("KeepTogether")
                         .HasColumnType("bit");
 
@@ -4350,26 +4302,6 @@ namespace FabOS.WebServer.Migrations
 
                     b.Property<int?>("Padding")
                         .HasColumnType("int");
-
-                    b.Property<int?>("PaddingTop")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingRight")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingBottom")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingLeft")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ContentAlignHorizontal")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("ContentAlignVertical")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<bool>("PageBreakBefore")
                         .HasColumnType("bit");

@@ -1,0 +1,176 @@
+@namespace FabOS.WebServer.Components.Pages.Forms
+
+@* TableLayoutPicker - Visual grid picker for section layouts *@
+
+<div class="table-layout-picker">
+    <div class="picker-header">
+        <span class="picker-title">
+            <i class="fas fa-table"></i>
+            Tables
+        </span>
+        <button class="picker-help-btn" title="How to use table layouts">
+            <i class="fas fa-question-circle"></i>
+        </button>
+    </div>
+
+    <div class="layout-grid">
+        @foreach (var layoutDef in Layouts)
+        {
+            var isSelected = SelectedLayoutType == layoutDef.LayoutType;
+            var isDisabled = layoutDef.MinPageWidthMm > PageWidthMm;
+
+            <div class="layout-item @(isSelected ? "selected" : "") @(isDisabled ? "disabled" : "") @(layoutDef.IsCustom ? "custom-item" : "")"
+                 @onclick="() => SelectLayout(layoutDef)"
+                 draggable="@(!isDisabled && !layoutDef.IsCustom ? "true" : "false")"
+                 @ondragstart="() => OnLayoutDragStart(layoutDef)"
+                 @ondragend="OnLayoutDragEnd"
+                 title="@(isDisabled ? $"Requires {layoutDef.MinPageWidthMm}mm+ page width" : layoutDef.Description)">
+
+                @if (layoutDef.IsCustom)
+                {
+                    <div class="custom-layout-icon">
+                        <i class="fas fa-plus"></i>
+                    </div>
+                    <span class="layout-name">Custom...</span>
+                }
+                else
+                {
+                    <div class="layout-preview" style="@GetGridStyle(layoutDef)">
+                        @for (int row = 0; row < layoutDef.Rows; row++)
+                        {
+                            @for (int col = 0; col < layoutDef.ColumnCount; col++)
+                            {
+                                var isHeaderRow = layoutDef.HasHeaderRow && row == 0;
+                                <div class="preview-cell @(isHeaderRow ? "header-cell" : "")"></div>
+                            }
+                        }
+                    </div>
+                    <span class="layout-name">@(layoutDef.DisplayName)</span>
+                }
+
+                @if (isDisabled && !layoutDef.IsCustom)
+                {
+                    <div class="layout-disabled-badge">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Currently selected layout type
+    /// </summary>
+    [Parameter]
+    public string SelectedLayoutType { get; set; } = "1-col";
+
+    /// <summary>
+    /// Callback when layout is selected
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> SelectedLayoutTypeChanged { get; set; }
+
+    /// <summary>
+    /// Current page width for layout constraints
+    /// </summary>
+    [Parameter]
+    public decimal PageWidthMm { get; set; } = 210;
+
+    /// <summary>
+    /// Callback when a layout is being dragged
+    /// </summary>
+    [Parameter]
+    public EventCallback<TableLayoutDefinition> OnLayoutDrag { get; set; }
+
+    /// <summary>
+    /// Callback when drag ends
+    /// </summary>
+    [Parameter]
+    public EventCallback OnDragEnded { get; set; }
+
+    /// <summary>
+    /// Callback when custom layout is requested
+    /// </summary>
+    [Parameter]
+    public EventCallback OnCustomLayoutRequested { get; set; }
+
+    private static readonly List<TableLayoutDefinition> Layouts = new()
+    {
+        // Row 1: Basic layouts
+        new() { LayoutType = "1-col", DisplayName = "1-col", Description = "Single column layout",
+                ColumnCount = 1, Rows = 1, GridColumns = "1fr", MinPageWidthMm = 0 },
+        new() { LayoutType = "2-col-equal", DisplayName = "2-equal", Description = "Two equal columns",
+                ColumnCount = 2, Rows = 1, GridColumns = "1fr 1fr", MinPageWidthMm = 150 },
+
+        // Row 2: Asymmetric layouts
+        new() { LayoutType = "2-col-left", DisplayName = "2-left", Description = "Two columns, left wider",
+                ColumnCount = 2, Rows = 1, GridColumns = "2fr 1fr", MinPageWidthMm = 150 },
+        new() { LayoutType = "2-col-right", DisplayName = "2-right", Description = "Two columns, right wider",
+                ColumnCount = 2, Rows = 1, GridColumns = "1fr 2fr", MinPageWidthMm = 150 },
+
+        // Row 3: Three column
+        new() { LayoutType = "3-col-equal", DisplayName = "3-equal", Description = "Three equal columns",
+                ColumnCount = 3, Rows = 1, GridColumns = "1fr 1fr 1fr", MinPageWidthMm = 180 },
+
+        // Row 4: Multi-row layouts
+        new() { LayoutType = "header-row", DisplayName = "Header row", Description = "Full width header with columns below",
+                ColumnCount = 2, Rows = 2, GridColumns = "1fr 1fr", HasHeaderRow = true, MinPageWidthMm = 150 },
+
+        // Custom option
+        new() { LayoutType = "custom", DisplayName = "Custom", Description = "Create a custom layout",
+                IsCustom = true }
+    };
+
+    private async Task SelectLayout(TableLayoutDefinition layout)
+    {
+        if (layout.MinPageWidthMm > PageWidthMm) return;
+
+        if (layout.IsCustom)
+        {
+            await OnCustomLayoutRequested.InvokeAsync();
+        }
+        else
+        {
+            await SelectedLayoutTypeChanged.InvokeAsync(layout.LayoutType);
+        }
+    }
+
+    private async Task OnLayoutDragStart(TableLayoutDefinition layout)
+    {
+        if (layout.MinPageWidthMm > PageWidthMm || layout.IsCustom) return;
+        await OnLayoutDrag.InvokeAsync(layout);
+    }
+
+    private async Task OnLayoutDragEnd()
+    {
+        await OnDragEnded.InvokeAsync();
+    }
+
+    private string GetGridStyle(TableLayoutDefinition layout)
+    {
+        if (layout.HasHeaderRow)
+        {
+            // For header row layout, first row spans all columns
+            return $"grid-template-columns: {layout.GridColumns}; grid-template-rows: auto auto;";
+        }
+        return $"grid-template-columns: {layout.GridColumns};";
+    }
+
+    /// <summary>
+    /// Table layout definition
+    /// </summary>
+    public class TableLayoutDefinition
+    {
+        public string LayoutType { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int ColumnCount { get; set; } = 1;
+        public int Rows { get; set; } = 1;
+        public string GridColumns { get; set; } = "1fr";
+        public bool HasHeaderRow { get; set; }
+        public decimal MinPageWidthMm { get; set; }
+        public bool IsCustom { get; set; }
+    }
+}

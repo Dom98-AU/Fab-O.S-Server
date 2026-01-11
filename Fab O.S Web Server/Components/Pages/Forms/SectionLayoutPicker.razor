@@ -1,0 +1,187 @@
+@namespace FabOS.WebServer.Components.Pages.Forms
+
+@* SectionLayoutPicker - Visual picker for section column layouts *@
+
+<div class="section-layout-picker @(IsCompact ? "compact" : "")">
+    @if (!IsCompact && !string.IsNullOrEmpty(Label))
+    {
+        <label class="picker-label">@Label</label>
+    }
+
+    <div class="layout-options">
+        @foreach (var layoutDef in AvailableLayouts)
+        {
+            var isSelected = SelectedLayoutType == layoutDef.LayoutType;
+            var isDisabled = PageWidthMm.HasValue && PageWidthMm.Value < layoutDef.MinPageWidthMm;
+
+            <div class="layout-option @(isSelected ? "selected" : "") @(isDisabled ? "disabled" : "")"
+                 @onclick="@(() => SelectLayout(layoutDef))"
+                 title="@(isDisabled ? $"Requires {layoutDef.MinPageWidthMm}mm+ page width" : layoutDef.Description)">
+
+                <div class="layout-preview">
+                    @switch (layoutDef.LayoutType)
+                    {
+                        case "1-col":
+                            <div class="preview-grid grid-1">
+                                <div class="preview-col"></div>
+                            </div>
+                            break;
+                        case "2-col-equal":
+                            <div class="preview-grid grid-2">
+                                <div class="preview-col"></div>
+                                <div class="preview-col"></div>
+                            </div>
+                            break;
+                        case "2-col-left":
+                            <div class="preview-grid grid-2-left">
+                                <div class="preview-col wide"></div>
+                                <div class="preview-col"></div>
+                            </div>
+                            break;
+                        case "2-col-right":
+                            <div class="preview-grid grid-2-right">
+                                <div class="preview-col"></div>
+                                <div class="preview-col wide"></div>
+                            </div>
+                            break;
+                        case "3-col-equal":
+                            <div class="preview-grid grid-3">
+                                <div class="preview-col"></div>
+                                <div class="preview-col"></div>
+                                <div class="preview-col"></div>
+                            </div>
+                            break;
+                    }
+                </div>
+
+                @if (!IsCompact)
+                {
+                    <div class="layout-info">
+                        <span class="layout-name">@(layoutDef.DisplayName)</span>
+                        @if (isDisabled)
+                        {
+                            <span class="layout-warning">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                @(layoutDef.MinPageWidthMm) mm+
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Currently selected layout type
+    /// </summary>
+    [Parameter]
+    public string SelectedLayoutType { get; set; } = "1-col";
+
+    /// <summary>
+    /// Callback when layout selection changes
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> SelectedLayoutTypeChanged { get; set; }
+
+    /// <summary>
+    /// Optional page width constraint (mm) to filter/disable layouts
+    /// </summary>
+    [Parameter]
+    public decimal? PageWidthMm { get; set; }
+
+    /// <summary>
+    /// Label to display above the picker
+    /// </summary>
+    [Parameter]
+    public string? Label { get; set; } = "Section Layout";
+
+    /// <summary>
+    /// Use compact mode (smaller, no labels)
+    /// </summary>
+    [Parameter]
+    public bool IsCompact { get; set; }
+
+    /// <summary>
+    /// Available layout options
+    /// </summary>
+    private List<SectionLayoutOption> AvailableLayouts { get; set; } = new();
+
+    protected override void OnInitialized()
+    {
+        // Define available layouts
+        AvailableLayouts = new List<SectionLayoutOption>
+        {
+            new()
+            {
+                LayoutType = "1-col",
+                DisplayName = "Single Column",
+                Description = "Full width single column layout",
+                ColumnCount = 1,
+                GridTemplateColumns = "1fr",
+                MinPageWidthMm = 100
+            },
+            new()
+            {
+                LayoutType = "2-col-equal",
+                DisplayName = "Two Equal",
+                Description = "Two columns of equal width (50% / 50%)",
+                ColumnCount = 2,
+                GridTemplateColumns = "1fr 1fr",
+                MinPageWidthMm = 140
+            },
+            new()
+            {
+                LayoutType = "2-col-left",
+                DisplayName = "Wide Left",
+                Description = "Two columns with wider left side (66% / 33%)",
+                ColumnCount = 2,
+                GridTemplateColumns = "2fr 1fr",
+                MinPageWidthMm = 140
+            },
+            new()
+            {
+                LayoutType = "2-col-right",
+                DisplayName = "Wide Right",
+                Description = "Two columns with wider right side (33% / 66%)",
+                ColumnCount = 2,
+                GridTemplateColumns = "1fr 2fr",
+                MinPageWidthMm = 140
+            },
+            new()
+            {
+                LayoutType = "3-col-equal",
+                DisplayName = "Three Equal",
+                Description = "Three columns of equal width (33% / 33% / 33%)",
+                ColumnCount = 3,
+                GridTemplateColumns = "1fr 1fr 1fr",
+                MinPageWidthMm = 180
+            }
+        };
+    }
+
+    private async Task SelectLayout(SectionLayoutOption layout)
+    {
+        if (PageWidthMm.HasValue && PageWidthMm.Value < layout.MinPageWidthMm)
+        {
+            return; // Can't select this layout
+        }
+
+        SelectedLayoutType = layout.LayoutType;
+        await SelectedLayoutTypeChanged.InvokeAsync(layout.LayoutType);
+    }
+
+    /// <summary>
+    /// Simple DTO for layout options in this component
+    /// </summary>
+    private class SectionLayoutOption
+    {
+        public string LayoutType { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int ColumnCount { get; set; }
+        public string GridTemplateColumns { get; set; } = string.Empty;
+        public decimal MinPageWidthMm { get; set; }
+    }
+}

@@ -34,6 +34,7 @@ public class NavigationService
         new() { Name = "Estimate", Icon = "dollar-sign", Description = "Cost Estimation & Quotes", Type = "app" },
         new() { Name = "FabMate", Icon = "wrench", Description = "Production & Workflow", Type = "app" },
         new() { Name = "QDocs", Icon = "clipboard-list", Description = "Quality Documentation", Type = "app" },
+        new() { Name = "Assets", Icon = "box", Description = "Equipment & Asset Management", Type = "app" },
     };
 
     private readonly List<ModuleDefinition> _settingsModules = new()
@@ -154,6 +155,15 @@ public class NavigationService
             Category = "Module",
             Module = "Estimate"
         },
+        new() {
+            Label = "Forms",
+            Title = "Forms",
+            Description = "Fillable forms and ITPs",
+            Icon = "clipboard-check",
+            Url = "/estimate/forms",
+            Category = "Module",
+            Module = "Estimate"
+        },
 
         // FabMate Module
         new() {
@@ -180,6 +190,15 @@ public class NavigationService
             Description = "Manage resources",
             Icon = "users",
             Url = "/fabmate/resources",
+            Category = "Module",
+            Module = "FabMate"
+        },
+        new() {
+            Label = "Forms",
+            Title = "Forms",
+            Description = "Work order forms and checklists",
+            Icon = "clipboard-check",
+            Url = "/fabmate/forms",
             Category = "Module",
             Module = "FabMate"
         },
@@ -211,6 +230,62 @@ public class NavigationService
             Url = "/qdocs/compliance",
             Category = "Module",
             Module = "QDocs"
+        },
+        new() {
+            Label = "Forms",
+            Title = "Forms",
+            Description = "Quality forms and ITPs",
+            Icon = "clipboard-check",
+            Url = "/qdocs/forms",
+            Category = "Module",
+            Module = "QDocs"
+        },
+
+        // Assets Module
+        new() {
+            Label = "Equipment",
+            Title = "Equipment",
+            Description = "Manage equipment and tools",
+            Icon = "box",
+            Url = "/assets/equipment",
+            Category = "Module",
+            Module = "Assets"
+        },
+        new() {
+            Label = "Locations",
+            Title = "Locations",
+            Description = "Manage storage locations",
+            Icon = "map-pin",
+            Url = "/assets/locations",
+            Category = "Module",
+            Module = "Assets"
+        },
+        new() {
+            Label = "Kits",
+            Title = "Equipment Kits",
+            Description = "Manage equipment kits",
+            Icon = "package",
+            Url = "/assets/kits",
+            Category = "Module",
+            Module = "Assets"
+        },
+        new() {
+            Label = "Maintenance",
+            Title = "Maintenance",
+            Description = "Track maintenance schedules",
+            Icon = "tool",
+            Url = "/assets/maintenance",
+            Category = "Module",
+            Module = "Assets"
+        },
+        new() {
+            Label = "Forms",
+            Title = "Forms",
+            Description = "Asset inspection forms",
+            Icon = "clipboard-check",
+            Url = "/assets/forms",
+            Category = "Module",
+            Module = "Assets"
         },
 
         // Settings Module

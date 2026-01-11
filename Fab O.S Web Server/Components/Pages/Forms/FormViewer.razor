@@ -1,0 +1,551 @@
+@*
+═══════════════════════════════════════════════════════════════
+VIEWER/EDITOR PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: Card (Detail)
+Entity: FormInstance
+Features: Form filling, field rendering, approval workflow
+Pattern: Detail/Edit
+Module: Forms (cross-module)
+Last Updated: 2026-01-04
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/estimate/forms/instances/{id:int}"
+@page "/{tenantSlug}/fabmate/forms/instances/{id:int}"
+@page "/{tenantSlug}/qdocs/forms/instances/{id:int}"
+@page "/{tenantSlug}/assets/forms/instances/{id:int}"
+@page "/{tenantSlug}/estimate/forms/instances/{id:int}/edit"
+@page "/{tenantSlug}/fabmate/forms/instances/{id:int}/edit"
+@page "/{tenantSlug}/qdocs/forms/instances/{id:int}/edit"
+@page "/{tenantSlug}/assets/forms/instances/{id:int}/edit"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Models.Entities.Forms
+@using FabOS.WebServer.Models.DTOs.Forms
+
+<PageTitle>@(formInstance?.FormNumber ?? "Form") - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" ShowSearch="false" PageType="PageType.Card" />
+
+@if (isLoading)
+{
+    <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <p>Loading form...</p>
+    </div>
+}
+else if (formInstance == null)
+{
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Form not found.
+    </div>
+}
+else
+{
+    <!-- Form Header -->
+    <div class="form-header">
+        <div class="form-identity">
+            <div class="form-number">
+                <i class="fas fa-file-alt"></i>
+                <span>@formInstance.FormNumber</span>
+            </div>
+            <div class="form-template-name">@formInstance.Template?.Name</div>
+        </div>
+        <div class="form-status-info">
+            <span class="badge @GetStatusBadgeClass(formInstance.Status)">
+                @formInstance.StatusName
+            </span>
+            @if (formInstance.LinkedEntityDisplay != null)
+            {
+                <span class="linked-entity">
+                    <i class="fas fa-link me-1"></i>@formInstance.LinkedEntityDisplay
+                </span>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible mt-3">
+            <i class="fas fa-exclamation-circle me-2"></i>@errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible mt-3">
+            <i class="fas fa-check-circle me-2"></i>@successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+        </div>
+    }
+
+    <!-- Form Content -->
+    <div class="form-content">
+        @if (formInstance.Template?.Fields != null)
+        {
+            @foreach (var sectionName in GetSections())
+            {
+                <div class="form-section">
+                    @if (formInstance.Template.ShowSectionHeaders && !string.IsNullOrEmpty(sectionName))
+                    {
+                        <div class="section-header">
+                            <h5>@sectionName</h5>
+                        </div>
+                    }
+                    <div class="section-fields">
+                        @foreach (var field in GetFieldsInSection(sectionName))
+                        {
+                            <div class="form-field @GetFieldWidthClass(field)">
+                                <label class="field-label">
+                                    @field.DisplayName
+                                    @if (field.IsRequired)
+                                    {
+                                        <span class="text-danger">*</span>
+                                    }
+                                </label>
+                                @RenderField(field)
+                                @if (!string.IsNullOrEmpty(field.HelpText))
+                                {
+                                    <small class="field-help">@field.HelpText</small>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+
+        <!-- Notes Section -->
+        @if (formInstance.Template?.AllowNotes == true)
+        {
+            <div class="form-section">
+                <div class="section-header">
+                    <h5>Notes</h5>
+                </div>
+                <div class="section-fields">
+                    <div class="form-field width-full">
+                        <textarea class="form-control"
+                                  rows="4"
+                                  placeholder="Add any additional notes..."
+                                  @bind="formInstance.Notes"
+                                  @bind:after="MarkUnsaved"
+                                  disabled="@IsReadOnly"></textarea>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Approval History -->
+        @if (formInstance.Status != FormInstanceStatus.Draft)
+        {
+            <div class="form-section">
+                <div class="section-header">
+                    <h5>History</h5>
+                </div>
+                <div class="section-fields">
+                    <div class="timeline">
+                        @if (formInstance.SubmittedDate.HasValue)
+                        {
+                            <div class="timeline-item">
+                                <div class="timeline-icon bg-info">
+                                    <i class="fas fa-paper-plane"></i>
+                                </div>
+                                <div class="timeline-content">
+                                    <strong>Submitted</strong>
+                                    <span>by @(formInstance.SubmittedByName ?? "Unknown")</span>
+                                    <small>@formInstance.SubmittedDate?.ToString("MMM dd, yyyy HH:mm")</small>
+                                </div>
+                            </div>
+                        }
+                        @if (formInstance.ApprovedDate.HasValue)
+                        {
+                            <div class="timeline-item">
+                                <div class="timeline-icon bg-success">
+                                    <i class="fas fa-check"></i>
+                                </div>
+                                <div class="timeline-content">
+                                    <strong>Approved</strong>
+                                    <span>by @(formInstance.ApprovedByName ?? "Unknown")</span>
+                                    <small>@formInstance.ApprovedDate?.ToString("MMM dd, yyyy HH:mm")</small>
+                                </div>
+                            </div>
+                        }
+                        @if (formInstance.Status == FormInstanceStatus.Rejected)
+                        {
+                            <div class="timeline-item">
+                                <div class="timeline-icon bg-danger">
+                                    <i class="fas fa-times"></i>
+                                </div>
+                                <div class="timeline-content">
+                                    <strong>Rejected</strong>
+                                    <span>by @(formInstance.ReviewedByName ?? "Unknown")</span>
+                                    <small>@formInstance.ReviewedDate?.ToString("MMM dd, yyyy HH:mm")</small>
+                                    @if (!string.IsNullOrEmpty(formInstance.RejectionReason))
+                                    {
+                                        <p class="rejection-reason">@formInstance.RejectionReason</p>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Workflow Actions (shown when form is editable) -->
+    @if (CanSubmit)
+    {
+        <div class="workflow-actions">
+            <button class="btn btn-success" @onclick="SubmitForm" disabled="@isSaving">
+                <i class="fas fa-paper-plane me-1"></i> Submit for Review
+            </button>
+        </div>
+    }
+
+    <!-- Approval Actions (shown for reviewers) -->
+    @if (CanApprove)
+    {
+        <div class="workflow-actions">
+            <button class="btn btn-success me-2" @onclick="ApproveForm" disabled="@isSaving">
+                <i class="fas fa-check me-1"></i> Approve
+            </button>
+            <button class="btn btn-danger" @onclick="ShowRejectDialog" disabled="@isSaving">
+                <i class="fas fa-times me-1"></i> Reject
+            </button>
+        </div>
+    }
+}
+
+<!-- Rejection Dialog -->
+@if (showRejectDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Reject Form</h5>
+                    <button type="button" class="btn-close" @onclick="() => showRejectDialog = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Reason for Rejection</label>
+                        <textarea class="form-control" rows="4" @bind="rejectionReason"
+                                  placeholder="Explain why this form is being rejected..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showRejectDialog = false">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="RejectForm"
+                            disabled="@string.IsNullOrWhiteSpace(rejectionReason)">
+                        <i class="fas fa-times me-1"></i> Reject
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Signature Capture Modal -->
+@if (showSignatureModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Capture Signature</h5>
+                    <button type="button" class="btn-close" @onclick="CloseSignatureModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="signature-container">
+                        <canvas id="signatureCanvas" width="600" height="200"
+                                style="border: 1px solid #ccc; cursor: crosshair;"></canvas>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="ClearSignature">
+                        <i class="fas fa-eraser me-1"></i> Clear
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseSignatureModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveSignature">
+                        <i class="fas fa-save me-1"></i> Save Signature
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 400px;
+    }
+
+    .loading-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid #e9ecef;
+        border-top-color: #0d6efd;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .form-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .form-identity {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .form-number {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+
+    .form-template-name {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+
+    .form-status-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .linked-entity {
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+
+    .form-content {
+        padding: 1.5rem;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .form-section {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+    }
+
+    .section-header {
+        background: #f8f9fa;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .section-header h5 {
+        margin: 0;
+        font-size: 1rem;
+    }
+
+    .section-fields {
+        padding: 1.25rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .form-field {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .form-field.width-full {
+        width: 100%;
+    }
+
+    .form-field.width-half {
+        width: calc(50% - 0.5rem);
+    }
+
+    .form-field.width-third {
+        width: calc(33.333% - 0.667rem);
+    }
+
+    .field-label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .field-help {
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+
+    .workflow-actions {
+        display: flex;
+        justify-content: flex-end;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-top: 1px solid #dee2e6;
+        position: sticky;
+        bottom: 0;
+    }
+
+    /* Timeline */
+    .timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+
+    .timeline-item {
+        position: relative;
+        padding-bottom: 1rem;
+    }
+
+    .timeline-item:not(:last-child)::before {
+        content: '';
+        position: absolute;
+        left: -23px;
+        top: 24px;
+        bottom: 0;
+        width: 2px;
+        background: #dee2e6;
+    }
+
+    .timeline-icon {
+        position: absolute;
+        left: -30px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.7rem;
+    }
+
+    .timeline-content {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .timeline-content small {
+        color: #6c757d;
+    }
+
+    .rejection-reason {
+        background: #f8d7da;
+        padding: 0.5rem;
+        border-radius: 4px;
+        margin-top: 0.5rem;
+        color: #842029;
+    }
+
+    /* Pass/Fail buttons */
+    .pass-fail-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .pass-fail-buttons .btn {
+        flex: 1;
+    }
+
+    .pass-fail-buttons .btn.active {
+        font-weight: bold;
+    }
+
+    /* Signature area */
+    .signature-area {
+        border: 2px dashed #dee2e6;
+        border-radius: 4px;
+        min-height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        background: #f8f9fa;
+    }
+
+    .signature-area:hover {
+        border-color: #0d6efd;
+    }
+
+    .signature-area.has-signature {
+        border-style: solid;
+    }
+
+    .signature-area img {
+        max-width: 100%;
+        max-height: 100px;
+    }
+
+    /* Photo upload */
+    .photo-upload-area {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .photo-thumbnail {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+    }
+
+    .photo-add-button {
+        width: 100px;
+        height: 100px;
+        border: 2px dashed #dee2e6;
+        border-radius: 4px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        background: #f8f9fa;
+    }
+
+    .photo-add-button:hover {
+        border-color: #0d6efd;
+    }
+
+    /* Location field */
+    .location-display {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        background: #f8f9fa;
+        border-radius: 4px;
+    }
+
+    .signature-container {
+        display: flex;
+        justify-content: center;
+    }
+</style>

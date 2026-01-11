@@ -1,0 +1,438 @@
+@namespace FabOS.WebServer.Components.Pages.Forms
+@using FabOS.WebServer.Models.DTOs.Forms
+
+@* FormSection - Renders a form section with CSS Grid columns and field drop zones *@
+
+<div class="form-section @(IsSelected ? "selected" : "") @(Section.IsCollapsible && isCollapsed ? "collapsed" : "")"
+     style="@GetSectionStyle()"
+     @onclick="HandleClick"
+     @onclick:stopPropagation="true">
+
+    @* Section Header *@
+    <div class="section-header" style="@GetHeaderStyle()">
+        <div class="header-left">
+            @* Drag Handle *@
+            <div class="section-drag-handle"
+                 draggable="true"
+                 @ondragstart="HandleDragStart"
+                 @ondragend="HandleDragEnd">
+                <i class="fas fa-grip-vertical"></i>
+            </div>
+
+            @* Collapse Toggle *@
+            @if (Section.IsCollapsible)
+            {
+                <button class="btn-collapse" @onclick="ToggleCollapse" @onclick:stopPropagation="true">
+                    <i class="fas @(isCollapsed ? "fa-chevron-right" : "fa-chevron-down")"></i>
+                </button>
+            }
+
+            @* Section Name *@
+            @if (isEditingName)
+            {
+                <input type="text"
+                       class="section-name-input"
+                       @bind="editedName"
+                       @onblur="SaveName"
+                       @onkeydown="HandleNameKeyDown"
+                       @ref="nameInputRef" />
+            }
+            else
+            {
+                <span class="section-name" @ondblclick="StartEditingName">
+                    @Section.Name
+                </span>
+            }
+
+            @* Layout indicator *@
+            <span class="layout-badge" title="@GetLayoutDescription()">
+                <i class="@GetLayoutIcon()"></i>
+                @GetLayoutShortName()
+            </span>
+        </div>
+
+        <div class="header-actions">
+            @* Edit Layout Button *@
+            <button class="btn-section-action" @onclick="() => ShowLayoutPicker = !ShowLayoutPicker" @onclick:stopPropagation="true" title="Change Layout">
+                <i class="fas fa-columns"></i>
+            </button>
+
+            @* Settings Button *@
+            <button class="btn-section-action" @onclick="OpenSettings" @onclick:stopPropagation="true" title="Section Settings">
+                <i class="fas fa-cog"></i>
+            </button>
+
+            @* Delete Button *@
+            <button class="btn-section-action btn-danger" @onclick="DeleteSection" @onclick:stopPropagation="true" title="Delete Section">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </div>
+
+    @* Inline Layout Picker *@
+    @if (ShowLayoutPicker)
+    {
+        <div class="inline-layout-picker">
+            <SectionLayoutPicker SelectedLayoutType="@Section.LayoutType"
+                                 SelectedLayoutTypeChanged="HandleLayoutChange"
+                                 PageWidthMm="@PageWidthMm"
+                                 IsCompact="true" />
+        </div>
+    }
+
+    @* Section Content - CSS Grid *@
+    @if (!isCollapsed)
+    {
+        <div class="section-content" style="@GetGridStyle()">
+            @for (int col = 0; col < GetColumnCount(); col++)
+            {
+                var columnIndex = col;
+                var fieldsInColumn = GetFieldsInColumn(columnIndex);
+
+                <div class="section-column @(dragOverColumn == columnIndex ? "drag-over" : "")"
+                     @ondragenter="@(() => HandleDragEnterColumn(columnIndex))"
+                     @ondragleave="HandleDragLeaveColumn"
+                     @ondragover:preventDefault="true"
+                     @ondrop="@(() => HandleDropInColumn(columnIndex))">
+
+                    @if (fieldsInColumn.Any())
+                    {
+                        @foreach (var field in fieldsInColumn)
+                        {
+                            <div class="field-card"
+                                 draggable="true"
+                                 @onclick="@(() => OnFieldSelect.InvokeAsync(field))"
+                                 @onclick:stopPropagation="true"
+                                 @ondragstart="@(() => HandleFieldDragStart(field))">
+                                <div class="field-card-icon">
+                                    <i class="@GetFieldIcon(field)"></i>
+                                </div>
+                                <div class="field-card-content">
+                                    <span class="field-display-name">@field.DisplayName</span>
+                                    <span class="field-type">@field.DataTypeName</span>
+                                </div>
+                                <div class="field-drag-indicator">
+                                    <i class="fas fa-grip-vertical"></i>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="column-placeholder">
+                            <i class="fas fa-plus-circle"></i>
+                            <span>Drop field here</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The section to render
+    /// </summary>
+    [Parameter]
+    public FormTemplateSectionDto Section { get; set; } = null!;
+
+    /// <summary>
+    /// Whether this section is currently selected
+    /// </summary>
+    [Parameter]
+    public bool IsSelected { get; set; }
+
+    /// <summary>
+    /// Current page width for layout constraints
+    /// </summary>
+    [Parameter]
+    public decimal PageWidthMm { get; set; } = 210; // A4 default
+
+    /// <summary>
+    /// Callback when section is clicked/selected
+    /// </summary>
+    [Parameter]
+    public EventCallback<FormTemplateSectionDto> OnSelect { get; set; }
+
+    /// <summary>
+    /// Callback when a field is selected
+    /// </summary>
+    [Parameter]
+    public EventCallback<FormTemplateFieldDto> OnFieldSelect { get; set; }
+
+    /// <summary>
+    /// Callback when section layout changes
+    /// </summary>
+    [Parameter]
+    public EventCallback<(FormTemplateSectionDto Section, string LayoutType)> OnLayoutChange { get; set; }
+
+    /// <summary>
+    /// Callback when section name changes
+    /// </summary>
+    [Parameter]
+    public EventCallback<(FormTemplateSectionDto Section, string Name)> OnNameChange { get; set; }
+
+    /// <summary>
+    /// Callback when settings are requested
+    /// </summary>
+    [Parameter]
+    public EventCallback<FormTemplateSectionDto> OnSettingsRequested { get; set; }
+
+    /// <summary>
+    /// Callback when deletion is requested
+    /// </summary>
+    [Parameter]
+    public EventCallback<FormTemplateSectionDto> OnDeleteRequested { get; set; }
+
+    /// <summary>
+    /// Callback when a field is dropped into this section
+    /// </summary>
+    [Parameter]
+    public EventCallback<(FormTemplateSectionDto Section, int ColumnIndex, int RowIndex)> OnFieldDrop { get; set; }
+
+    /// <summary>
+    /// Callback when section drag starts
+    /// </summary>
+    [Parameter]
+    public EventCallback<FormTemplateSectionDto> OnDragStart { get; set; }
+
+    /// <summary>
+    /// Callback when section drag ends
+    /// </summary>
+    [Parameter]
+    public EventCallback OnDragEnd { get; set; }
+
+    /// <summary>
+    /// Callback when a field drag starts within this section
+    /// </summary>
+    [Parameter]
+    public EventCallback<FormTemplateFieldDto> OnFieldDragStart { get; set; }
+
+    private bool isCollapsed = false;
+    private bool isEditingName = false;
+    private string editedName = string.Empty;
+    private bool ShowLayoutPicker = false;
+    private int? dragOverColumn = null;
+    private ElementReference nameInputRef;
+
+    private void HandleClick()
+    {
+        OnSelect.InvokeAsync(Section);
+    }
+
+    private void ToggleCollapse()
+    {
+        isCollapsed = !isCollapsed;
+    }
+
+    private void StartEditingName()
+    {
+        editedName = Section.Name;
+        isEditingName = true;
+    }
+
+    private async Task SaveName()
+    {
+        isEditingName = false;
+        if (!string.IsNullOrWhiteSpace(editedName) && editedName != Section.Name)
+        {
+            await OnNameChange.InvokeAsync((Section, editedName));
+        }
+    }
+
+    private async Task HandleNameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SaveName();
+        }
+        else if (e.Key == "Escape")
+        {
+            isEditingName = false;
+            editedName = Section.Name;
+        }
+    }
+
+    private async Task HandleLayoutChange(string layoutType)
+    {
+        ShowLayoutPicker = false;
+        if (layoutType != Section.LayoutType)
+        {
+            await OnLayoutChange.InvokeAsync((Section, layoutType));
+        }
+    }
+
+    private async Task OpenSettings()
+    {
+        await OnSettingsRequested.InvokeAsync(Section);
+    }
+
+    private async Task DeleteSection()
+    {
+        await OnDeleteRequested.InvokeAsync(Section);
+    }
+
+    private void HandleDragStart()
+    {
+        OnDragStart.InvokeAsync(Section);
+    }
+
+    private void HandleDragEnd()
+    {
+        OnDragEnd.InvokeAsync();
+    }
+
+    private void HandleFieldDragStart(FormTemplateFieldDto field)
+    {
+        OnFieldDragStart.InvokeAsync(field);
+    }
+
+    private void HandleDragEnterColumn(int columnIndex)
+    {
+        dragOverColumn = columnIndex;
+    }
+
+    private void HandleDragLeaveColumn()
+    {
+        dragOverColumn = null;
+    }
+
+    private async Task HandleDropInColumn(int columnIndex)
+    {
+        dragOverColumn = null;
+        var rowIndex = GetFieldsInColumn(columnIndex).Count();
+        await OnFieldDrop.InvokeAsync((Section, columnIndex, rowIndex));
+    }
+
+    private int GetColumnCount()
+    {
+        return Section.LayoutType switch
+        {
+            "1-col" => 1,
+            "2-col-equal" or "2-col-left" or "2-col-right" => 2,
+            "3-col-equal" => 3,
+            _ => 1
+        };
+    }
+
+    private IEnumerable<FormTemplateFieldDto> GetFieldsInColumn(int columnIndex)
+    {
+        return Section.Fields
+            .Where(f => f.ColumnIndex == columnIndex)
+            .OrderBy(f => f.RowIndex);
+    }
+
+    private string GetSectionStyle()
+    {
+        var styles = new List<string>();
+
+        if (!string.IsNullOrEmpty(Section.BackgroundColor))
+            styles.Add($"background-color: {Section.BackgroundColor}");
+
+        if (!string.IsNullOrEmpty(Section.BorderColor))
+            styles.Add($"border-color: {Section.BorderColor}");
+
+        if (Section.BorderWidth.HasValue && Section.BorderWidth > 0)
+            styles.Add($"border-width: {Section.BorderWidth}px");
+
+        if (Section.BorderRadius.HasValue)
+            styles.Add($"border-radius: {Section.BorderRadius}px");
+
+        if (Section.Padding.HasValue)
+            styles.Add($"--section-padding: {Section.Padding}px");
+
+        return string.Join("; ", styles);
+    }
+
+    private string GetHeaderStyle()
+    {
+        var styles = new List<string>();
+
+        if (!string.IsNullOrEmpty(Section.HeaderBackgroundColor))
+            styles.Add($"background-color: {Section.HeaderBackgroundColor}");
+
+        if (!string.IsNullOrEmpty(Section.HeaderTextColor))
+            styles.Add($"color: {Section.HeaderTextColor}");
+
+        return string.Join("; ", styles);
+    }
+
+    private string GetGridStyle()
+    {
+        var gridCols = Section.LayoutType switch
+        {
+            "1-col" => "1fr",
+            "2-col-equal" => "1fr 1fr",
+            "2-col-left" => "2fr 1fr",
+            "2-col-right" => "1fr 2fr",
+            "3-col-equal" => "1fr 1fr 1fr",
+            _ => "1fr"
+        };
+
+        return $"grid-template-columns: {gridCols}";
+    }
+
+    private string GetLayoutShortName()
+    {
+        return Section.LayoutType switch
+        {
+            "1-col" => "1 col",
+            "2-col-equal" => "2 col",
+            "2-col-left" => "2 col (L)",
+            "2-col-right" => "2 col (R)",
+            "3-col-equal" => "3 col",
+            _ => "1 col"
+        };
+    }
+
+    private string GetLayoutDescription()
+    {
+        return Section.LayoutType switch
+        {
+            "1-col" => "Single column layout",
+            "2-col-equal" => "Two equal columns (50/50)",
+            "2-col-left" => "Two columns, wider left (66/33)",
+            "2-col-right" => "Two columns, wider right (33/66)",
+            "3-col-equal" => "Three equal columns (33/33/33)",
+            _ => "Unknown layout"
+        };
+    }
+
+    private string GetLayoutIcon()
+    {
+        return Section.LayoutType switch
+        {
+            "1-col" => "fas fa-square",
+            "2-col-equal" => "fas fa-columns",
+            "2-col-left" => "fas fa-align-left",
+            "2-col-right" => "fas fa-align-right",
+            "3-col-equal" => "fas fa-th",
+            _ => "fas fa-square"
+        };
+    }
+
+    private string GetFieldIcon(FormTemplateFieldDto field)
+    {
+        return field.DataType switch
+        {
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.Text => "fas fa-font",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.MultilineText => "fas fa-align-left",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.Number => "fas fa-hashtag",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.Currency => "fas fa-dollar-sign",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.Percentage => "fas fa-percent",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.Date => "fas fa-calendar",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.DateTime => "fas fa-clock",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.Checkbox => "fas fa-check-square",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.Choice => "fas fa-list",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.MultiChoice => "fas fa-tasks",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.Photo => "fas fa-camera",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.Signature => "fas fa-signature",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.Location => "fas fa-map-marker-alt",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.Computed => "fas fa-calculator",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.PassFail => "fas fa-check-circle",
+            FabOS.WebServer.Models.Entities.Forms.FormFieldDataType.WorksheetLink => "fas fa-table",
+            _ => "fas fa-question-circle"
+        };
+    }
+}

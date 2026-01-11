@@ -4,6 +4,7 @@ using FabOS.WebServer.Data.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FabOS.WebServer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260107094039_AddFormTemplatePageSize")]
+    partial class AddFormTemplatePageSize
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4061,26 +4064,6 @@ namespace FabOS.WebServer.Migrations
                     b.Property<decimal>("PageWidthMm")
                         .HasColumnType("decimal(8,2)");
 
-                    b.Property<decimal>("MarginTopMm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(8,2)")
-                        .HasDefaultValue(20m);
-
-                    b.Property<decimal>("MarginRightMm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(8,2)")
-                        .HasDefaultValue(15m);
-
-                    b.Property<decimal>("MarginBottomMm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(8,2)")
-                        .HasDefaultValue(20m);
-
-                    b.Property<decimal>("MarginLeftMm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(8,2)")
-                        .HasDefaultValue(15m);
-
                     b.Property<bool>("ShowSectionHeaders")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -4117,9 +4100,6 @@ namespace FabOS.WebServer.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("ColumnIndex")
-                        .HasColumnType("int");
-
                     b.Property<string>("CurrencySymbol")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
@@ -4150,9 +4130,6 @@ namespace FabOS.WebServer.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<int>("FormTemplateId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("FormTemplateSectionId")
                         .HasColumnType("int");
 
                     b.Property<string>("Formula")
@@ -4204,9 +4181,6 @@ namespace FabOS.WebServer.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
-                    b.Property<int>("RowIndex")
-                        .HasColumnType("int");
-
                     b.Property<string>("SectionName")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -4232,34 +4206,7 @@ namespace FabOS.WebServer.Migrations
                         .HasColumnType("nvarchar(20)")
                         .HasDefaultValue("full");
 
-                    b.Property<int?>("PaddingTop")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingRight")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingBottom")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingLeft")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MarginTop")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MarginBottom")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TextAlign")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int?>("FixedHeight")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("FormTemplateSectionId");
 
                     b.HasIndex("LinkedWorksheetTemplateId");
 
@@ -4270,119 +4217,6 @@ namespace FabOS.WebServer.Migrations
                     b.HasIndex("FormTemplateId", "SectionOrder", "DisplayOrder");
 
                     b.ToTable("FormTemplateFields");
-                });
-
-            modelBuilder.Entity("FabOS.WebServer.Models.Entities.Forms.FormTemplateSection", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("BackgroundColor")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("BorderColor")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int?>("BorderRadius")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("BorderWidth")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("DisplayOrder")
-                        .HasColumnType("int");
-
-                    b.Property<int>("FormTemplateId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("HeaderBackgroundColor")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("HeaderTextColor")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<bool>("IsCollapsedByDefault")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsCollapsible")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsFooter")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsHeader")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("KeepTogether")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("LayoutType")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<int?>("ModifiedByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ModifiedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int?>("Padding")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingTop")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingRight")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingBottom")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaddingLeft")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ContentAlignHorizontal")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("ContentAlignVertical")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<bool>("PageBreakBefore")
-                        .HasColumnType("bit");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("FormTemplateId");
-
-                    b.HasIndex("ModifiedByUserId");
-
-                    b.ToTable("FormTemplateSections");
                 });
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.GlobalSettings", b =>
@@ -10652,10 +10486,6 @@ namespace FabOS.WebServer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("FabOS.WebServer.Models.Entities.Forms.FormTemplateSection", "Section")
-                        .WithMany("Fields")
-                        .HasForeignKey("FormTemplateSectionId");
-
                     b.HasOne("FabOS.WebServer.Models.Entities.EstimationWorksheetTemplate", "LinkedWorksheetTemplate")
                         .WithMany()
                         .HasForeignKey("LinkedWorksheetTemplateId")
@@ -10664,31 +10494,6 @@ namespace FabOS.WebServer.Migrations
                     b.Navigation("FormTemplate");
 
                     b.Navigation("LinkedWorksheetTemplate");
-
-                    b.Navigation("Section");
-                });
-
-            modelBuilder.Entity("FabOS.WebServer.Models.Entities.Forms.FormTemplateSection", b =>
-                {
-                    b.HasOne("FabOS.WebServer.Models.Entities.User", "CreatedByUser")
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId");
-
-                    b.HasOne("FabOS.WebServer.Models.Entities.Forms.FormTemplate", "FormTemplate")
-                        .WithMany("Sections")
-                        .HasForeignKey("FormTemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("FabOS.WebServer.Models.Entities.User", "ModifiedByUser")
-                        .WithMany()
-                        .HasForeignKey("ModifiedByUserId");
-
-                    b.Navigation("CreatedByUser");
-
-                    b.Navigation("FormTemplate");
-
-                    b.Navigation("ModifiedByUser");
                 });
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.GlobalSettings", b =>
@@ -12428,18 +12233,11 @@ namespace FabOS.WebServer.Migrations
                     b.Navigation("Fields");
 
                     b.Navigation("Instances");
-
-                    b.Navigation("Sections");
                 });
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.Forms.FormTemplateField", b =>
                 {
                     b.Navigation("Values");
-                });
-
-            modelBuilder.Entity("FabOS.WebServer.Models.Entities.Forms.FormTemplateSection", b =>
-                {
-                    b.Navigation("Fields");
                 });
 
             modelBuilder.Entity("FabOS.WebServer.Models.Entities.ITPInspectionPoint", b =>

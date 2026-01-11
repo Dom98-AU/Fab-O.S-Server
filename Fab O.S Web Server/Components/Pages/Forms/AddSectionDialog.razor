@@ -1,0 +1,194 @@
+@namespace FabOS.WebServer.Components.Pages.Forms
+@using FabOS.WebServer.Models.DTOs.Forms
+
+@* AddSectionDialog - Modal for adding a new section to a form template *@
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Close">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-plus-square"></i>
+                    Add Section
+                </h3>
+                <button class="btn-close-modal" @onclick="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @* Section Name *@
+                <div class="form-group">
+                    <label for="sectionName">Section Name</label>
+                    <input type="text"
+                           id="sectionName"
+                           class="form-control"
+                           placeholder="Enter section name..."
+                           @bind="sectionName"
+                           @bind:event="oninput"
+                           @ref="nameInputRef" />
+                </div>
+
+                @* Layout Selection *@
+                <div class="form-group">
+                    <label>Column Layout</label>
+                    <SectionLayoutPicker @bind-SelectedLayoutType="selectedLayout"
+                                         PageWidthMm="@PageWidthMm"
+                                         Label="" />
+                </div>
+
+                @* Page Break Option *@
+                <div class="form-group form-check">
+                    <input type="checkbox"
+                           id="pageBreakBefore"
+                           class="form-check-input"
+                           @bind="pageBreakBefore" />
+                    <label for="pageBreakBefore" class="form-check-label">
+                        Start on new page (page break before)
+                    </label>
+                </div>
+
+                @* Keep Together Option *@
+                <div class="form-group form-check">
+                    <input type="checkbox"
+                           id="keepTogether"
+                           class="form-check-input"
+                           @bind="keepTogether" />
+                    <label for="keepTogether" class="form-check-label">
+                        Keep section together (avoid page breaks within)
+                    </label>
+                </div>
+
+                @* Collapsible Option *@
+                <div class="form-group form-check">
+                    <input type="checkbox"
+                           id="isCollapsible"
+                           class="form-check-input"
+                           @bind="isCollapsible" />
+                    <label for="isCollapsible" class="form-check-label">
+                        Allow section to be collapsed
+                    </label>
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        @errorMessage
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="Close">
+                    Cancel
+                </button>
+                <button class="btn btn-primary" @onclick="AddSection" disabled="@IsAddDisabled">
+                    <i class="fas fa-plus"></i>
+                    Add Section
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// Whether the dialog is visible
+    /// </summary>
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    /// <summary>
+    /// Callback when visibility changes
+    /// </summary>
+    [Parameter]
+    public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    /// <summary>
+    /// Current page width for layout constraints
+    /// </summary>
+    [Parameter]
+    public decimal PageWidthMm { get; set; } = 210;
+
+    /// <summary>
+    /// Callback when a section is added
+    /// </summary>
+    [Parameter]
+    public EventCallback<CreateFormTemplateSectionRequest> OnSectionAdded { get; set; }
+
+    private string sectionName = string.Empty;
+    private string selectedLayout = "1-col";
+    private bool pageBreakBefore = false;
+    private bool keepTogether = true;
+    private bool isCollapsible = false;
+    private string? errorMessage = null;
+    private ElementReference nameInputRef;
+
+    private bool IsAddDisabled => string.IsNullOrWhiteSpace(sectionName);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible)
+        {
+            // Reset form when dialog opens
+            sectionName = string.Empty;
+            selectedLayout = "1-col";
+            pageBreakBefore = false;
+            keepTogether = true;
+            isCollapsible = false;
+            errorMessage = null;
+
+            // Focus the name input after a short delay
+            await Task.Delay(100);
+            // Note: Focus requires JS interop in Blazor, not implemented here
+        }
+    }
+
+    private async Task Close()
+    {
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+
+    private async Task AddSection()
+    {
+        if (string.IsNullOrWhiteSpace(sectionName))
+        {
+            errorMessage = "Please enter a section name.";
+            return;
+        }
+
+        // Validate layout against page width
+        var minWidth = GetMinPageWidth(selectedLayout);
+        if (PageWidthMm < minWidth)
+        {
+            errorMessage = $"Selected layout requires {minWidth}mm page width. Current page is {PageWidthMm}mm.";
+            return;
+        }
+
+        var request = new CreateFormTemplateSectionRequest
+        {
+            Name = sectionName.Trim(),
+            LayoutType = selectedLayout,
+            PageBreakBefore = pageBreakBefore,
+            KeepTogether = keepTogether,
+            IsCollapsible = isCollapsible,
+            IsCollapsedByDefault = false
+        };
+
+        await OnSectionAdded.InvokeAsync(request);
+        await Close();
+    }
+
+    private decimal GetMinPageWidth(string layoutType)
+    {
+        return layoutType switch
+        {
+            "1-col" => 100,
+            "2-col-equal" or "2-col-left" or "2-col-right" => 140,
+            "3-col-equal" => 180,
+            _ => 100
+        };
+    }
+}

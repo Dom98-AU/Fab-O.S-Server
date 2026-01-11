@@ -1,0 +1,576 @@
+@namespace FabOS.WebServer.Components.Pages.Forms
+@using FabOS.WebServer.Models.DTOs.Forms
+
+@* SectionPropertiesPanel - Panel for editing section properties *@
+
+@if (Section != null)
+{
+    <div class="section-properties-panel @(IsVisible ? "visible" : "")">
+        <div class="panel-header">
+            <h4>
+                <i class="fas fa-cog"></i>
+                Section Properties
+            </h4>
+            <button class="btn-close-panel" @onclick="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="panel-body">
+            @* Section Name *@
+            <div class="property-group">
+                <label>Section Name</label>
+                <input type="text"
+                       class="form-control"
+                       @bind="editedSection.Name"
+                       @bind:event="oninput"
+                       placeholder="Section name..." />
+            </div>
+
+            @* Layout Section *@
+            <div class="property-section">
+                <div class="section-title" @onclick="() => showLayout = !showLayout">
+                    <i class="fas @(showLayout ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                    <span>Layout</span>
+                </div>
+                @if (showLayout)
+                {
+                    <div class="section-content">
+                        <SectionLayoutPicker @bind-SelectedLayoutType="editedSection.LayoutType"
+                                             PageWidthMm="@PageWidthMm"
+                                             IsCompact="true"
+                                             Label="" />
+                    </div>
+                }
+            </div>
+
+            @* Page Behavior Section *@
+            <div class="property-section">
+                <div class="section-title" @onclick="() => showPageBehavior = !showPageBehavior">
+                    <i class="fas @(showPageBehavior ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                    <span>Page Behavior</span>
+                </div>
+                @if (showPageBehavior)
+                {
+                    <div class="section-content">
+                        <div class="property-check">
+                            <input type="checkbox" id="pageBreak" @bind="editedSection.PageBreakBefore" />
+                            <label for="pageBreak">Page break before section</label>
+                        </div>
+                        <div class="property-check">
+                            <input type="checkbox" id="keepTogether" @bind="editedSection.KeepTogether" />
+                            <label for="keepTogether">Keep section together</label>
+                        </div>
+                        <div class="property-check">
+                            <input type="checkbox" id="collapsible" @bind="editedSection.IsCollapsible" />
+                            <label for="collapsible">Allow collapse</label>
+                        </div>
+                        @if (editedSection.IsCollapsible)
+                        {
+                            <div class="property-check sub-check">
+                                <input type="checkbox" id="collapsedDefault" @bind="editedSection.IsCollapsedByDefault" />
+                                <label for="collapsedDefault">Collapsed by default</label>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @* Styling Section *@
+            <div class="property-section">
+                <div class="section-title" @onclick="() => showStyling = !showStyling">
+                    <i class="fas @(showStyling ? "fa-chevron-down" : "fa-chevron-right")"></i>
+                    <span>Styling</span>
+                </div>
+                @if (showStyling)
+                {
+                    <div class="section-content">
+                        @* Background Color *@
+                        <div class="property-row">
+                            <label>Background</label>
+                            <div class="color-input-group">
+                                <input type="color"
+                                       @bind="backgroundColor"
+                                       class="color-picker" />
+                                <input type="text"
+                                       @bind="editedSection.BackgroundColor"
+                                       placeholder="#ffffff"
+                                       class="color-text" />
+                                <button class="btn-clear-color" @onclick="() => editedSection.BackgroundColor = null" title="Clear">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        @* Border Color *@
+                        <div class="property-row">
+                            <label>Border Color</label>
+                            <div class="color-input-group">
+                                <input type="color"
+                                       @bind="borderColor"
+                                       class="color-picker" />
+                                <input type="text"
+                                       @bind="editedSection.BorderColor"
+                                       placeholder="#e5e7eb"
+                                       class="color-text" />
+                                <button class="btn-clear-color" @onclick="() => editedSection.BorderColor = null" title="Clear">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        @* Border Width *@
+                        <div class="property-row">
+                            <label>Border Width</label>
+                            <div class="number-input-group">
+                                <input type="number"
+                                       @bind="editedSection.BorderWidth"
+                                       min="0"
+                                       max="10"
+                                       class="number-input" />
+                                <span class="unit">px</span>
+                            </div>
+                        </div>
+
+                        @* Border Radius *@
+                        <div class="property-row">
+                            <label>Corner Radius</label>
+                            <div class="number-input-group">
+                                <input type="number"
+                                       @bind="editedSection.BorderRadius"
+                                       min="0"
+                                       max="50"
+                                       class="number-input" />
+                                <span class="unit">px</span>
+                            </div>
+                        </div>
+
+                        @* Padding - Individual Controls *@
+                        <div class="spacing-section">
+                            <div class="spacing-header">
+                                <label>Padding</label>
+                                <button class="btn-link-padding @(linkPadding ? "active" : "")"
+                                        @onclick="ToggleLinkPadding"
+                                        title="@(linkPadding ? "Unlink padding values" : "Link padding values")">
+                                    <i class="fas @(linkPadding ? "fa-link" : "fa-unlink")"></i>
+                                </button>
+                            </div>
+                            @if (linkPadding)
+                            {
+                                <div class="property-row">
+                                    <label>All Sides</label>
+                                    <div class="number-input-group-with-arrows">
+                                        <input type="number"
+                                               @bind="editedSection.Padding"
+                                               min="0"
+                                               max="100"
+                                               class="number-input" />
+                                        <div class="arrow-buttons">
+                                            <button class="arrow-btn" @onclick="() => IncrementPadding(1)" title="+1px">
+                                                <i class="fas fa-chevron-up"></i>
+                                            </button>
+                                            <button class="arrow-btn" @onclick="() => IncrementPadding(-1)" title="-1px">
+                                                <i class="fas fa-chevron-down"></i>
+                                            </button>
+                                        </div>
+                                        <span class="unit">px</span>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="spacing-grid">
+                                    <div class="spacing-row">
+                                        <label>Top</label>
+                                        <div class="number-input-group-with-arrows">
+                                            <input type="number"
+                                                   @bind="editedSection.PaddingTop"
+                                                   min="0"
+                                                   max="100"
+                                                   class="number-input" />
+                                            <div class="arrow-buttons">
+                                                <button class="arrow-btn" @onclick="IncrementPaddingTop" title="+1px">
+                                                    <i class="fas fa-chevron-up"></i>
+                                                </button>
+                                                <button class="arrow-btn" @onclick="DecrementPaddingTop" title="-1px">
+                                                    <i class="fas fa-chevron-down"></i>
+                                                </button>
+                                            </div>
+                                            <span class="unit">px</span>
+                                        </div>
+                                    </div>
+                                    <div class="spacing-row">
+                                        <label>Right</label>
+                                        <div class="number-input-group-with-arrows">
+                                            <input type="number"
+                                                   @bind="editedSection.PaddingRight"
+                                                   min="0"
+                                                   max="100"
+                                                   class="number-input" />
+                                            <div class="arrow-buttons">
+                                                <button class="arrow-btn" @onclick="IncrementPaddingRight" title="+1px">
+                                                    <i class="fas fa-chevron-up"></i>
+                                                </button>
+                                                <button class="arrow-btn" @onclick="DecrementPaddingRight" title="-1px">
+                                                    <i class="fas fa-chevron-down"></i>
+                                                </button>
+                                            </div>
+                                            <span class="unit">px</span>
+                                        </div>
+                                    </div>
+                                    <div class="spacing-row">
+                                        <label>Bottom</label>
+                                        <div class="number-input-group-with-arrows">
+                                            <input type="number"
+                                                   @bind="editedSection.PaddingBottom"
+                                                   min="0"
+                                                   max="100"
+                                                   class="number-input" />
+                                            <div class="arrow-buttons">
+                                                <button class="arrow-btn" @onclick="IncrementPaddingBottom" title="+1px">
+                                                    <i class="fas fa-chevron-up"></i>
+                                                </button>
+                                                <button class="arrow-btn" @onclick="DecrementPaddingBottom" title="-1px">
+                                                    <i class="fas fa-chevron-down"></i>
+                                                </button>
+                                            </div>
+                                            <span class="unit">px</span>
+                                        </div>
+                                    </div>
+                                    <div class="spacing-row">
+                                        <label>Left</label>
+                                        <div class="number-input-group-with-arrows">
+                                            <input type="number"
+                                                   @bind="editedSection.PaddingLeft"
+                                                   min="0"
+                                                   max="100"
+                                                   class="number-input" />
+                                            <div class="arrow-buttons">
+                                                <button class="arrow-btn" @onclick="IncrementPaddingLeft" title="+1px">
+                                                    <i class="fas fa-chevron-up"></i>
+                                                </button>
+                                                <button class="arrow-btn" @onclick="DecrementPaddingLeft" title="-1px">
+                                                    <i class="fas fa-chevron-down"></i>
+                                                </button>
+                                            </div>
+                                            <span class="unit">px</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        @* Content Alignment *@
+                        <div class="spacing-section">
+                            <label class="spacing-label">Content Alignment</label>
+                            <div class="property-row">
+                                <label>Horizontal</label>
+                                <div class="alignment-buttons">
+                                    <button class="align-btn @(editedSection.ContentAlignHorizontal == "left" || string.IsNullOrEmpty(editedSection.ContentAlignHorizontal) ? "active" : "")"
+                                            @onclick="@(() => SetHorizontalAlign("left"))"
+                                            title="Left align">
+                                        <i class="fas fa-align-left"></i>
+                                    </button>
+                                    <button class="align-btn @(editedSection.ContentAlignHorizontal == "center" ? "active" : "")"
+                                            @onclick="@(() => SetHorizontalAlign("center"))"
+                                            title="Center align">
+                                        <i class="fas fa-align-center"></i>
+                                    </button>
+                                    <button class="align-btn @(editedSection.ContentAlignHorizontal == "right" ? "active" : "")"
+                                            @onclick="@(() => SetHorizontalAlign("right"))"
+                                            title="Right align">
+                                        <i class="fas fa-align-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="property-row">
+                                <label>Vertical</label>
+                                <div class="alignment-buttons">
+                                    <button class="align-btn @(editedSection.ContentAlignVertical == "top" || string.IsNullOrEmpty(editedSection.ContentAlignVertical) ? "active" : "")"
+                                            @onclick="@(() => SetVerticalAlign("top"))"
+                                            title="Align top">
+                                        <i class="fas fa-arrow-up"></i>
+                                    </button>
+                                    <button class="align-btn @(editedSection.ContentAlignVertical == "middle" ? "active" : "")"
+                                            @onclick="@(() => SetVerticalAlign("middle"))"
+                                            title="Align middle">
+                                        <i class="fas fa-minus"></i>
+                                    </button>
+                                    <button class="align-btn @(editedSection.ContentAlignVertical == "bottom" ? "active" : "")"
+                                            @onclick="@(() => SetVerticalAlign("bottom"))"
+                                            title="Align bottom">
+                                        <i class="fas fa-arrow-down"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="style-divider"></div>
+
+                        @* Header Background *@
+                        <div class="property-row">
+                            <label>Header Background</label>
+                            <div class="color-input-group">
+                                <input type="color"
+                                       @bind="headerBgColor"
+                                       class="color-picker" />
+                                <input type="text"
+                                       @bind="editedSection.HeaderBackgroundColor"
+                                       placeholder="#f9fafb"
+                                       class="color-text" />
+                                <button class="btn-clear-color" @onclick="() => editedSection.HeaderBackgroundColor = null" title="Clear">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        @* Header Text Color *@
+                        <div class="property-row">
+                            <label>Header Text</label>
+                            <div class="color-input-group">
+                                <input type="color"
+                                       @bind="headerTextColor"
+                                       class="color-picker" />
+                                <input type="text"
+                                       @bind="editedSection.HeaderTextColor"
+                                       placeholder="#374151"
+                                       class="color-text" />
+                                <button class="btn-clear-color" @onclick="() => editedSection.HeaderTextColor = null" title="Clear">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="panel-footer">
+            <button class="btn btn-secondary" @onclick="Cancel">
+                Cancel
+            </button>
+            <button class="btn btn-primary" @onclick="Save">
+                <i class="fas fa-save"></i>
+                Save Changes
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// The section being edited
+    /// </summary>
+    [Parameter]
+    public FormTemplateSectionDto? Section { get; set; }
+
+    /// <summary>
+    /// Whether the panel is visible
+    /// </summary>
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    /// <summary>
+    /// Callback when visibility changes
+    /// </summary>
+    [Parameter]
+    public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    /// <summary>
+    /// Current page width for layout constraints
+    /// </summary>
+    [Parameter]
+    public decimal PageWidthMm { get; set; } = 210;
+
+    /// <summary>
+    /// Callback when section is updated
+    /// </summary>
+    [Parameter]
+    public EventCallback<UpdateFormTemplateSectionRequest> OnSectionUpdated { get; set; }
+
+    private EditableSectionDto editedSection = new();
+    private bool showLayout = true;
+    private bool showPageBehavior = true;
+    private bool showStyling = false;
+    private bool linkPadding = true;
+
+    // Color picker bindings
+    private string backgroundColor
+    {
+        get => editedSection.BackgroundColor ?? "#ffffff";
+        set => editedSection.BackgroundColor = value == "#ffffff" ? null : value;
+    }
+
+    private string borderColor
+    {
+        get => editedSection.BorderColor ?? "#e5e7eb";
+        set => editedSection.BorderColor = value == "#e5e7eb" ? null : value;
+    }
+
+    private string headerBgColor
+    {
+        get => editedSection.HeaderBackgroundColor ?? "#f9fafb";
+        set => editedSection.HeaderBackgroundColor = value == "#f9fafb" ? null : value;
+    }
+
+    private string headerTextColor
+    {
+        get => editedSection.HeaderTextColor ?? "#374151";
+        set => editedSection.HeaderTextColor = value == "#374151" ? null : value;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Section != null && IsVisible)
+        {
+            // Copy section properties to editable object
+            editedSection = new EditableSectionDto
+            {
+                Id = Section.Id,
+                Name = Section.Name,
+                LayoutType = Section.LayoutType,
+                DisplayOrder = Section.DisplayOrder,
+                PageBreakBefore = Section.PageBreakBefore,
+                KeepTogether = Section.KeepTogether,
+                IsCollapsible = Section.IsCollapsible,
+                IsCollapsedByDefault = Section.IsCollapsedByDefault,
+                BackgroundColor = Section.BackgroundColor,
+                BorderColor = Section.BorderColor,
+                HeaderBackgroundColor = Section.HeaderBackgroundColor,
+                HeaderTextColor = Section.HeaderTextColor,
+                BorderWidth = Section.BorderWidth,
+                BorderRadius = Section.BorderRadius,
+                Padding = Section.Padding,
+                PaddingTop = Section.PaddingTop,
+                PaddingRight = Section.PaddingRight,
+                PaddingBottom = Section.PaddingBottom,
+                PaddingLeft = Section.PaddingLeft,
+                ContentAlignHorizontal = Section.ContentAlignHorizontal,
+                ContentAlignVertical = Section.ContentAlignVertical
+            };
+
+            // Determine if we should use linked or individual padding mode
+            linkPadding = Section.Padding.HasValue ||
+                (!Section.PaddingTop.HasValue && !Section.PaddingRight.HasValue &&
+                 !Section.PaddingBottom.HasValue && !Section.PaddingLeft.HasValue);
+        }
+    }
+
+    private void ToggleLinkPadding()
+    {
+        linkPadding = !linkPadding;
+        if (linkPadding)
+        {
+            // Copy individual values to unified padding (use top or 0)
+            editedSection.Padding = editedSection.PaddingTop ?? editedSection.PaddingRight ??
+                                     editedSection.PaddingBottom ?? editedSection.PaddingLeft ?? 0;
+            editedSection.PaddingTop = null;
+            editedSection.PaddingRight = null;
+            editedSection.PaddingBottom = null;
+            editedSection.PaddingLeft = null;
+        }
+        else
+        {
+            // Copy unified padding to all individual values
+            var paddingValue = editedSection.Padding ?? 0;
+            editedSection.PaddingTop = paddingValue;
+            editedSection.PaddingRight = paddingValue;
+            editedSection.PaddingBottom = paddingValue;
+            editedSection.PaddingLeft = paddingValue;
+            editedSection.Padding = null;
+        }
+    }
+
+    private void IncrementPadding(int delta)
+    {
+        int current = editedSection.Padding ?? 0;
+        int newValue = current + delta;
+        if (newValue < 0) newValue = 0;
+        if (newValue > 100) newValue = 100;
+        editedSection.Padding = newValue;
+        StateHasChanged();
+    }
+
+    // Alignment setters
+    private void SetHorizontalAlign(string align) => editedSection.ContentAlignHorizontal = align;
+    private void SetVerticalAlign(string align) => editedSection.ContentAlignVertical = align;
+
+    // Individual padding increment/decrement
+    private void IncrementPaddingTop() => editedSection.PaddingTop = Math.Min(100, (editedSection.PaddingTop ?? 0) + 1);
+    private void DecrementPaddingTop() => editedSection.PaddingTop = Math.Max(0, (editedSection.PaddingTop ?? 0) - 1);
+    private void IncrementPaddingRight() => editedSection.PaddingRight = Math.Min(100, (editedSection.PaddingRight ?? 0) + 1);
+    private void DecrementPaddingRight() => editedSection.PaddingRight = Math.Max(0, (editedSection.PaddingRight ?? 0) - 1);
+    private void IncrementPaddingBottom() => editedSection.PaddingBottom = Math.Min(100, (editedSection.PaddingBottom ?? 0) + 1);
+    private void DecrementPaddingBottom() => editedSection.PaddingBottom = Math.Max(0, (editedSection.PaddingBottom ?? 0) - 1);
+    private void IncrementPaddingLeft() => editedSection.PaddingLeft = Math.Min(100, (editedSection.PaddingLeft ?? 0) + 1);
+    private void DecrementPaddingLeft() => editedSection.PaddingLeft = Math.Max(0, (editedSection.PaddingLeft ?? 0) - 1);
+
+    private async Task Close()
+    {
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+
+    private async Task Cancel()
+    {
+        await Close();
+    }
+
+    private async Task Save()
+    {
+        var request = new UpdateFormTemplateSectionRequest
+        {
+            Id = editedSection.Id,
+            Name = editedSection.Name,
+            LayoutType = editedSection.LayoutType,
+            DisplayOrder = editedSection.DisplayOrder,
+            PageBreakBefore = editedSection.PageBreakBefore,
+            KeepTogether = editedSection.KeepTogether,
+            IsCollapsible = editedSection.IsCollapsible,
+            IsCollapsedByDefault = editedSection.IsCollapsedByDefault,
+            BackgroundColor = editedSection.BackgroundColor,
+            BorderColor = editedSection.BorderColor,
+            HeaderBackgroundColor = editedSection.HeaderBackgroundColor,
+            HeaderTextColor = editedSection.HeaderTextColor,
+            BorderWidth = editedSection.BorderWidth,
+            BorderRadius = editedSection.BorderRadius,
+            Padding = editedSection.Padding,
+            PaddingTop = editedSection.PaddingTop,
+            PaddingRight = editedSection.PaddingRight,
+            PaddingBottom = editedSection.PaddingBottom,
+            PaddingLeft = editedSection.PaddingLeft,
+            ContentAlignHorizontal = editedSection.ContentAlignHorizontal,
+            ContentAlignVertical = editedSection.ContentAlignVertical
+        };
+
+        await OnSectionUpdated.InvokeAsync(request);
+        await Close();
+    }
+
+    /// <summary>
+    /// Internal editable DTO
+    /// </summary>
+    private class EditableSectionDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string LayoutType { get; set; } = "1-col";
+        public int DisplayOrder { get; set; }
+        public bool PageBreakBefore { get; set; }
+        public bool KeepTogether { get; set; }
+        public bool IsCollapsible { get; set; }
+        public bool IsCollapsedByDefault { get; set; }
+        public string? BackgroundColor { get; set; }
+        public string? BorderColor { get; set; }
+        public string? HeaderBackgroundColor { get; set; }
+        public string? HeaderTextColor { get; set; }
+        public int? BorderWidth { get; set; }
+        public int? BorderRadius { get; set; }
+        public int? Padding { get; set; }
+        public int? PaddingTop { get; set; }
+        public int? PaddingRight { get; set; }
+        public int? PaddingBottom { get; set; }
+        public int? PaddingLeft { get; set; }
+        public string? ContentAlignHorizontal { get; set; }
+        public string? ContentAlignVertical { get; set; }
+    }
+}

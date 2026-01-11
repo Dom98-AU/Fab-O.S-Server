@@ -1,0 +1,193 @@
+/* SectionLayoutPicker.razor.css - Scoped styles for section layout picker */
+
+.section-layout-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.picker-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 0.25rem;
+}
+
+.layout-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+/* Individual layout option */
+.layout-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 90px;
+}
+
+.layout-option:hover:not(.disabled) {
+    border-color: #93c5fd;
+    background: #f0f9ff;
+}
+
+.layout-option.selected {
+    border-color: #1976d2;
+    background: #e3f2fd;
+    box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.15);
+}
+
+.layout-option.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f9fafb;
+}
+
+/* Layout preview container */
+.layout-preview {
+    width: 70px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Preview grid containers */
+.preview-grid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    gap: 3px;
+    padding: 2px;
+    background: #e5e7eb;
+    border-radius: 4px;
+}
+
+/* Single column */
+.preview-grid.grid-1 .preview-col {
+    flex: 1;
+}
+
+/* Two equal columns */
+.preview-grid.grid-2 .preview-col {
+    flex: 1;
+}
+
+/* Two columns - wide left */
+.preview-grid.grid-2-left .preview-col {
+    flex: 1;
+}
+
+.preview-grid.grid-2-left .preview-col.wide {
+    flex: 2;
+}
+
+/* Two columns - wide right */
+.preview-grid.grid-2-right .preview-col {
+    flex: 1;
+}
+
+.preview-grid.grid-2-right .preview-col.wide {
+    flex: 2;
+}
+
+/* Three equal columns */
+.preview-grid.grid-3 .preview-col {
+    flex: 1;
+}
+
+/* Column styling */
+.preview-col {
+    background: #93c5fd;
+    border-radius: 2px;
+    transition: background 0.2s ease;
+}
+
+.layout-option.selected .preview-col {
+    background: #1976d2;
+}
+
+.layout-option.disabled .preview-col {
+    background: #9ca3af;
+}
+
+/* Layout info */
+.layout-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.layout-name {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #374151;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.layout-option.selected .layout-name {
+    color: #1565c0;
+}
+
+.layout-warning {
+    font-size: 0.625rem;
+    color: #f59e0b;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.layout-warning i {
+    font-size: 0.625rem;
+}
+
+/* Compact mode */
+.section-layout-picker.compact .layout-options {
+    gap: 0.5rem;
+}
+
+.section-layout-picker.compact .layout-option {
+    padding: 0.5rem;
+    min-width: 50px;
+}
+
+.section-layout-picker.compact .layout-preview {
+    width: 50px;
+    height: 30px;
+}
+
+.section-layout-picker.compact .preview-grid {
+    gap: 2px;
+    padding: 1px;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+    .layout-options {
+        justify-content: center;
+    }
+
+    .layout-option {
+        min-width: 70px;
+        padding: 0.5rem;
+    }
+
+    .layout-preview {
+        width: 55px;
+        height: 32px;
+    }
+
+    .layout-name {
+        font-size: 0.65rem;
+    }
+}

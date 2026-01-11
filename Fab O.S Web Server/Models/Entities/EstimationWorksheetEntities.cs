@@ -490,6 +490,23 @@ public class EstimationWorksheetColumn
     [StringLength(500)]
     public string? LookupFilter { get; set; } // Optional filter criteria (JSON)
 
+    // FormLink configuration (for FormLink data type)
+    /// <summary>
+    /// Link to form template for FormLink columns
+    /// </summary>
+    public int? LinkedFormTemplateId { get; set; }
+
+    /// <summary>
+    /// Which form field to display in the cell (e.g., "FormNumber", "Status")
+    /// </summary>
+    [StringLength(50)]
+    public string? FormDisplayField { get; set; }
+
+    /// <summary>
+    /// Whether to allow creating new form instances from this column
+    /// </summary>
+    public bool AllowCreateForm { get; set; } = true;
+
     // Person configuration (for Person data type)
     [StringLength(50)]
     public string? PersonSource { get; set; } // Users, Contacts, Both
@@ -870,6 +887,7 @@ public enum WorksheetColumnDataType
     Person,         // User/Contact reference
     Computed,       // Formula-based
     Catalogue,      // From CatalogueItem field
+    FormLink,       // Link to Form instance (bidirectional Forms ↔ Worksheets)
     Custom
 }
 

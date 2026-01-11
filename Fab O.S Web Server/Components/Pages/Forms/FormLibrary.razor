@@ -1,0 +1,163 @@
+@*
+═══════════════════════════════════════════════════════════════
+LIST-TYPE PAGE
+═══════════════════════════════════════════════════════════════
+Page Type: List
+Entity: FormTemplate
+Views: Table, List, Card
+Features: ViewPreferences, ColumnManagement, Search, Selection, Sorting, Filtering
+Pattern: Standard
+Module: Forms (cross-module: Estimate, FabMate, QDocs, Assets)
+Last Updated: 2026-01-07
+═══════════════════════════════════════════════════════════════
+*@
+@page "/{tenantSlug}/estimate/forms"
+@page "/{tenantSlug}/fabmate/forms"
+@page "/{tenantSlug}/qdocs/forms"
+@page "/{tenantSlug}/assets/forms"
+@rendermode InteractiveServer
+@using FabOS.WebServer.Components.Shared
+@using FabOS.WebServer.Components.Shared.Interfaces
+@using FabOS.WebServer.Data.Contexts
+@using FabOS.WebServer.Models.Entities.Forms
+@using FabOS.WebServer.Models.DTOs.Forms
+@using FabOS.WebServer.Models
+@using FabOS.WebServer.Models.ViewState
+@using FabOS.WebServer.Models.Columns
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Form Templates - Fab.OS</PageTitle>
+
+<!-- Standard Toolbar -->
+<StandardToolbar ActionProvider="@this" OnSearch="@OnSearchChanged" SearchPlaceholder="Search form templates..." PageType="PageType.List" />
+
+<!-- Content -->
+<div class="forms-container">
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading form templates...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="error-container">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Error</h3>
+            <p>@errorMessage</p>
+        </div>
+    }
+    else
+    {
+        <!-- Unified View Toolbar -->
+        <TableViewToolbar TItem="FormTemplateSummaryDto"
+                         EnableViewPreferences="true"
+                         EnableColumnManagement="true"
+                         EntityType="FormTemplate"
+                         CurrentViewState="@currentViewState"
+                         OnViewLoaded="@HandleViewLoaded"
+                         HasUnsavedChanges="@hasUnsavedChanges"
+                         Columns="@managedColumns"
+                         OnColumnsChanged="@HandleColumnsChanged"
+                         HasCustomColumnConfig="@hasCustomColumnConfig"
+                         CurrentView="@currentView"
+                         OnViewChanged="@OnViewChanged" />
+
+        <!-- Views -->
+        @if (filteredTemplates.Any())
+        {
+            @if (currentView == GenericViewSwitcher<FormTemplateSummaryDto>.ViewType.Table)
+            {
+                <GenericTableView TItem="FormTemplateSummaryDto"
+                                 Items="@filteredTemplates"
+                                 AllItems="@allTemplates"
+                                 Columns="@tableColumns"
+                                 AllowSelection="true"
+                                 ShowCheckboxes="true"
+                                 SelectedItems="@selectedTableItems"
+                                 SelectedItemsChanged="@HandleTableSelectionChanged"
+                                 OnRowClick="@HandleRowClick"
+                                 OnRowDoubleClick="@HandleRowDoubleClick"
+                                 EnableAdvancedFeatures="true"
+                                 EnableColumnManagement="true"
+                                 EnableFiltering="true"
+                                 EnableViewPreferences="true"
+                                 EntityType="FormTemplate" />
+            }
+            else if (currentView == GenericViewSwitcher<FormTemplateSummaryDto>.ViewType.List)
+            {
+                <GenericListView TItem="FormTemplateSummaryDto"
+                                Items="@filteredTemplates"
+                                OnItemClick="@HandleRowClick"
+                                OnItemDoubleClick="@HandleRowDoubleClick"
+                                AllowSelection="true"
+                                SelectedItems="@selectedListItems"
+                                SelectedItemsChanged="@HandleListSelectionChanged">
+                    <ItemTitle Context="template">
+                        <span>@template.Name</span>
+                        @if (template.IsSystemTemplate)
+                        {
+                            <span class="badge bg-secondary ms-2">System</span>
+                        }
+                        @if (template.IsCompanyDefault)
+                        {
+                            <span class="badge bg-success ms-2">Default</span>
+                        }
+                    </ItemTitle>
+                    <ItemStatus Context="template">
+                        <span class="badge @(template.IsPublished ? "bg-success" : "bg-warning text-dark")">
+                            @(template.IsPublished ? "Published" : "Draft")
+                        </span>
+                    </ItemStatus>
+                    <ItemSubtitle Context="template">
+                        <span>@(template.Description ?? "No description")</span>
+                    </ItemSubtitle>
+                    <ItemDetails Context="template">
+                        <div class="d-flex gap-3">
+                            <span>
+                                <i class="fas fa-list-ul"></i>
+                                @template.FieldCount Fields
+                            </span>
+                            <span>
+                                <i class="fas fa-file-alt"></i>
+                                @template.InstanceCount Instances
+                            </span>
+                            @if (!string.IsNullOrEmpty(template.FormType))
+                            {
+                                <span class="text-muted">
+                                    <i class="fas fa-tag"></i> @template.FormType
+                                </span>
+                            }
+                        </div>
+                    </ItemDetails>
+                </GenericListView>
+            }
+            else if (currentView == GenericViewSwitcher<FormTemplateSummaryDto>.ViewType.Card)
+            {
+                <GenericCardView TItem="FormTemplateSummaryDto"
+                                Items="@filteredTemplates"
+                                TitleSelector="@(item => item.Name)"
+                                SubtitleSelector="@(item => item.Description ?? "No description")"
+                                DescriptionSelector="@(item => $"{item.FieldCount} fields, {item.InstanceCount} instances")"
+                                StatusSelector="@(item => item.IsPublished ? "Published" : "Draft")"
+                                BadgeSelector="@(item => item.IsSystemTemplate ? "System" : (item.IsCompanyDefault ? "Default" : ""))"
+                                AllowSelection="true"
+                                SelectedItems="@selectedCardItems"
+                                SelectedItemsChanged="@(EventCallback.Factory.Create<List<FormTemplateSummaryDto>>(this, HandleCardSelectionChanged))"
+                                OnItemClick="@(EventCallback.Factory.Create<FormTemplateSummaryDto>(this, (item) => NavigateToTemplate(item.Id)))"
+                                OnItemDoubleClick="@(EventCallback.Factory.Create<FormTemplateSummaryDto>(this, (item) => NavigateToTemplate(item.Id)))" />
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <h3>No form templates found</h3>
+                <p>@(string.IsNullOrEmpty(searchTerm) ? "You don't have any form templates yet. Use the 'New' button above to create your first template." : $"No templates match \"{searchTerm}\". Try adjusting your search.")</p>
+            </div>
+        }
+    }
+</div>

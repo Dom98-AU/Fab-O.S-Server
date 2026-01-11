@@ -1,0 +1,292 @@
+@namespace FabOS.WebServer.Components.Pages.Forms
+@rendermode InteractiveServer
+
+<div class="form-field-sidebar @(IsVisible ? "visible" : "")">
+    <!-- Sidebar Header -->
+    <div class="sidebar-header">
+        <h3>
+            <i class="fas fa-th-list"></i>
+            Field Types
+        </h3>
+        <div class="header-actions">
+            <button class="btn-close-sidebar" @onclick="ToggleSidebar" title="Toggle Sidebar">
+                <i class="fas @(IsVisible ? "fa-chevron-left" : "fa-chevron-right")"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="sidebar-search">
+        <div class="search-input-group">
+            <i class="fas fa-search"></i>
+            <input type="text"
+                   class="form-control"
+                   placeholder="Search fields..."
+                   @bind="searchTerm"
+                   @bind:event="oninput" />
+            @if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                <button class="btn-clear" @onclick="ClearSearch">
+                    <i class="fas fa-times"></i>
+                </button>
+            }
+        </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="sidebar-content">
+        @* Sections (includes Regular, Header, and Footer layouts) *@
+        @{
+            var allSectionLayouts = GetAllSectionLayouts().ToList();
+        }
+        @if (allSectionLayouts.Any())
+        {
+            <div class="field-section sections-section">
+                <div class="section-header @(IsSectionExpanded("Sections") ? "expanded" : "") section-purple"
+                     @onclick="@(() => ToggleSection("Sections"))">
+                    <i class="fas @(IsSectionExpanded("Sections") ? "fa-chevron-down" : "fa-chevron-right") section-chevron"></i>
+                    <span class="section-title">
+                        <i class="fas fa-layer-group section-icon"></i>
+                        Sections
+                    </span>
+                    <span class="section-badge badge-purple">@allSectionLayouts.Count</span>
+                </div>
+
+                @if (IsSectionExpanded("Sections"))
+                {
+                    <div class="field-list section-layouts-list">
+                        @foreach (var layoutDef in allSectionLayouts)
+                        {
+                            var isHeaderLayout = layoutDef.SectionType == FormSectionType.Header;
+                            var isFooterLayout = layoutDef.SectionType == FormSectionType.Footer;
+                            var isDisabled = IsSectionLayoutDisabled(layoutDef) ||
+                                           (isHeaderLayout && HasHeader) ||
+                                           (isFooterLayout && HasFooter);
+                            var currentLayout = layoutDef;
+                            var itemClass = isHeaderLayout ? "field-header" : (isFooterLayout ? "field-footer" : "field-purple");
+                            var iconClass = isHeaderLayout ? "icon-header" : (isFooterLayout ? "icon-footer" : "icon-purple");
+                            var tooltip = isHeaderLayout && HasHeader ? "Header already added" :
+                                         isFooterLayout && HasFooter ? "Footer already added" :
+                                         IsSectionLayoutDisabled(layoutDef) ? $"Requires {layoutDef.MinPageWidthMm}mm+ page width" :
+                                         layoutDef.Description;
+
+                            <div class="field-item @itemClass section-layout-item @(isDisabled ? "disabled" : "")"
+                                 draggable="@(isDisabled ? "false" : "true")"
+                                 @ondragstart="() => { if (!isDisabled) HandleSectionDragStart(currentLayout); }"
+                                 @ondragend="HandleSectionDragEnd"
+                                 title="@tooltip">
+                                <div class="field-icon @iconClass">
+                                    <i class="@(layoutDef.Icon)"></i>
+                                </div>
+                                <div class="field-info">
+                                    <span class="field-name">@(layoutDef.DisplayName)</span>
+                                    <span class="field-type">@(layoutDef.Description)</span>
+                                </div>
+                                @if ((isHeaderLayout && HasHeader) || (isFooterLayout && HasFooter))
+                                {
+                                    <div class="layout-added-badge" title="Already added">
+                                        <i class="fas fa-check"></i>
+                                    </div>
+                                }
+                                else if (IsSectionLayoutDisabled(layoutDef))
+                                {
+                                    <div class="layout-warning-badge" title="Page too narrow">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="field-drag-handle">
+                                        <i class="fas fa-grip-vertical"></i>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @* Field Types *@
+        @foreach (var group in GetFilteredFieldGroups())
+        {
+            <div class="field-section">
+                <div class="section-header @(IsSectionExpanded(group.GroupName) ? "expanded" : "") section-@group.GroupColor"
+                     @onclick="() => ToggleSection(group.GroupName)">
+                    <i class="fas @(IsSectionExpanded(group.GroupName) ? "fa-chevron-down" : "fa-chevron-right") section-chevron"></i>
+                    <span class="section-title">
+                        <i class="@group.GroupIcon section-icon"></i>
+                        @group.GroupName
+                    </span>
+                    <span class="section-badge badge-@group.GroupColor">@group.Fields.Count</span>
+                </div>
+
+                @if (IsSectionExpanded(group.GroupName))
+                {
+                    <div class="field-list">
+                        @foreach (var field in group.Fields)
+                        {
+                            <div class="field-item field-@group.GroupColor"
+                                 draggable="true"
+                                 @ondragstart="() => HandleDragStart(field)"
+                                 @ondragend="HandleDragEnd"
+                                 title="@field.Description">
+                                <div class="field-icon icon-@group.GroupColor">
+                                    <i class="@field.Icon"></i>
+                                </div>
+                                <div class="field-info">
+                                    <span class="field-name">@field.DisplayName</span>
+                                    <span class="field-type">@field.Description</span>
+                                </div>
+                                <div class="field-drag-handle">
+                                    <i class="fas fa-grip-vertical"></i>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @* Database Fields - Organized by Module *@
+        @{
+            var databaseGroups = GetFilteredDatabaseFieldGroups().ToList();
+        }
+        @if (databaseGroups.Any())
+        {
+            <div class="field-section database-fields-section">
+                <div class="section-header @(IsSectionExpanded("DataFields") ? "expanded" : "") section-database"
+                     @onclick="@(() => ToggleSection("DataFields"))">
+                    <i class="fas @(IsSectionExpanded("DataFields") ? "fa-chevron-down" : "fa-chevron-right") section-chevron"></i>
+                    <span class="section-title">
+                        <i class="fas fa-database section-icon"></i>
+                        Data Fields
+                    </span>
+                    <span class="section-badge badge-database">@GetDatabaseFieldCount()</span>
+                </div>
+
+                @if (IsSectionExpanded("DataFields"))
+                {
+                    <div class="database-field-groups">
+                        @foreach (var dbGroup in databaseGroups)
+                        {
+                            var hasModuleAccess = IsModuleAccessible(dbGroup.RequiredModule);
+                            var groupKey = $"db_{dbGroup.GroupName.Replace(" ", "")}";
+
+                            <div class="field-subgroup @(hasModuleAccess ? "" : "module-locked") subgroup-@dbGroup.GroupColor">
+                                <div class="subgroup-header @(IsSectionExpanded(groupKey) ? "expanded" : "")"
+                                     @onclick="@(() => ToggleSection(groupKey))">
+                                    <i class="fas @(IsSectionExpanded(groupKey) ? "fa-chevron-down" : "fa-chevron-right") subgroup-chevron"></i>
+                                    <div class="subgroup-icon icon-@dbGroup.GroupColor">
+                                        <i class="@dbGroup.GroupIcon"></i>
+                                    </div>
+                                    <span class="subgroup-title">@dbGroup.GroupName</span>
+                                    <span class="subgroup-count">@dbGroup.Fields.Count</span>
+                                    @if (!hasModuleAccess)
+                                    {
+                                        <span class="module-lock-badge" title="@($"Requires {dbGroup.RequiredModule} module")">
+                                            <i class="fas fa-lock"></i>
+                                        </span>
+                                    }
+                                </div>
+
+                                @if (IsSectionExpanded(groupKey))
+                                {
+                                    <div class="field-list subgroup-fields">
+                                        @foreach (var field in dbGroup.Fields)
+                                        {
+                                            var currentField = field;
+                                            <div class="field-item field-@dbGroup.GroupColor @(hasModuleAccess ? "" : "disabled")"
+                                                 draggable="@(hasModuleAccess ? "true" : "false")"
+                                                 @ondragstart="() => { if (hasModuleAccess) HandleDragStart(currentField); }"
+                                                 @ondragend="HandleDragEnd"
+                                                 title="@(hasModuleAccess ? field.Description : $"Requires {dbGroup.RequiredModule} module")">
+                                                <div class="field-icon icon-@dbGroup.GroupColor">
+                                                    <i class="@field.Icon"></i>
+                                                </div>
+                                                <div class="field-info">
+                                                    <span class="field-name">@field.DisplayName</span>
+                                                    <span class="field-type db-field-type">@field.Category</span>
+                                                </div>
+                                                @if (hasModuleAccess)
+                                                {
+                                                    <div class="field-drag-handle">
+                                                        <i class="fas fa-grip-vertical"></i>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="field-lock-icon">
+                                                        <i class="fas fa-lock"></i>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @if (!GetFilteredFieldGroups().Any() && !databaseGroups.Any())
+        {
+            <div class="no-results">
+                <i class="fas fa-search"></i>
+                <p>No fields match "<strong>@searchTerm</strong>"</p>
+            </div>
+        }
+    </div>
+
+    <!-- Dragging Item Preview Footer -->
+    @if (draggedField != null)
+    {
+        <div class="sidebar-footer">
+            <div class="dragging-preview">
+                <div class="preview-header">
+                    <i class="fas fa-hand-holding"></i>
+                    <strong>Dragging Field</strong>
+                </div>
+                <div class="preview-content">
+                    <div class="preview-icon">
+                        <i class="@draggedField.Icon"></i>
+                    </div>
+                    <div class="preview-info">
+                        <div class="preview-name">@draggedField.DisplayName</div>
+                        <div class="preview-type">@draggedField.Category Field</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (draggedSection != null)
+    {
+        <div class="sidebar-footer section-dragging">
+            <div class="dragging-preview">
+                <div class="preview-header">
+                    <i class="fas fa-layer-group"></i>
+                    <strong>Dragging Section</strong>
+                </div>
+                <div class="preview-content">
+                    <div class="preview-icon icon-purple">
+                        <i class="@draggedSection.Icon"></i>
+                    </div>
+                    <div class="preview-info">
+                        <div class="preview-name">@draggedSection.DisplayName</div>
+                        <div class="preview-type">@draggedSection.ColumnCount Column Layout</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Toggle Button (visible when sidebar is hidden) -->
+@if (!IsVisible)
+{
+    <button class="sidebar-toggle-btn" @onclick="ToggleSidebar" title="Show Field Sidebar">
+        <i class="fas fa-th-list"></i>
+    </button>
+}
